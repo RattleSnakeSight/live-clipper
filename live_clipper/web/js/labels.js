@@ -23,8 +23,22 @@ export const CLIP_STATES = {
 };
 
 export const DELIVERY_STATES = {
-  queued: ['Queued', 'neutral'], posting: ['Posting', 'accent'], posted: ['Posted', 'pos'],
-  published: ['Posted', 'pos'], failed: ['Failed', 'neg'], held: ['Held', 'warn'], cancelled: ['Cancelled', 'neutral'],
+  held: ['Waiting for you', 'warn', 'Manual mode: press Post to send it.'],
+  waiting_language: ['Waiting for captions', 'neutral', 'Posting starts when the captions are ready.'],
+  queued: ['Queued', 'neutral', 'Waiting its turn.'],
+  uploading: ['Uploading', 'accent', 'Sending the video now.'],
+  processing: ['Processing', 'accent', 'The site is processing the upload.'],
+  uncertain: ['Checking', 'warn', 'The upload may have worked; the app is checking.'],
+  paused: ['Paused', 'warn', 'The account needs to be reconnected.'],
+  needs_confirmation: ['Check the account', 'warn', 'Look at the account and confirm whether it was posted.'],
+  blocked: ['Blocked', 'warn', 'The destination is disabled or not allowed for this channel.'],
+  disallowed: ['Not allowed', 'neutral', 'This channel may not post here.'],
+  published: ['Posted', 'pos', 'Public on the site.'],
+  private: ['Posted privately', 'pos', 'Uploaded as private; only you can see it.'],
+  draft: ['Saved as draft', 'pos', 'Finish it in the site's own app.'],
+  failed: ['Failed', 'neg', 'The upload failed. See the error.'],
+  cancelled: ['Cancelled', 'neutral', ''],
+  skipped: ['Skipped', 'neutral', ''],
 };
 
 export function pill(map, state) {

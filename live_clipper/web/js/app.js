@@ -111,6 +111,24 @@ async function boot() {
   updateHealth();
   setInterval(() => { if (document.visibilityState === 'visible' && !signedOut) updateHealth(); }, 5000);
   if (setupDone) maybeStartTour();
+  watchNotifications();
+}
+
+// Shows new app notifications as browser notifications while this tab is open (if the user allowed them).
+async function watchNotifications() {
+  let since = null;
+  const tick = async () => {
+    if (signedOut) return;
+    try {
+      const r = await get(`/notifications?since=${since ?? 0}`);
+      if (since !== null && 'Notification' in window && Notification.permission === 'granted') {
+        for (const n of r.items || []) new Notification(n.title, { body: n.body, tag: `lc-${n.id}` });
+      }
+      since = r.latest ?? since ?? 0;
+    } catch { /* notifications service not available */ }
+  };
+  await tick();
+  setInterval(tick, 15000);
 }
 
 boot();
