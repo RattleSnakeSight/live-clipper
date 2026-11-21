@@ -36,7 +36,7 @@ version = { attr = "live_clipper.__version__" }
 include = ["live_clipper*"]
 
 [tool.setuptools.package-data]
-live_clipper = ["web/**/*", "formats/**/*", "guide/*.md", "presets/*.json", "models/*", "fonts/*"]
+live_clipper = ["web/**/*", "formats/**/*", "guide/*.md", "presets/*.json", "models/*", "fonts/*", "skill/*.md"]
 
 [tool.ruff]
 line-length = 110

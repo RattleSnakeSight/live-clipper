@@ -1,0 +1,9 @@
+* @RattleSnakeSight
+
+# Governance files
+/.github/ @RattleSnakeSight
+/.github/CODEOWNERS @RattleSnakeSight
+/LICENSE @RattleSnakeSight
+/SECURITY.md @RattleSnakeSight
+/CONTRIBUTING.md @RattleSnakeSight
+/AGENTS.md @RattleSnakeSight
