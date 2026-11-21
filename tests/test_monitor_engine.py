@@ -215,3 +215,18 @@ def test_parse_channel_url(url, expected):
 def test_parse_channel_url_rejects(url):
     with pytest.raises(ValueError):
         parse_channel_url(url)
+
+
+def test_live_capture_without_recent_media_is_not_shown_as_recording():
+    """Original readiness rule: a capture that still says live but has had no media segment for more than
+    10 s is stale, so the UI must not claim it is recording."""
+    import time as _time
+
+    now = _time.time()
+    fresh = {"capture": {"state": "live", "last_segment_at": now - 3}}
+    boundary = {"capture": {"state": "live", "last_segment_at": now - 10}}
+    stale = {"capture": {"state": "live", "last_segment_at": now - 11}}
+    assert public_state(fresh, True, now=now)["state"] == "recording"
+    assert public_state(boundary, True, now=now)["state"] == "recording"
+    st = public_state(stale, True, now=now)
+    assert st["state"] == "reconnecting" and "no media" in st["detail"]

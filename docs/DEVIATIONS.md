@@ -253,3 +253,12 @@ Evidence: `tests/test_robustness.py`, `tests/test_capture_exec.py`, `tests/test_
 | `engine.py` | Merging a repeated trigger into its clip reads and writes the trigger JSON under the store lock. | A concurrent trigger write was lost. |
 | `engine.py` (`Maintenance`) | Housekeeping measures free disk space in a worker thread; admission and recovery reuse a measurement under 1 s old. The event-loop database connection keeps its busy timeout: a short one would turn brief write contention into failed clips. | `disk_usage` on a slow disk blocked the event loop. |
 | `capture.py`, `_capture_exec.py` | Capture readers die with the worker on every platform: Linux as before (parent-death signal), Windows through a kill-on-close Job Object (readers start suspended, join it, resume), macOS and other POSIX systems through a watchdog launcher that kills the reader when its parent is gone. | A killed worker left streamlink/FFmpeg running outside Linux. |
+
+### Channel status shown in the UI
+
+The original's readiness classifier (live / offline / off_topic / stale / unknown, for its operator dashboard) is
+replaced by `engine.public_state` with the UI states offline, waiting, recording, reconnecting, needs_action and
+disabled. Its stale rule is kept: a capture that still reports live but has had no media segment for more than
+10 s (`MEDIA_STALE_S`, the original `stale_after`) is shown as reconnecting, not recording. Unknown-status cases
+show as waiting with the reason, and capture errors as needs_action with the fix. Monitoring decisions do not
+depend on this mapping.

@@ -380,7 +380,10 @@ class Monitor:
                 "off_topic": self.fmt.topic_states.off_topic}
 
 
-def public_state(st: dict | None, armed: bool) -> dict:
+MEDIA_STALE_S = 10.0  # the original readiness classifier's stale_after
+
+
+def public_state(st: dict | None, armed: bool, now: float | None = None) -> dict:
     """Internal reference states -> UI states: offline, waiting, recording, reconnecting, needs_action, disabled.
     needs_action always carries a readable detail and the fix."""
     if not armed:
@@ -394,6 +397,10 @@ def public_state(st: dict | None, armed: bool) -> dict:
         return {"state": "needs_action", "detail": cap.get("detail") or "capture failed",
                 "fix": cap.get("action_needed") or "Check the channel URL and that FFmpeg and Streamlink are installed"}
     if cap.get("state") == "live":
+        last = cap.get("last_segment_at")
+        age = (now if now is not None else time.time()) - last if last else None
+        if age is not None and age > MEDIA_STALE_S:   # original readiness rule: no fresh media = not recording
+            return {"state": "reconnecting", "detail": f"no media for {age:.0f} s", "fix": ""}
         return {"state": "recording", "detail": "", "fix": ""}
     if cap.get("state") == "reconnecting":
         return {"state": "reconnecting", "detail": cap.get("detail") or "", "fix": ""}
