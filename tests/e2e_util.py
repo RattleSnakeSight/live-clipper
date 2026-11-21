@@ -5,7 +5,6 @@ full app with every registered service, and ffprobe measurements. No network bey
 from __future__ import annotations
 
 import contextlib
-import functools
 import http.server
 import json
 import os
@@ -24,32 +23,40 @@ SPEECH = ("honestly I think gta 6 is going to be the best game ever made and thi
 
 
 class Stream:
-    """FFmpeg writes a live HLS playlist (1 s segments) into `root`; a threaded HTTP server serves it."""
+    """FFmpeg publishes a live HLS stream (1 s segments) by HTTP PUT to a threaded loopback server that keeps the
+    playlist and segments in memory and serves them. Nothing touches the disk, so there is no playlist rename
+    that a reader or a virus scanner holding the file can make fail (Windows: FFmpeg's HLS muxer stops on it)."""
 
-    def __init__(self, root: Path, size: str = "320x240"):
+    def __init__(self, root: Path | None = None, size: str = "320x240"):
         self.root, self.size, self.port, self.proc, self.httpd = root, size, 0, None, None
+        self.files: dict[str, bytes] = {}
+        self.lock = threading.Lock()
 
     def up(self) -> Stream:
-        shutil.rmtree(self.root, ignore_errors=True)
-        self.root.mkdir(parents=True)
+        self.files.clear()
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", self.port), HLSHandler)
+        self.httpd.daemon_threads = True
+        self.httpd.stream = self
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         self.proc = subprocess.Popen(
             [FFMPEG, "-hide_banner", "-loglevel", "error", "-re",
              "-f", "lavfi", "-i", f"testsrc=size={self.size}:rate=25",
              "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
              "-c:v", "libx264", "-preset", "ultrafast", "-g", "25", "-c:a", "aac",
-             "-f", "hls", "-hls_time", "1", "-hls_list_size", "6", "-hls_flags", "delete_segments+omit_endlist",
-             str(self.root / "live.m3u8")],
+             "-f", "hls", "-method", "PUT", "-hls_time", "1", "-hls_list_size", "6",
+             "-hls_flags", "delete_segments+omit_endlist", f"http://127.0.0.1:{self.port}/live.m3u8"],
             stdin=subprocess.DEVNULL,
         )
-        handler = functools.partial(QuietHandler, directory=str(self.root))
-        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", self.port), handler)
-        self.port = self.httpd.server_address[1]
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         return self
+
+    def ready(self) -> bool:
+        with self.lock:
+            return "live.m3u8" in self.files
 
     def wait_ready(self, timeout: float = 15) -> None:
         end = time.time() + timeout
-        while not (self.root / "live.m3u8").exists():
+        while not self.ready():
             if time.time() > end:
                 raise AssertionError("the synthetic stream did not start")
             time.sleep(0.1)
@@ -67,9 +74,61 @@ class Stream:
         return f"http://127.0.0.1:{self.port}/live.m3u8"
 
 
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
+class HLSHandler(http.server.BaseHTTPRequestHandler):
+    """PUT/POST stores a file, DELETE drops it, GET serves it (FFmpeg's HLS muxer over HTTP, then any reader)."""
+
     def log_message(self, *a):
         pass
+
+    def _name(self) -> str:
+        return self.path.split("?", 1)[0].lstrip("/")
+
+    def _body(self) -> bytes:
+        if self.headers.get("Transfer-Encoding", "").lower() != "chunked":
+            return self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        out = bytearray()
+        while True:
+            size = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
+            if size == 0:
+                while self.rfile.readline().strip():  # trailers up to the blank line
+                    pass
+                return bytes(out)
+            out += self.rfile.read(size)
+            self.rfile.readline()
+
+    def _reply(self, code: int, body: bytes = b"", ctype: str = "") -> None:
+        self.send_response(code)
+        if ctype:
+            self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def do_PUT(self):
+        body = self._body()
+        st = self.server.stream
+        with st.lock:
+            st.files[self._name()] = body
+        self._reply(201)
+
+    do_POST = do_PUT
+
+    def do_DELETE(self):
+        self._body()
+        st = self.server.stream
+        with st.lock:
+            st.files.pop(self._name(), None)
+        self._reply(204)
+
+    def do_GET(self):
+        st = self.server.stream
+        with st.lock:
+            body = st.files.get(self._name())
+        if body is None:
+            return self._reply(404)
+        ctype = "application/vnd.apple.mpegurl" if self._name().endswith(".m3u8") else "video/mp2t"
+        self._reply(200, body, ctype)
 
 
 def chat_rows(spike_at: float, quiet_until: float | None = None) -> list[dict]:

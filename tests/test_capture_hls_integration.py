@@ -5,87 +5,17 @@ recording again in a new epoch. Loopback only; skipped when FFmpeg is not instal
 """
 
 import asyncio
-import functools
-import http.server
 import shutil
-import subprocess
-import threading
 from pathlib import Path
 
 import pytest
+from e2e_util import Stream
 from monitor_env import env
 
 from live_clipper.engine import Engine, public_state
 
 FFMPEG = shutil.which("ffmpeg")
 pytestmark = pytest.mark.skipif(FFMPEG is None, reason="ffmpeg not on PATH")
-
-
-class Stream:
-    """FFmpeg writes a live HLS playlist (1 s segments) into `root`; a threaded HTTP server serves it."""
-
-    def __init__(self, root: Path):
-        self.root, self.port, self.proc, self.httpd = root, 0, None, None
-
-    def up(self) -> None:
-        shutil.rmtree(self.root, ignore_errors=True)
-        self.root.mkdir(parents=True)
-        self.proc = subprocess.Popen(
-            [
-                FFMPEG,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-re",
-                "-f",
-                "lavfi",
-                "-i",
-                "testsrc=size=320x240:rate=25",
-                "-f",
-                "lavfi",
-                "-i",
-                "sine=frequency=440:sample_rate=44100",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "ultrafast",
-                "-g",
-                "25",
-                "-c:a",
-                "aac",
-                "-f",
-                "hls",
-                "-hls_time",
-                "1",
-                "-hls_list_size",
-                "6",
-                "-hls_flags",
-                "delete_segments+omit_endlist",
-                str(self.root / "live.m3u8"),
-            ],
-            stdin=subprocess.DEVNULL,
-        )
-        handler = functools.partial(QuietHandler, directory=str(self.root))
-        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", self.port), handler)
-        self.port = self.httpd.server_address[1]
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-
-    def down(self) -> None:
-        if self.proc:
-            self.proc.kill()
-            self.proc.wait(10)
-        if self.httpd:
-            self.httpd.shutdown()
-            self.httpd.server_close()
-
-    @property
-    def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}/live.m3u8"
-
-
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
 
 
 def test_local_hls_recording_disconnect_reconnect(tmp_path):
@@ -109,7 +39,7 @@ def test_local_hls_recording_disconnect_reconnect(tmp_path):
     async def go():
         nonlocal m
         for _ in range(100):  # first playlist written
-            if (stream.root / "live.m3u8").exists():
+            if stream.ready():
                 break
             await asyncio.sleep(0.1)
         cid = store.add_channel("custom", stream.url, stream.url)
