@@ -68,3 +68,12 @@ def test_length_cap_long_everything():
                      "five star chase heist helicopter police"),
                    ["LUL"] * 10, "x")
     check(t)
+
+
+def test_english_action_without_place_does_not_crash():
+    """Reference defect: this raised TypeError. It now takes the path the other languages already take."""
+    t = make_title(T("I crashed so hard"), [], "chat_burst")
+    check(t)
+    assert t == "Brutal crash out of nowhere"
+    veh = make_title(T("I crashed the Zentorno so hard"), [], "chat_burst")
+    assert "Zentorno" in veh
