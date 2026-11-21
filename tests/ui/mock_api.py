@@ -381,8 +381,10 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     store.setdefault("app_state", {})
     store.setdefault("answers", {})
 
-    def save() -> None:
-        state_file.write_text(json.dumps(store))
+    def save() -> None:  # atomic, so readers never see a half-written file
+        tmp = state_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(store))
+        tmp.replace(state_file)
 
     db: dict = {
         "channels": _seed_channels() if seed else {},

@@ -22,6 +22,12 @@ def setup_done_server(tmp_path):
 
 
 def app_state(srv):
+    """The mock server may be rewriting the file; retry a partial read."""
+    for _ in range(50):
+        try:
+            return json.loads(srv.state_file.read_text())["app_state"]
+        except (json.JSONDecodeError, KeyError):
+            time.sleep(0.02)
     return json.loads(srv.state_file.read_text())["app_state"]
 
 
