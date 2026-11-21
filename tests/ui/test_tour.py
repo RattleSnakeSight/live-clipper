@@ -26,7 +26,7 @@ def app_state(srv):
     for _ in range(50):
         try:
             return json.loads(srv.state_file.read_text())["app_state"]
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, PermissionError):
             time.sleep(0.02)
     return json.loads(srv.state_file.read_text())["app_state"]
 
