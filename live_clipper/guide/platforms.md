@@ -54,7 +54,7 @@ What you need for live status (free to set up; the Twitch pages we read mention 
    - Client ID and Client Secret. The app asks Twitch for an app token. There is no sign-in step and no
      redirect address. Keep the secret private.
    - Client ID only, with the application's client type set to Public. The app shows you a code and a Twitch
-     page. You type the code there and approve. This is the device sign-in. It needs no secret and no
+     page (press "Get a Twitch code"). You type the code there and approve. This is the device sign-in. It needs no secret and no
      redirect address.
 3. Paste the values into Sources > Twitch.
 
@@ -116,7 +116,7 @@ What you need (free; Google's pages we read mention no fee for this):
    - An API key. Create one in the console and paste it into Sources > YouTube. Whether a key alone is enough
      for every live check is not confirmed in Google's pages.
    - Sign in with Google. Create an OAuth client of type "Desktop app", paste its client ID (and secret if
-     shown), and click Sign in. The redirect address is `http://127.0.0.1:` plus the app's port plus
+     shown), and click "Sign in to Google". The redirect address is `http://127.0.0.1:` plus the app's port plus
      `/api/oauth/source/youtube/callback`. Google accepts any port on the loopback address for desktop
      clients, so you do not need to register it. The scope is `youtube.readonly`.
 3. Add yourself as a test user on the consent screen while it is in "Testing". In Testing,

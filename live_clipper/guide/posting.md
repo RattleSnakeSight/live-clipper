@@ -12,11 +12,12 @@ page says "not confirmed".
 
 - Automatic. A clip posts to every connected, enabled destination as soon as it is ready. A destination
   counts only when you have connected the account, switched it on and ticked the box that says you have the
-  right to post. Live Clipper's posting engine starts in this mode. The wizard preselects "No, I approve each
-  clip", so after the wizard your answer is what applies. You can change the mode at any time. Clips already
-  waiting stay waiting.
-- Manual. Each finished clip is held. Review it, edit it if you like (see Editing), then click Post and pick
-  the destination. Nothing leaves your computer until you click.
+  right to post. This is the default, in the setup wizard and in the posting engine: until you connect and
+  turn on a destination, nothing is posted. Change the mode at any time under Destinations > Posting mode or
+  Settings > Posting. Clips already waiting stay waiting.
+- Manual. Each finished clip is held under "Waiting for your approval" on the Clips page. Review it, edit it
+  if you like (see Editing), then click "Post to" and the destination. Nothing leaves your computer until you
+  click.
 
 Use automatic mode only for channels you own or have permission to post from.
 
@@ -52,7 +53,7 @@ Account: any Google account with a YouTube channel. You post to your own channel
 5. Redirect address: Google accepts any port on the loopback address for desktop clients, so you register
    nothing. The app uses `http://127.0.0.1:PORT/api/oauth/youtube/callback`, where PORT is the app's port.
    Docs: <https://developers.google.com/identity/protocols/oauth2/native-app>.
-6. In Live Clipper open Posting > YouTube, paste the client ID (and the secret if you have one), click
+6. In Live Clipper open Destinations > YouTube Shorts, paste the client ID (and the secret if you have one), click
    Connect and approve in the browser.
 
 Scopes the app asks for: `https://www.googleapis.com/auth/youtube.upload` (to upload) and
@@ -105,7 +106,7 @@ Account: a TikTok account you own, plus a developer account at <https://develope
    `127.0.0.1`, a fixed path, and a port (a wildcard port is allowed). Register it exactly as the app shows
    it: `http://127.0.0.1:PORT/api/oauth/tiktok/callback`. Fails without it: TikTok rejects the sign-in.
    Docs: <https://developers.tiktok.com/doc/login-kit-desktop>.
-5. Copy the client key and client secret into Live Clipper (Posting > TikTok), click Connect and approve. The
+5. Copy the client key and client secret into Live Clipper (Destinations > TikTok), click Connect and approve. The
    app uses the secure code exchange that TikTok requires, in TikTok's own variant.
 
 Scopes: `user.info.basic`, `video.upload` (inbox drafts) and `video.publish` (direct posts). Fails without
@@ -154,7 +155,7 @@ linked to it. Cost: free.
    <https://developers.facebook.com/documentation/instagram-platform/app-review>.
 4. Connect the account in one of two ways:
    - Token paste (easiest). In the application dashboard, open Instagram API setup and click "Generate token"
-     for your account. Paste the long-lived token into Live Clipper (Posting > Instagram). The token stays in
+     for your account. Paste the long-lived token into Live Clipper (Destinations > Instagram Reels). The token stays in
      the local vault.
    - Sign-in. Enter the application ID and secret and register the redirect address. The address is
      configurable in the app. Not confirmed: whether Meta accepts a plain `http://127.0.0.1` redirect.
@@ -194,17 +195,17 @@ public.
 ## Test destination
 
 Turn on test mode to try everything without posting anywhere. The app creates a destination labelled "Test
-destination, nothing is posted". It is a local stand-in on your computer. It needs no account, no developer
+destination — nothing is posted". Turn it on under Destinations > Use the test destination. It is a local stand-in on your computer. It needs no account, no developer
 application and no acknowledgement. Test deliveries are never counted as real posts. Use it to check your
-mode, your titles and the delivery list.
+mode, your titles and the "Where it was posted" list on each clip's page.
 
 ## What a delivery can say
 
-Each clip going to each destination has its own line in the delivery list, with a state:
+Each clip going to each destination has its own line under "Where it was posted" on the clip's page, with a state:
 
 | State | Meaning |
 |---|---|
-| held | Manual mode: waiting for you to click Post. |
+| held | Manual mode: waiting for you to click "Post to". |
 | queued, uploading, processing | On its way. Processing means the platform is still working on it. |
 | published | Posted publicly. |
 | private | Posted, but not public (for example TikTok "only me", or a private YouTube upload). |
@@ -227,7 +228,7 @@ Each clip going to each destination has its own line in the delivery list, with 
 - The app never posts the same clip twice by accident. It saves the platform's own ID for each upload (and a
   marker on YouTube) before it goes on. If it cannot tell whether an earlier attempt landed, it asks the
   platform first. If that is still unclear, the delivery goes to needs_confirmation and shows two buttons:
-  "confirm posted" (optionally with the address) and "confirm not posted", which lets the app upload again.
+  "Confirm posted" and "Confirm not posted", which lets the app upload again.
   Check the account yourself before you press either.
 - Manual Retry on a failed delivery also checks the platform before it uploads.
 - You get a notification when a clip is published, if notifications are on.

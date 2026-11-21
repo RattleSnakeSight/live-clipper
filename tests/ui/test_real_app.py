@@ -109,11 +109,13 @@ class RealApp:
     def app_state(self, key: str):
         return self.api(f"/app-state/{key}")["value"]
 
-    def wait_state(self, key: str, value) -> None:
+    def wait_state(self, page, key: str, value) -> None:
+        """Poll while letting the page run: sync Playwright handles routed requests (the network guard)
+        only while the test is inside a Playwright call."""
         for _ in range(100):
             if self.app_state(key) == value:
                 return
-            time.sleep(0.05)
+            page.wait_for_timeout(50)
         raise AssertionError(f"{key} is {self.app_state(key)!r}, expected {value!r}")
 
 
@@ -233,8 +235,8 @@ def test_first_run_tour_restart_and_replay_on_the_real_app(make_app, offline_pag
         page.get_by_role("button", name="Next").click()
     page.get_by_role("button", name="Finish").click()
     expect(tour(page)).to_have_count(0)
-    app.wait_state("tour.state", "completed")
-    assert app.app_state("tour.version") == 1
+    app.wait_state(page, "tour.state", "completed")
+    app.wait_state(page, "tour.version", 1)
 
     page.reload()
     expect(page.get_by_role("heading", name="Dashboard")).to_be_visible()
@@ -259,7 +261,7 @@ def test_first_run_tour_restart_and_replay_on_the_real_app(make_app, offline_pag
     expect(tour(page)).to_contain_text("Welcome to Live Clipper")
     page.get_by_role("button", name="Skip tour").click()
     expect(tour(page)).to_have_count(0)
-    app.wait_state("tour.state", "skipped")
+    app.wait_state(page, "tour.state", "skipped")
     app.stop()
     app.start()
     open_app(page, app)
@@ -280,7 +282,7 @@ def test_second_profile_skips_the_tour_on_first_run(make_app, offline_page):
     expect(tour(page)).to_contain_text("Welcome to Live Clipper")
     page.get_by_role("button", name="Skip tour").click()
     expect(tour(page)).to_have_count(0)
-    app.wait_state("tour.state", "skipped")
+    app.wait_state(page, "tour.state", "skipped")
     page.reload()
     expect(page.get_by_role("heading", name="Dashboard")).to_be_visible()
     page.wait_for_timeout(600)
@@ -295,6 +297,8 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     run_wizard(page)
     page.get_by_role("button", name="Skip tour").click()
     expect(tour(page)).to_have_count(0)
+    app.wait_state(page, "tour.version", 1)  # the tour then returns to the dashboard
+    expect(page).to_have_url(f"{app.url}/#/dashboard")
 
     # a Twitch channel without credentials, not watched: the stream-probe label, no polling, no network
     page.goto(f"{app.url}/#/channels/new")

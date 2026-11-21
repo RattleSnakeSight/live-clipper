@@ -10,10 +10,10 @@ so you can keep re-editing a clip while its original is still around.
   length limit (60 seconds in the default preset).
 - Title. The hook text shown at the start of the clip. It is stored per language (English and Spanish).
 - Captions. Correct the text of the burned-in captions, per language.
-- Layout. Auto, fit, crop, split or stack, plus zoom, vertical shift and where the facecam sits.
-- Preset. Switch the whole look to another preset, or override single preset values for this clip only.
+- Framing. Auto, fit, crop, split or stack.
+- Preset. Switch the whole look to another preset for this clip only.
 
-Then click Render. The app makes a new video from the original recording with your changes. A clip whose original is gone (expired or discarded) can no longer be edited.
+Then click Render again. The app makes a new video from the original recording with your changes. A clip whose original is gone (expired or discarded) can no longer be edited.
 
 ## Rules of the editor
 
@@ -24,11 +24,11 @@ Then click Render. The app makes a new video from the original recording with yo
 
 ## The manual review queue
 
-In manual posting mode every finished clip waits in the review queue. For each clip:
+In manual posting mode every finished clip waits in the review queue ("Waiting for your approval" on the Clips page). For each clip:
 
 1. Watch the preview.
 2. Edit it if you want, and render again.
-3. Click Post and pick the destination, or discard the clip if you do not want it.
+3. Click "Post to" and the destination, or Reject the clip (or Cancel its delivery) if you do not want it.
 
 Nothing is posted until you click Post. A clip that is held for review by a rule shows up in the same queue.
 Clips in the queue are never removed by storage cleanup.
