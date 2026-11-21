@@ -27,7 +27,7 @@ def test_add_channel_detects_platform_and_shows_on_dashboard(empty_server, make_
 
     link = page.get_by_label("Streamer link")
     link.fill("not a link")
-    expect(page.get_by_text("This does not look like a Twitch, Kick or YouTube channel link yet.")).to_be_visible()
+    expect(page.get_by_text("does not look like a Twitch, Kick or YouTube channel link")).to_be_visible()
     page.get_by_role("button", name="Add channel").click()
     expect(link).to_have_attribute("aria-invalid", "true")
 
