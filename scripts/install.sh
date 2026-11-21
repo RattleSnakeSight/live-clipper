@@ -6,7 +6,7 @@
 #   sh install.sh --no-start
 set -eu
 
-REPO_URL="${LIVE_CLIPPER_REPO:-https://github.com/OWNER/live-clipper}"
+REPO_URL="${LIVE_CLIPPER_REPO:-https://github.com/RattleSnakeSight/live-clipper}"
 YES=0
 START=1
 for arg in "$@"; do

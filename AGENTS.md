@@ -4,15 +4,22 @@ Guidance for coding agents (Claude Code, Codex, Qwen Code and others) working wi
 
 ## If the user wants to install or run the app
 
-Follow `skills/live-clipper/SKILL.md`. In short:
+Follow `skills/live-clipper/SKILL.md` (the same file ships inside the package as
+`live_clipper/skill/SKILL.md`; edit one, copy to the other, a test checks they match). In short:
 
 1. Check Python 3.11+ and ffmpeg. Ask before installing anything.
-2. `pipx install git+<REPO_URL>` (fallback `python -m pip install --user git+<REPO_URL>`), or run
+2. `pipx install git+https://github.com/RattleSnakeSight/live-clipper` (fallback
+   `python -m pip install --user git+https://github.com/RattleSnakeSight/live-clipper`), or run
    `scripts/install.sh` / `scripts/install.ps1`.
 3. `live-clipper start`, then let the user answer the setup wizard in the browser.
 4. Problems: `live-clipper doctor`, `live-clipper status`, `live-clipper logs`.
 
-`scripts/install-skill.py --agent claude|codex|qwen|all` copies the skill into the agent's skills folder.
+Install the skill for your agent in one of two ways:
+
+- After `pipx install`: `live-clipper skill install --agent claude` (or `codex`, `qwen`, `all`;
+  `--project`, `--dest PATH`). `live-clipper skill path` prints the packaged file.
+- From a clone (`git clone https://github.com/RattleSnakeSight/live-clipper`):
+  `python scripts/install-skill.py --agent claude`. This uses no network.
 
 Do not connect accounts, enter credentials, enable automatic posting or post anything for the user.
 
@@ -23,7 +30,7 @@ Do not connect accounts, enter credentials, enable automatic posting or post any
 - `live_clipper/web/` is the browser UI.
 - `docs/ARCHITECTURE.md` is the plug-in contract; `docs/CONTRACTS.md` is the contract between subsystems;
   `docs/DEVIATIONS.md` records where behavior differs from the design it was ported from.
-- `skills/live-clipper/` is the agent skill; `scripts/` holds the install scripts.
+- `live_clipper/skill/` is the agent skill as shipped; `skills/live-clipper/` is its copy for clones; `scripts/` holds the install scripts.
 - `tests/` holds the tests. No test may use the network.
 
 ## Build, lint, test

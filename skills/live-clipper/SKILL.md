@@ -10,7 +10,13 @@ and sends nothing to anyone except the platforms the user connects.
 
 Repository (the one place this address is written in this file):
 
-`REPO_URL = https://github.com/OWNER/live-clipper`
+`REPO_URL = https://github.com/RattleSnakeSight/live-clipper`
+
+Getting this skill into your agent (the user usually did this already):
+
+- With the app installed: `live-clipper skill install --agent claude` (or `codex`, `qwen`, `all`;
+  add `--project` for a Claude skill in the current project).
+- From a clone of the repository: `python scripts/install-skill.py --agent claude`.
 
 Ask before you install software, change settings, or start anything that runs at login. Never post, connect
 accounts or enter credentials on the user's behalf. The user does those steps in the browser.
@@ -42,6 +48,9 @@ or use the fallback:
 ```
 python -m pip install --user git+<REPO_URL>
 ```
+
+After the install, `live-clipper skill install --agent claude` installs this skill for the agent in use.
+The other route is a clone of `<REPO_URL>` and `python scripts/install-skill.py --agent claude`.
 
 The repository also has install scripts that do all of the above after asking: `scripts/install.sh`
 (macOS and Linux) and `scripts/install.ps1` (Windows).

@@ -19,13 +19,14 @@ def load_installer():
 
 
 def test_skill_frontmatter_is_discoverable():
-    text = (ROOT / "skills" / "live-clipper" / "SKILL.md").read_text(encoding="utf-8")
+    text = (ROOT / "live_clipper" / "skill" / "SKILL.md").read_text(encoding="utf-8")
     front = re.match(r"---\n(.*?)\n---\n", text, re.S).group(1)
     assert "name: live-clipper" in front
     desc = re.search(r"^description: (.+)$", front, re.M).group(1).lower()
     for word in ("install", "set up", "troubleshoot", "launch"):
         assert word in desc
-    assert len(re.findall(r"^`REPO_URL = https://github.com/OWNER/live-clipper`$", text, re.M)) == 1
+    line = r"^`REPO_URL = https://github.com/RattleSnakeSight/live-clipper`$"
+    assert len(re.findall(line, text, re.M)) == 1
     assert text.count("https://github.com/") == 1
 
 
@@ -49,13 +50,38 @@ def test_install_skill_dest_override_and_project(tmp_path, monkeypatch):
     assert (tmp_path / ".claude" / "skills" / "live-clipper" / "SKILL.md").is_file()
 
 
-def test_install_skill_downloads_when_no_checkout(tmp_path):
-    mod = load_installer()
-    urls = []
-    body = "---\nname: live-clipper\n---\n"
-    text = mod.find_skill_text(tmp_path / "missing", fetch=lambda u: urls.append(u) or body)
-    assert text.startswith("---") and urls[0].startswith("https://raw.githubusercontent.com/OWNER/live-clipper/")
-    assert urls[0].endswith("/skills/live-clipper/SKILL.md")
+def test_repo_and_packaged_skill_are_identical():
+    repo = (ROOT / "skills" / "live-clipper" / "SKILL.md").read_bytes()
+    assert repo == (ROOT / "live_clipper" / "skill" / "SKILL.md").read_bytes()
+
+
+def test_cli_skill_install_and_path(tmp_path, monkeypatch, capsys):
+    from live_clipper.cli import main
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path / "h"))
+    assert main(["skill", "install", "--agent", "all"]) == 0
+    for folder in (".claude", ".codex", ".qwen"):
+        installed = tmp_path / "h" / folder / "skills" / "live-clipper" / "SKILL.md"
+        assert installed.read_text(encoding="utf-8").startswith("---" + chr(10) + "name: live-clipper")
+    dest = tmp_path / "custom"
+    assert main(["skill", "install", "--agent", "codex", "--dest", str(dest)]) == 0
+    assert (dest / "live-clipper" / "SKILL.md").is_file()
+    monkeypatch.chdir(tmp_path)
+    assert main(["skill", "install", "--project"]) == 0
+    assert (tmp_path / ".claude" / "skills" / "live-clipper" / "SKILL.md").is_file()
+    capsys.readouterr()
+    assert main(["skill", "path"]) == 0
+    assert Path(capsys.readouterr().out.strip()).is_file()
+
+
+def test_install_skill_script_uses_no_network():
+    text = (ROOT / "scripts" / "install-skill.py").read_text(encoding="utf-8")
+    assert "urllib" not in text and "raw.githubusercontent" not in text
+
+
+def test_one_repo_url_constant_per_install_script():
+    for name in ("install.sh", "install.ps1"):
+        text = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert text.count("https://github.com/RattleSnakeSight/live-clipper") == 1
 
 
 def test_install_scripts_exist_and_parse():
@@ -69,7 +95,7 @@ def test_install_scripts_exist_and_parse():
 def test_no_personal_paths_in_ops_files():
     pattern = re.compile(r"[A-Za-z]:\\Users\\|/home/\w+|/Users/\w+")
     files = [*ROOT.glob("live_clipper/guide/*.md"), ROOT / "AGENTS.md", ROOT / ".env.example",
-             *ROOT.glob("scripts/*.*"), ROOT / "skills" / "live-clipper" / "SKILL.md"]
+             *ROOT.glob("scripts/*.*"), ROOT / "live_clipper" / "skill" / "SKILL.md"]
     for f in files:
         assert not pattern.search(f.read_text(encoding="utf-8")), f
 

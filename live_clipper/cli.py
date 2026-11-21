@@ -17,7 +17,7 @@ from pathlib import Path
 
 import httpx
 
-from . import __version__, autostart
+from . import __version__, autostart, skillinstall
 from .paths import get_paths
 from .supervisor import read_lock, spawn_kwargs
 
@@ -238,6 +238,17 @@ def cmd_service(args) -> int:
     return 0
 
 
+def cmd_skill(args) -> int:
+    if args.action == "path":
+        print(skillinstall.SOURCE)
+        return 0
+    folders = skillinstall.targets(args.agent, args.dest, args.project, Path.home(), Path.cwd())
+    for folder in skillinstall.install(folders):
+        print(f"Installed {folder / 'SKILL.md'}")
+    print("Restart your agent so it picks the skill up.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="live-clipper", description="Local live-stream clipper.")
     p.add_argument("--home", help="data folder to use (same as setting LIVE_CLIPPER_HOME)")
@@ -263,6 +274,12 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("service", help="start at login")
     s.add_argument("action", choices=["install", "uninstall", "status"])
     s.set_defaults(func=cmd_service)
+    s = sub.add_parser("skill", help="install the agent skill or print its path")
+    s.add_argument("action", choices=["install", "path"])
+    s.add_argument("--agent", choices=[*skillinstall.FOLDERS, "all"], default="claude")
+    s.add_argument("--project", action="store_true", help="install the Claude skill into ./.claude/skills")
+    s.add_argument("--dest", type=Path, help="skills folder to use instead of the agent's default")
+    s.set_defaults(func=cmd_skill)
     sub.add_parser("version").set_defaults(func=lambda a: print(__version__) or 0)
     args = p.parse_args(argv)
     if args.home:

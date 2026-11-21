@@ -4,7 +4,7 @@
 param([switch]$Yes, [switch]$NoStart)
 $ErrorActionPreference = 'Stop'
 
-$RepoUrl = if ($env:LIVE_CLIPPER_REPO) { $env:LIVE_CLIPPER_REPO } else { 'https://github.com/OWNER/live-clipper' }
+$RepoUrl = if ($env:LIVE_CLIPPER_REPO) { $env:LIVE_CLIPPER_REPO } else { 'https://github.com/RattleSnakeSight/live-clipper' }
 
 function Ask([string]$Question) {
     if ($Yes) { return $true }
