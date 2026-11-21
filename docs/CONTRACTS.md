@@ -42,3 +42,21 @@ as files from the UI and `/api/formats*`, `/api/presets*`, `/api/rules*`.
 ## Proposed changes
 
 (Branches append here; the integrator resolves.)
+
+### edit (proposed)
+
+- **Clips live in the edit namespace** (`edit_clips`, `edit_presets`, `edit_log`; one `register_migrations("edit")`
+  in `live_clipper/presets.py`). The engine (monitor) creates and processes clips through `EditService.engine`:
+  `create_clip(channel_id, window_start, window_end, action_time, *, kind, trigger, layout, preset_id, overrides)
+  -> clip_id`, then `await process(buffers, channel_id, clip_id, start, end, action)` (cut -> preview -> captions ->
+  finals, a port of the original `Engine._process`). Window: `engine.settings_for(values).window_for(action_time)`
+  (pre 18 / post 12 from the preset; chat action = onset - reaction delay stays with the detector).
+- **Effective values from select:** pass the resolver's merged dict as `overrides` (partial preset values: `window`,
+  `encode`, `layout`, `facecam`, `captions`, `title`, `languages`); they are merged onto the clip's preset.
+  `trigger` may carry `description`, `hashtags`, `format_id` for `edit.clip_ready`.
+- `ClipStore.channel_lookup = fn(channel_id) -> {"settings": {...}}` lets monitor feed per-channel glossary /
+  subtitle language preference into `post_cut`.
+- `live_clipper.events.Trigger` (used by `loudness`) and `live_clipper.language_policy` / `titles` / `editorial`
+  (used by `postprocess.post_cut`) are expected from select; they are imported lazily.
+- `buffer.RING_MARKER = ".live-clipper-ring"` for whoever places a transient ring directory.
+- `edit.clip` (UI refresh, `{id}`) is published in addition to `edit.clip_ready`.
