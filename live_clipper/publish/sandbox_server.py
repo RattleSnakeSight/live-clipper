@@ -28,6 +28,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
+APP_PORT: int | None = None  # the app's own port: OAuth redirects may only go back to it (set by PublishService)
+
 
 class SandboxServer:
     def __init__(self, state_path: Path | str, host: str = "127.0.0.1", port: int = 0,
@@ -118,6 +120,23 @@ class _Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(n) if n else b""
 
+    def _host_ok(self) -> bool:
+        """Only loopback names on this server's own port (blocks DNS rebinding from a web page)."""
+        port = self.server.server_address[1]
+        if (self.headers.get("Host") or "") in (f"127.0.0.1:{port}", f"localhost:{port}"):
+            return True
+        self._send(403, {"error": "bad_host"})
+        return False
+
+    @staticmethod
+    def _redirect_ok(uri: str) -> bool:
+        prefix = "http://127.0.0.1:"
+        if not uri.startswith(prefix):
+            return False
+        port, sep, path = uri[len(prefix):].partition("/")
+        return (sep == "/" and port.isdigit() and (APP_PORT is None or int(port) == APP_PORT)
+                and ("/" + path).startswith("/api/oauth/") and "@" not in uri and "\\" not in uri)
+
     def _authed(self) -> bool:
         tok = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
         if not self.sb.state["tokens"].get(tok):
@@ -147,10 +166,14 @@ class _Handler(BaseHTTPRequestHandler):
         return any(f.get("op") == op and f.get("fail") == kind for f in self.sb.state["inject"])
 
     def do_GET(self):
+        if not self._host_ok():
+            return
         u = urlparse(self.path)
         qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         sb = self.sb
         if u.path == "/oauth/authorize":
+            if not self._redirect_ok(qs.get("redirect_uri", "")):
+                return self._send(400, {"error": "invalid_redirect_uri"})
             code = "sbx_code_" + _rnd.token_urlsafe(12)
             with sb.lock:
                 sb.state["codes"][code] = {"challenge": qs.get("code_challenge", ""), "t": time.time()}
@@ -183,6 +206,8 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not_found"})
 
     def do_POST(self):
+        if not self._host_ok():
+            return
         u = urlparse(self.path)
         qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         sb = self.sb

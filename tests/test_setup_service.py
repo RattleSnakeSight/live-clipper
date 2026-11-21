@@ -157,3 +157,29 @@ def test_guide_pages_served_and_traversal_refused():
 def test_url_validation(v, ok):
     q = {q["id"]: q for q in build_questions(hw(), "/m")}["notify.webhook_url"]
     assert (setup_service.validate_value(q, v)[1] is None) is ok
+
+
+def test_storage_folder_refuses_roots_and_home(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(setup_service.Path, "home", classmethod(lambda cls: home))
+    for bad in (tmp_path.anchor, str(home)):
+        _, err = setup_service._check_dir(bad)
+        assert err
+    assert not (home / ".live-clipper-data").exists()
+
+
+def test_storage_folder_nonempty_gets_app_subfolder(tmp_path):
+    chosen = tmp_path / "Documents"
+    chosen.mkdir()
+    (chosen / "thesis.docx").write_text("mine")
+    value, err = setup_service._check_dir(str(chosen))
+    assert err is None and value == str(chosen / "LiveClipper") and (chosen / "LiveClipper").is_dir()
+    # choosing the app folder again (it carries the marker) keeps it as is, even once it has content
+    (chosen / "LiveClipper" / "stuff.txt").write_text("x")
+    assert setup_service._check_dir(value) == (value, None)
+    # an empty folder is used directly
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert setup_service._check_dir(str(empty)) == (str(empty), None)
+    assert (chosen / "thesis.docx").read_text() == "mine"

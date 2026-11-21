@@ -78,3 +78,26 @@ def test_uninstall_purge_deletes_data_and_prints_removal_command(home, monkeypat
     assert not home.exists()
     assert "pip uninstall live-clipper" in capsys.readouterr().out
     assert "uninstall" not in calls  # nothing was installed, so nothing was removed
+
+
+def _force_stop(home, monkeypatch, is_app):
+    from live_clipper import cli as cli_mod
+    killed = []
+    (home / "state").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": 424242, "port": 1})
+    monkeypatch.setattr(cli_mod, "_wait", lambda pred, timeout: False)
+    monkeypatch.setattr(cli_mod, "_is_app_process", lambda pid: is_app)
+    monkeypatch.setattr(cli_mod.os, "kill", lambda pid, sig: killed.append(pid))
+    cli_mod.cmd_stop()
+    return killed
+
+
+def test_force_stop_never_kills_a_reused_pid(home, monkeypatch):
+    assert _force_stop(home, monkeypatch, False) == []
+    assert _force_stop(home, monkeypatch, True) == [424242]
+
+
+def test_is_app_process_recognises_python_and_rejects_dead_pids():
+    from live_clipper.cli import _is_app_process
+    assert _is_app_process(os.getpid())
+    assert not _is_app_process(2**22 + 12345)

@@ -43,3 +43,39 @@ def test_windows_task_xml():
     assert root.find("t:Actions/t:Exec/t:Command", NS).text == cmd[0]
     assert root.find("t:Actions/t:Exec/t:Arguments", NS).text == "-m live_clipper start --no-browser"
     assert root.find("t:Settings/t:ExecutionTimeLimit", NS).text == "PT0S"
+
+
+def _systemd_parse(line: str) -> list[str]:
+    r"""Tiny model of systemd's ExecStart parsing: double quotes group, \ escapes, %% and $$ are literals."""
+    args, cur, quoted, i, started = [], "", False, 0, False
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and i + 1 < len(line):
+            cur, i, started = cur + line[i + 1], i + 2, True
+            continue
+        if ch in "%$" and line[i:i + 2] == ch * 2:
+            cur, i, started = cur + ch, i + 2, True
+            continue
+        assert ch not in "%$", f"unescaped {ch!r} would be expanded by systemd"
+        if ch == '"':
+            quoted, started = not quoted, True
+        elif ch == " " and not quoted:
+            if started:
+                args.append(cur)
+            cur, started = "", False
+        else:
+            cur, started = cur + ch, True
+        i += 1
+    if started:
+        args.append(cur)
+    return args
+
+
+def test_systemd_exec_start_escapes_percent_dollar_quotes_and_spaces():
+    cmd = ["/opt/my apps/py%thon$HOME/bin", "-m", "live_clipper", "--home", '/data/we"ird %h $x', "start",
+           "--no-browser"]
+    text = autostart.render_systemd(cmd)
+    exec_start = next(line for line in text.splitlines() if line.startswith("ExecStart="))
+    assert _systemd_parse(exec_start.removeprefix("ExecStart=")) == cmd
+    exec_stop = next(line for line in text.splitlines() if line.startswith("ExecStop="))
+    assert _systemd_parse(exec_stop.removeprefix("ExecStop=")) == [*cmd[:-2], "stop"]

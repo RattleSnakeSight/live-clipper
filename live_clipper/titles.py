@@ -166,8 +166,8 @@ def make_title(transcript: dict, chat_messages: list[str], trigger_reason: str, 
         return _assemble(base, None, react, lang, fmt)
 
     tmpl = T[primary]
-    # the original's precedence: the first language's object is read even without a place (raises like it did)
-    obj = place[li] if lang == first else place[li] if place else None
+    # no place means no object in every language (the original raised TypeError for the first language)
+    obj = place[li] if place else None
     if veh and obj:
         base = tmpl[0].format(S=veh, O=obj)
     elif veh:

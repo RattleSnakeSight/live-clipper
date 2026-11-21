@@ -100,6 +100,8 @@ class PublishService:
     # ---- lifecycle ---------------------------------------------------------
     async def start(self, ctx) -> None:
         self.ctx = ctx
+        from . import sandbox_server
+        sandbox_server.APP_PORT = ctx.port
         self.store = Store(ctx.db)
         self.secrets = Secrets(ctx.secrets)
         self.pub = Publisher(self.store, ctx.settings, self.secrets, sandbox_dir=ctx.paths.root / "sandbox",

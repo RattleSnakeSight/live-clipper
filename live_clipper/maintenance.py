@@ -40,12 +40,25 @@ CRITICAL_FREE_MB = 1536  # `crit`: below this the worst state, trash purged earl
 MAX_ACTIVE_CLIPS = 6
 TEMP_PATTERNS = ("*.part.mp4", "hook_*.txt", "audio_pre.wav", "audio_tail.wav")
 TEMP_MIN_AGE_S = 3600
+APP_MARKER = ".live-clipper-data"  # ownership marker written into the app's storage folder
+APP_SUBDIRS = ("clips", "tmp", "trash")
+TEMP_DIRS = ("clips", "tmp")  # the only places temp files are swept: the app's own subfolders of the storage dir
 TRASH_KEEP_DEFAULT_H = 168
 CYCLE_S = 60
 ORIGINAL_NAME = "source.ts"
 TERMINAL = {"published", "failed", "cancelled", "canceled", "skipped"}
 TRASH_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}-\d{1,12}$")
 SAFE_ID = re.compile(r"[^A-Za-z0-9_]")
+
+
+def is_link(p: Path) -> bool:
+    """Symlink or Windows junction (never followed by the sweep)."""
+    try:
+        if p.is_symlink() or (hasattr(os.path, "isjunction") and os.path.isjunction(p)):
+            return True
+        return bool(getattr(os.lstat(p), "st_file_attributes", 0) & 0x400)  # reparse point (3.11 junctions)
+    except OSError:
+        return True
 
 register_migrations("maintenance", ["""
 CREATE TABLE maintenance_clip(
@@ -181,12 +194,25 @@ class Maintenance:
                 if f.is_symlink():
                     continue
                 try:
-                    st = f.stat()
+                    total += f.stat().st_size
                 except OSError:
                     continue
-                total += st.st_size
-                if any(fnmatch.fnmatch(n, pat) for pat in TEMP_PATTERNS) and now - st.st_mtime >= TEMP_MIN_AGE_S:
-                    temp.append({"path": f, "bytes": st.st_size})
+        for sub in TEMP_DIRS:
+            top = root / sub
+            if is_link(top) or not top.is_dir():
+                continue
+            for dirpath, dirs, names in os.walk(top):
+                dirs[:] = [d for d in dirs if not is_link(Path(dirpath, d))]
+                for n in names:
+                    f = Path(dirpath, n)
+                    if is_link(f) or not any(fnmatch.fnmatch(n, pat) for pat in TEMP_PATTERNS):
+                        continue
+                    try:
+                        st = f.stat()
+                    except OSError:
+                        continue
+                    if now - st.st_mtime >= TEMP_MIN_AGE_S:
+                        temp.append({"path": f, "bytes": st.st_size})
         kept = sum(u["bytes"] for u in units)
         trash_b = sum(t["bytes"] for t in trash)
         try:
@@ -253,6 +279,27 @@ class Maintenance:
         except OSError:
             return False
 
+    def _temp_ok(self, p: Path, root: Path) -> bool:
+        """A temp file to delete must be a plain file with a temp name inside one of the app's own subfolders."""
+        if not any(fnmatch.fnmatch(p.name, pat) for pat in TEMP_PATTERNS) or is_link(p):
+            return False
+        try:
+            for sub in TEMP_DIRS:
+                top = root / sub
+                if is_link(top) or not top.is_dir() or not self._inside(p, top):
+                    continue
+                q = p.parent
+                while q != top and q != q.parent:
+                    if is_link(q):
+                        return False
+                    q = q.parent
+                if q != top:
+                    return False
+                return p.is_file()
+        except OSError:
+            return False
+        return False
+
     def _rm(self, p: Path) -> None:
         if p.is_symlink() or p.is_file():
             p.unlink(missing_ok=True)
@@ -268,6 +315,9 @@ class Maintenance:
             p = Path(a.path)
             try:
                 if a.action == "delete_temp":
+                    if not self._temp_ok(p, root):
+                        log.warning("refusing to delete unexpected temp path %s", p.name)
+                        continue
                     p.unlink(missing_ok=True)
                 elif a.action == "purge_trash":
                     if not (p.parent == trash_dir and TRASH_RE.match(p.name) and not p.is_symlink()):

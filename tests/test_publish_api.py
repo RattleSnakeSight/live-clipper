@@ -359,3 +359,53 @@ def test_credentials_never_in_logs_events_or_api(app):
     for secret in (ATOKEN, RTOKEN, CSECRET, CODE):
         for where, text in [("log", log_text), ("events", events), *[(f"response {i}", t) for i, t in enumerate(responses)]]:
             assert secret not in text, f"{secret} leaked into {where}"
+
+
+def test_facebook_exchange_failure_never_leaks_short_token(app):
+    ctx, svc, c = app
+    ig = dest_id(c, "instagram")
+    short = "FB-SHORT-TOKEN-abcdef123456"
+    c.put(f"/api/destinations/{ig}/credentials", json={"client_id": "fbapp", "client_secret": CSECRET})
+    c.put(f"/api/destinations/{ig}/settings", json={"login": "facebook"})
+
+    def exch(req):
+        if req.url.params.get("grant_type") == "fb_exchange_token":
+            return httpx.Response(400, json={"error": {"type": "OAuthException", "message": "nope"}})
+        return httpx.Response(200, json={"access_token": short})
+
+    t = mock_transport({("GET", "/oauth/access_token"): exch})
+    svc.pub.factories["instagram"] = lambda s, app_dir: InstagramAdapter(s, transport=t)
+    _, q = start_oauth(c, "instagram")
+    r = c.get("/api/oauth/instagram/callback", params={"code": CODE, "state": q["state"]})
+    assert r.status_code == 502
+    d = c.get(f"/api/destinations/{ig}").json()
+    assert "OAuthException" in d["status_detail"]
+    import logging
+    for h in logging.getLogger().handlers:
+        h.flush()
+    log_text = (ctx.paths.logs / "live-clipper.log").read_text(encoding="utf-8")
+    assert short not in json.dumps(d) + r.text + log_text
+
+
+def test_sandbox_rejects_foreign_host_and_redirect(app):
+    ctx, svc, c = app
+    c.put("/api/publish/test-mode", json={"enabled": True})
+    url, _ = start_oauth(c, "test")
+    base = url.split("/oauth/authorize")[0]
+    sbx_port = urlparse(base).port
+    q = parse_qs(urlparse(url).query)
+    q = {k: v[0] for k, v in q.items()}
+
+    def go(redirect, host=None):
+        qq = {**q, "redirect_uri": redirect}
+        h = {"Host": host} if host else {}
+        return httpx.get(base + "/oauth/authorize", params=qq, headers=h, follow_redirects=False)
+
+    ok = f"http://127.0.0.1:{ctx.port}/api/oauth/test/callback"
+    assert go(ok).status_code == 302
+    assert go(ok, host=f"localhost:{sbx_port}").status_code == 302
+    assert go(ok, host="evil.example.com").status_code == 403
+    assert go(ok, host=f"evil.example.com:{sbx_port}").status_code == 403
+    for bad in ("https://evil.example.com/cb", f"http://127.0.0.1:{ctx.port + 1}/api/oauth/test/callback",
+                f"http://127.0.0.1:{ctx.port}/other", f"http://127.0.0.1:{ctx.port}@evil.example.com/api/oauth/"):
+        assert go(bad).status_code == 400

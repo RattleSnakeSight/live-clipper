@@ -88,6 +88,24 @@ def cmd_start(args) -> int:
     return 0
 
 
+def _is_app_process(pid: int) -> bool:
+    """True only if `pid` is alive and looks like Live Clipper (a python or live-clipper image), so a recycled
+    PID belonging to some other program is never killed."""
+    try:
+        if os.name == "nt":
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/FO", "CSV", "/NH"],
+                                 capture_output=True, text=True, timeout=10).stdout.strip()
+            if not out.startswith('"'):
+                return False
+            image = out.splitlines()[0].split('","')[0].strip('"').lower()
+            return image.startswith(("python", "live-clipper"))
+        out = subprocess.run(["ps", "-p", str(int(pid)), "-o", "args="], capture_output=True, text=True,
+                             timeout=10).stdout.lower()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+    return "python" in out or "live_clipper" in out or "live-clipper" in out
+
+
 def cmd_stop(args=None) -> int:
     paths = get_paths()
     info = read_lock(paths)
@@ -103,6 +121,8 @@ def cmd_stop(args=None) -> int:
         except (OSError, ValueError, KeyError):
             pass
         for pid in pids:
+            if not _is_app_process(pid):
+                continue
             try:
                 os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
             except OSError:

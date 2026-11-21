@@ -78,6 +78,12 @@ evidence, visual evidence (numpy), language decisions and the detector against t
 | `events.py` | `ChatEvent`/`Trigger` shipped with the detector. | The detector needs them; unchanged copy. |
 | `editorial.assess`, `editorial.sweep` | Unchanged, but their frame sampling (`facecam`, `faces`) and final render (`postprocess.render_final`) come from the edit subsystem. | Ownership; not runnable until edit lands. |
 
+### Fixed reference defect
+
+| Where | What | Why |
+|---|---|---|
+| `titles.make_title` | Fixed crash: an English title with an action but no place (e.g. "I crashed so hard") raised `TypeError` in the original. It now falls back exactly as the other languages already did (no object, so the template's no-place variant, e.g. "Brutal crash out of nowhere"). No other output changes; all title tests and the selection parity replay pass unchanged. | The original read `place[0]` while `place` was `None`. A crash in a clip pipeline is never the intended behaviour. |
+
 ### Dropped hosted/private integrations
 
 | Where | What | Why |
