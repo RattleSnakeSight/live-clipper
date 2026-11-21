@@ -8,9 +8,17 @@ CMD = ["/opt/my apps/python3", "-m", "live_clipper", "start", "--no-browser"]
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
 
-def test_launch_command_starts_without_browser():
+def test_launch_command_starts_without_browser(monkeypatch):
+    monkeypatch.delenv("LIVE_CLIPPER_HOME")
     cmd = autostart.launch_command()
     assert cmd[1:] == ["-m", "live_clipper", "start", "--no-browser"]
+
+
+def test_launch_command_carries_custom_data_dir(home):
+    cmd = autostart.launch_command()
+    assert cmd[1:] == ["-m", "live_clipper", "--home", str(home), "start", "--no-browser"]
+    stop = shlex.split(autostart.render_systemd(cmd).split("ExecStop=")[1].splitlines()[0])
+    assert stop[-3:] == ["--home", str(home), "stop"]
 
 
 def test_systemd_user_unit():
