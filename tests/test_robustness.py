@@ -316,3 +316,33 @@ def test_trigger_merge_does_not_lose_a_concurrent_trigger_write(tmp_path, monkey
     asyncio.run(go())
     t = store.clip(clip_id)["trigger"]
     assert t["review"] == {"gameplay": True} and [m["reason"] for m in t["merged"]] == ["again"]
+
+
+def test_slow_disk_checks_do_not_block_the_event_loop(tmp_path, monkeypatch):
+    import collections
+    import shutil
+    import time
+
+    s, store, sec = env(tmp_path)
+    eng = Engine(s, store, sec)
+    real = shutil.disk_usage
+    Usage = collections.namedtuple("Usage", "total used free")
+
+    def slow_disk_usage(path):                   # e.g. a sleeping USB disk or a network share
+        time.sleep(0.4)
+        return Usage(*real(path))
+
+    monkeypatch.setattr(shutil, "disk_usage", slow_disk_usage)
+
+    async def go():
+        await eng.start()
+        worst, last = 0.0, time.monotonic()
+        for _ in range(60):
+            await asyncio.sleep(0.02)
+            now = time.monotonic()
+            worst, last = max(worst, now - last), now
+        assert eng.maintenance.admit_clip() == ""  # answered from the last measurement
+        await eng.stop()
+        return worst
+
+    assert asyncio.run(go()) < 0.3

@@ -416,13 +416,22 @@ class Maintenance:
         self.paused: set[int] = set()
         self.refused = 0
         self.last_refusal_log: dict[int, float] = {}
+        self._free: tuple[float, int] | None = None    # (when, bytes): the last disk measurement
+
+    FREE_FRESH_S = 1.0                                 # housekeeping re-measures every 0.5 s off the event loop
 
     def thresholds(self) -> tuple[int, int]:
         lo = max(0, int(self.s.min_free_mb)) * MB
         return lo, min(lo, max(0, int(self.s.critical_free_mb)) * MB)
 
     def free_bytes(self) -> int:
-        return shutil.disk_usage(self.s.data_dir).free
+        """Free bytes under data_dir; a measurement under FREE_FRESH_S old is reused (disk_usage can block)."""
+        last = self._free
+        if last is not None and time.monotonic() - last[0] < self.FREE_FRESH_S:
+            return last[1]
+        free = shutil.disk_usage(self.s.data_dir).free
+        self._free = (time.monotonic(), free)
+        return free
 
     def ring_free_bytes(self) -> int:
         return self.free_bytes()                       # the ring always lives under data_dir here
@@ -462,7 +471,8 @@ class Maintenance:
 
     async def enforce_producers(self) -> None:
         """Stop captures before the disk is exhausted; restart them once space is back (hysteresis)."""
-        free = self.ring_free_bytes()
+        self._free = None
+        free = await asyncio.to_thread(self.ring_free_bytes)  # a slow disk must not stall the event loop
         lo, crit = self.thresholds()
         if free < crit or self.ops_paused():
             for m in list(self.e.monitors.values()):
