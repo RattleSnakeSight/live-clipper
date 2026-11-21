@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Clipper</title>
+</head>
+<body>
+  <main>
+    <h1>Live Clipper</h1>
+    <p id="status">Checking the local server...</p>
+  </main>
+  <script>
+    fetch("/api/status").then(r => {
+      document.getElementById("status").textContent = r.ok
+        ? "Running. The full interface is coming soon."
+        : "Not signed in. Run `live-clipper start` to open a signed-in window.";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "live-clipper"
+dynamic = ["version"]
+description = "Free, self-hosted, local-only app that watches livestreams, picks moments, cuts vertical clips and posts them."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+    "pydantic>=2",
+    "cryptography",
+    "platformdirs",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+live-clipper = "live_clipper.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "live_clipper.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["live_clipper*"]
+
+[tool.setuptools.package-data]
+live_clipper = ["web/**/*", "formats/**/*"]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# starlette nags about its own httpx dependency; not actionable here
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]

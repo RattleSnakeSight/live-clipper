@@ -1,0 +1,9 @@
+"""The one place subsystems are plugged in. Add one line per subsystem: "package.module:factory".
+
+The factory (a class or zero-arg function) returns an object implementing live_clipper.services.Service.
+Importing the module is also where it should call db.register_migrations(...).
+"""
+
+SERVICES: list[str] = [
+    # "live_clipper.monitor:MonitorService",
+]
