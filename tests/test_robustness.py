@@ -224,3 +224,30 @@ def test_housekeeping_is_cancelled_before_monitors_stop(tmp_path, monkeypatch):
 
     asyncio.run(go())
     assert passes and True not in passes          # no housekeeping pass (restarts, triggers) while stopping
+
+
+def test_housekeeping_survives_errors_even_when_logging_fails(tmp_path, monkeypatch, caplog):
+    s, store, sec = env(tmp_path)
+    eng = Engine(s, store, sec)
+    passes = []
+
+    async def broken():
+        passes.append(1)
+        raise RuntimeError("disk check failed")
+
+    def log_fails(*a, **k):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(eng.maintenance, "enforce_producers", broken)
+
+    async def go():
+        await eng.start()
+        monkeypatch.setattr(store, "log", log_fails)
+        await asyncio.sleep(1.3)
+        alive = not eng._bg[0].done()
+        monkeypatch.undo()
+        await eng.stop()
+        return alive
+
+    assert asyncio.run(go()) and len(passes) >= 3
+    assert "housekeeping" in caplog.text and "disk check failed" in caplog.text

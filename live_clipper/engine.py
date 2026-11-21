@@ -666,7 +666,11 @@ class Engine:
                     for trig in m.detector.tick(now):
                         self.on_trigger(m, trig)
             except Exception as e:
-                self.store.log(f"housekeeping error: {e}", "error")
+                log.exception("housekeeping pass failed; continuing")
+                try:
+                    self.store.log(f"housekeeping error: {e}", "error")
+                except Exception:
+                    log.exception("housekeeping error could not be stored")
             await asyncio.sleep(0.5)
 
     def _spawn(self, coro) -> asyncio.Task:
