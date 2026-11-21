@@ -1,0 +1,702 @@
+{
+ "id": "gta-vi",
+ "name": "GTA VI",
+ "version": 1,
+ "description": "Built-in selection format: Grand Theft Auto VI gameplay, opinions and chat reactions.",
+ "labels": {
+  "game": "GTA VI",
+  "game_short": "GTA",
+  "game_title": "GTA 6"
+ },
+ "match": {
+  "platforms": [],
+  "title_regex": "(?i)\\bgta\\s*-?\\s*(?:6|vi)\\b|\\bgrand\\s+theft\\s+auto\\s*(?:6|vi)\\b",
+  "category_regex": "(?i)\\bgta\\s*-?\\s*(?:6|vi)\\b|\\bgrand\\s+theft\\s+auto\\s*(?:6|vi)\\b",
+  "category_evidence": true,
+  "gate_on_title": true
+ },
+ "topic_states": {
+  "title": "live_gta",
+  "category": "live_gta_category",
+  "archive": "archive_gta_category",
+  "off_topic": "live_off_topic",
+  "unverified": "unverified"
+ },
+ "evidence_keys": {
+  "vod_metadata": "gta_metadata",
+  "mentions": "gta_mentions"
+ },
+ "detector": {
+  "sensitivity": "medium",
+  "presets": {
+   "low": [
+    3.0,
+    8,
+    10.0
+   ],
+   "medium": [
+    2.2,
+    5,
+    6.0
+   ],
+   "high": [
+    1.6,
+    3,
+    4.0
+   ]
+  },
+  "per_user_cap": 2,
+  "window": 10.0,
+  "reaction_delay": 4.0,
+  "baseline_seconds": 300.0,
+  "baseline_floor": 3.0,
+  "merge_gap": 8.0,
+  "distinct_gap": 15.0,
+  "warmup": 20.0,
+  "max_burst": 90.0,
+  "ratio": null,
+  "min_unique": null,
+  "min_abs": null
+ },
+ "window": {
+  "pre": 18.0,
+  "post": 12.0
+ },
+ "keywords": {
+  "strong": "\\b(gta\\s*(?:6|vi|six|seis)?|g\\s*t\\s*a|grand\\s+theft(?:\\s+auto)?|vice\\s+city|leonida|lucia|rockstar)\\b",
+  "game_terms": "\\b(cops?|police|policia|wanted|stars?|estrellas|heist|atraco|mission|mision|map|mapa|car|carro|coche|drive|driving|crash|chase|persecucion|gun|shoot|disparo|wasted|busted|game|juego|trailer)\\b",
+  "greet_speech": "\\b(what'?s up|wassup|hello|hi chat|hey chat|good (?:morning|evening|afternoon|night)|welcome|i'?m back|we'?re back|sorry (?:i'?m|for being) late|starting soon|let me (?:set|get)|food|eat|eating|slept|sleep|hours today|bathroom|can you hear|mic|hola|buenas|bienvenid\\w*|que tal|ya estoy|comida|dormi\\w*)\\b",
+  "greet_chat": "^(hi+|hey+|hello+|yo+|sup|hola+|buenas|wb|gm|o7|first|late|back|morning|holi+|welcome)\\b|\\b(late as always|king is back|is back|starts stream|starting soon|good morning|buenos dias|hola chat|hi chat|hello chat|welcome back)\\b",
+  "react_chat": "\\b(lol+|lmao+|lmfao|kekw|omegalul|lul|no way|wtf|pog\\w*|w+|clip\\s*it|jaja\\w*|xd+|wasted|insane|holy|no+o+|dead|bro+|que locura|no manches|omg|clutch|gg)\\b"
+ },
+ "editorial": {
+  "opening_s": 600.0,
+  "min_setup_s": 5.0,
+  "min_payoff_s": 3.0,
+  "gameplay_ratio": 0.5,
+  "camera_view_face_h": 0.3,
+  "opinion_words": 14,
+  "opinion_span_s": 12.0,
+  "statement_max_greeting": 0.3,
+  "surge_min_messages": 4,
+  "surge_greeting_share": 0.4,
+  "surge_max_reaction_share": 0.25,
+  "reaction_share": 0.25,
+  "speech_greeting_share": 0.2,
+  "face_dominant_ratio": 0.5,
+  "static_ratio": 0.6,
+  "min_pairs": 2,
+  "visual": {
+   "cols": 8,
+   "rows": 6,
+   "flat_std": 4.0,
+   "ncc": 0.6,
+   "active_frac": 0.35,
+   "static_frac": 0.1,
+   "min_usable": 0.5
+  }
+ },
+ "scoring": {
+  "fresh_half_life_h": 12.0,
+  "neutral_reaction": 1.0,
+  "min_score": 3.0
+ },
+ "language": {
+  "prefs": [
+   "auto",
+   "en",
+   "es"
+  ],
+  "names": {
+   "en": "English",
+   "es": "Spanish"
+  },
+  "min_window_prob": 0.5
+ },
+ "titles": {
+  "max_len": 70,
+  "separator": " — ",
+  "phrase_max": 48,
+  "languages": [
+   "en",
+   "es"
+  ],
+  "actions": [
+   {
+    "key": "explode",
+    "priority": 9,
+    "regex": "\\bexplo(?:de|ded|des|ding|sion|sions)\\b|\\bblew up\\b|\\bblow(?:ing)? up\\b|\\bboom\\b|explot|explosi|\\bvol[oó]\\b"
+   },
+   {
+    "key": "crash",
+    "priority": 8,
+    "regex": "\\bcrash(?:ed|es|ing)?\\b|\\bslam(?:med|s|ming)?\\b|\\bran into\\b|\\bsmash(?:ed|ing)?\\b|\\bwreck(?:ed)?\\b|\\bchoc(?:ar|u[eé]|[oó]|amos)\\b|estrell"
+   },
+   {
+    "key": "heist",
+    "priority": 7,
+    "regex": "\\bheists?\\b|\\batraco\\b|\\batracos\\b"
+   },
+   {
+    "key": "snipe",
+    "priority": 8,
+    "regex": "\\bsnip(?:e|ed|er|ing)\\b|\\bheadshot\\b|francotirador"
+   },
+   {
+    "key": "jump",
+    "priority": 6,
+    "regex": "\\bjump(?:ed|s|ing)?\\b|\\bramp\\b|\\bstunt\\b|\\bsalt[oóé]\\b|\\brampa\\b|\\bsaltar\\b"
+   },
+   {
+    "key": "escape",
+    "priority": 7,
+    "regex": "\\bescap(?:e|ed|es|ing)\\b|\\bgot away\\b|\\blost them\\b|\\bhu[ií]\\b|\\bescap[eé]\\b|\\bescapar\\b"
+   },
+   {
+    "key": "busted",
+    "priority": 7,
+    "regex": "\\bbusted\\b|\\barrest(?:ed)?\\b|\\bcaught\\b|atrap[oó]|\\bpill[oó]\\b|arrest"
+   },
+   {
+    "key": "wasted",
+    "priority": 7,
+    "regex": "\\bwasted\\b|\\bdied\\b|\\bdead\\b|\\bmuri[oó]\\b|\\bmor[ií]\\b|\\bmatar?on\\b"
+   },
+   {
+    "key": "robbery",
+    "priority": 7,
+    "regex": "\\brob(?:bery|bed|bing)?\\b|\\bsteal\\b|\\bstole\\b|\\brobar\\b|\\brobo\\b|\\brob[eé]\\b|\\bvoy a robar\\b"
+   },
+   {
+    "key": "bail",
+    "priority": 6,
+    "regex": "\\bbail(?:ed|ing)?\\b"
+   },
+   {
+    "key": "glitch",
+    "priority": 6,
+    "regex": "\\bglitch(?:ed|y)?\\b|\\bbug(?:ged)?\\b"
+   },
+   {
+    "key": "heli",
+    "priority": 5,
+    "regex": "\\bheli(?:copter)?s?\\b|\\bchopper\\b|helic[oó]ptero"
+   },
+   {
+    "key": "plane",
+    "priority": 5,
+    "regex": "\\bplane\\b|\\bjet\\b|\\bhydra\\b|\\blazer\\b|\\bavi[oó]n\\b"
+   },
+   {
+    "key": "chase",
+    "priority": 6,
+    "regex": "\\bchas(?:e|ed|ing)\\b|\\bpursuit\\b|persecuci|persigu|perseg"
+   },
+   {
+    "key": "police",
+    "priority": 4,
+    "regex": "\\bcops?\\b|\\bpolice\\b|\\blspd\\b|\\bpoli\\b|polic[ií]a"
+   }
+  ],
+  "context_actions": [
+   "police",
+   "chase"
+  ],
+  "context_rules": [
+   {
+    "action": "chase",
+    "stars": false,
+    "unless_primary": [
+     "chase"
+    ],
+    "text": "chase"
+   },
+   {
+    "action": null,
+    "stars": true,
+    "unless_primary": [],
+    "text": "stars"
+   },
+   {
+    "action": "police",
+    "stars": false,
+    "unless_primary": [
+     "police",
+     "busted"
+    ],
+    "text": "police"
+   },
+   {
+    "action": "heist",
+    "stars": false,
+    "unless_primary": [
+     "heist"
+    ],
+    "text": "heist"
+   }
+  ],
+  "stars_regex": "\\b(one|two|three|four|five|1|2|3|4|5|uno|dos|tres|cuatro|cinco)[- ]stars?\\b",
+  "stars_fallback_regex": "estrellas?\\s*(?:de b[uú]squeda)?\\s*(?:a\\s*)?(\\d)",
+  "numbers": {
+   "one": 1,
+   "two": 2,
+   "three": 3,
+   "four": 4,
+   "five": 5,
+   "uno": 1,
+   "dos": 2,
+   "tres": 3,
+   "cuatro": 4,
+   "cinco": 5
+  },
+  "vehicles": {
+   "zentorno": "Zentorno",
+   "oppressor": "Oppressor",
+   "buzzard": "Buzzard",
+   "hydra": "Hydra",
+   "lazer": "Lazer",
+   "rhino": "Rhino",
+   "deluxo": "Deluxo",
+   "insurgent": "Insurgent",
+   "adder": "Adder",
+   "kuruma": "Kuruma",
+   "sultan": "Sultan",
+   "turismo": "Turismo",
+   "t20": "T20",
+   "tank": "tank",
+   "tanque": "tank"
+  },
+  "places": [
+   {
+    "regex": "gas station|gasolinera",
+    "names": {
+     "en": "the gas station",
+     "es": "la gasolinera"
+    }
+   },
+   {
+    "regex": "maze bank",
+    "names": {
+     "en": "Maze Bank",
+     "es": "Maze Bank"
+    }
+   },
+   {
+    "regex": "fleeca",
+    "names": {
+     "en": "the Fleeca bank",
+     "es": "el banco Fleeca"
+    }
+   },
+   {
+    "regex": "\\bbank\\b|\\bbanco\\b",
+    "names": {
+     "en": "the bank",
+     "es": "el banco"
+    }
+   },
+   {
+    "regex": "casino",
+    "names": {
+     "en": "the casino",
+     "es": "el casino"
+    }
+   },
+   {
+    "regex": "roadblock|barrera|control policial",
+    "names": {
+     "en": "the roadblock",
+     "es": "el control policial"
+    }
+   },
+   {
+    "regex": "police station|comisar",
+    "names": {
+     "en": "the police station",
+     "es": "la comisaría"
+    }
+   },
+   {
+    "regex": "airport|aeropuerto",
+    "names": {
+     "en": "the airport",
+     "es": "el aeropuerto"
+    }
+   },
+   {
+    "regex": "bridge|puente",
+    "names": {
+     "en": "the bridge",
+     "es": "el puente"
+    }
+   },
+   {
+    "regex": "mount chiliad|chiliad",
+    "names": {
+     "en": "Mount Chiliad",
+     "es": "el Monte Chiliad"
+    }
+   },
+   {
+    "regex": "sandy shores",
+    "names": {
+     "en": "Sandy Shores",
+     "es": "Sandy Shores"
+    }
+   },
+   {
+    "regex": "vinewood",
+    "names": {
+     "en": "Vinewood",
+     "es": "Vinewood"
+    }
+   },
+   {
+    "regex": "los santos",
+    "names": {
+     "en": "Los Santos",
+     "es": "Los Santos"
+    }
+   },
+   {
+    "regex": "humane labs",
+    "names": {
+     "en": "Humane Labs",
+     "es": "Humane Labs"
+    }
+   },
+   {
+    "regex": "train|tren\\b",
+    "names": {
+     "en": "the train",
+     "es": "el tren"
+    }
+   },
+   {
+    "regex": "helicopter|chopper|helic[oó]ptero",
+    "names": {
+     "en": "a helicopter",
+     "es": "un helicóptero"
+    }
+   }
+  ],
+  "place_exclusions": [
+   {
+    "vehicles": [
+     "tank",
+     "helicopter"
+    ],
+    "place": "a helicopter"
+   }
+  ],
+  "templates": {
+   "en": {
+    "explode": [
+     "{S} blows up outside {O}",
+     "{S} goes up in a massive explosion",
+     "Massive explosion at {O}",
+     "Everything explodes at once"
+    ],
+    "crash": [
+     "{S} slams into {O}",
+     "{S} wipes out in a brutal crash",
+     "Brutal crash into {O}",
+     "Brutal crash out of nowhere"
+    ],
+    "heist": [
+     "{S} pulls off the {O} heist",
+     "{S} pulls off a wild heist",
+     "Pulling off the heist at {O}",
+     "Heist goes sideways fast"
+    ],
+    "snipe": [
+     "{S} snipes someone near {O}",
+     "Sniper shot with the {S}",
+     "Sniper shot near {O}",
+     "Perfect sniper shot"
+    ],
+    "jump": [
+     "{S} sends a jump over {O}",
+     "{S} sticks the insane jump",
+     "Insane jump over {O}",
+     "Insane jump nobody expected"
+    ],
+    "escape": [
+     "{S} escapes near {O}",
+     "{S} makes a clean escape",
+     "Last-second escape near {O}",
+     "Last-second escape"
+    ],
+    "busted": [
+     "Busted by the cops at {O}",
+     "Busted in the {S}",
+     "Busted at {O}",
+     "Busted at the worst moment"
+    ],
+    "wasted": [
+     "Wasted at {O} in the {S}",
+     "Wasted in the {S}",
+     "Wasted at {O}",
+     "Wasted out of nowhere"
+    ],
+    "robbery": [
+     "{S} robbery at {O} goes wrong",
+     "{S} robbery goes wrong",
+     "Robbing {O} goes wrong",
+     "Robbery goes completely wrong"
+    ],
+    "bail": [
+     "Bails out of the {S} at {O}",
+     "Bails out of the {S} at the last second",
+     "Bails out near {O}",
+     "Bails out at the last second"
+    ],
+    "glitch": [
+     "{S} glitch at {O}",
+     "{S} glitches out",
+     "Glitch at {O}",
+     "Game-breaking glitch"
+    ],
+    "heli": [
+     "{S} and the heli over {O}",
+     "{S} versus a helicopter",
+     "Helicopter chaos over {O}",
+     "Helicopter chaos"
+    ],
+    "plane": [
+     "{S} dogfight over {O}",
+     "{S} takes a plane down",
+     "Plane chaos over {O}",
+     "Plane chaos"
+    ],
+    "chase": [
+     "{S} chase ends at {O}",
+     "{S} police chase",
+     "Police chase ends at {O}",
+     "Police chase gets out of hand"
+    ],
+    "police": [
+     "{S} versus the cops at {O}",
+     "{S} versus the cops",
+     "Cops swarm {O}",
+     "Cops swarm in"
+    ]
+   },
+   "es": {
+    "explode": [
+     "{S} explota frente a {O}",
+     "{S} sale volando en una explosión",
+     "Explosión enorme en {O}",
+     "Todo explota de golpe"
+    ],
+    "crash": [
+     "{S} se estrella contra {O}",
+     "{S} se estrella de forma brutal",
+     "Choque brutal contra {O}",
+     "Choque brutal de la nada"
+    ],
+    "heist": [
+     "{S} saca adelante el atraco a {O}",
+     "{S} saca adelante un atraco épico",
+     "Atraco épico a {O}",
+     "El atraco se tuerce al instante"
+    ],
+    "snipe": [
+     "{S} da un tiro de francotirador cerca de {O}",
+     "Tiro de francotirador con el {S}",
+     "Tiro de francotirador cerca de {O}",
+     "Tiro de francotirador perfecto"
+    ],
+    "jump": [
+     "{S} salta sobre {O}",
+     "{S} clava un salto increíble",
+     "Salto increíble sobre {O}",
+     "Salto increíble que nadie esperaba"
+    ],
+    "escape": [
+     "{S} escapa cerca de {O}",
+     "{S} escapa por los pelos",
+     "Escape en el último segundo cerca de {O}",
+     "Escape en el último segundo"
+    ],
+    "busted": [
+     "Pillado por la poli en {O}",
+     "Pillado en el {S}",
+     "Pillado en {O}",
+     "Pillado en el peor momento"
+    ],
+    "wasted": [
+     "Wasted en {O} con el {S}",
+     "Wasted con el {S}",
+     "Wasted en {O}",
+     "Wasted de la nada"
+    ],
+    "robbery": [
+     "El robo con {S} en {O} sale mal",
+     "El robo con {S} sale mal",
+     "El robo a {O} sale mal",
+     "El robo sale fatal"
+    ],
+    "bail": [
+     "Salta del {S} en {O} en el último segundo",
+     "Salta del {S} en el último segundo",
+     "Salta a tiempo cerca de {O}",
+     "Salta en el último segundo"
+    ],
+    "glitch": [
+     "Glitch del {S} en {O}",
+     "El {S} se bugea",
+     "Glitch en {O}",
+     "Glitch que rompe el juego"
+    ],
+    "heli": [
+     "{S} y el helicóptero sobre {O}",
+     "{S} contra un helicóptero",
+     "Caos de helicópteros sobre {O}",
+     "Caos de helicópteros"
+    ],
+    "plane": [
+     "Combate aéreo con {S} sobre {O}",
+     "{S} derriba un avión",
+     "Caos de aviones sobre {O}",
+     "Caos de aviones"
+    ],
+    "chase": [
+     "Persecución con {S} termina en {O}",
+     "Persecución policial con {S}",
+     "La persecución acaba en {O}",
+     "Persecución policial fuera de control"
+    ],
+    "police": [
+     "{S} contra la poli en {O}",
+     "{S} contra la poli",
+     "La poli cae sobre {O}",
+     "La poli lo rodea todo"
+    ]
+   }
+  },
+  "context_text": {
+   "en": {
+    "chase": "mid-chase",
+    "stars": "at {n} stars",
+    "wanted": "with a wanted level",
+    "police": "with the cops closing in",
+    "heist": "mid-heist"
+   },
+   "es": {
+    "chase": "en plena persecución",
+    "stars": "con {n} estrellas",
+    "wanted": "con nivel de búsqueda",
+    "police": "con la poli encima",
+    "heist": "en pleno atraco"
+   }
+  },
+  "reactions": [
+   {
+    "key": "laugh",
+    "patterns": [
+     "(?i)\\bLUL\\w*|\\bOMEGALUL|\\bKEKW?\\b|\\blmf?ao\\b|\\blol\\b|\\bhaha+|\\bjaja+|😂|🤣|\\bXD+\\b"
+    ],
+    "text": {
+     "en": "chat loses it",
+     "es": "el chat se muere"
+    }
+   },
+   {
+    "key": "shock",
+    "patterns": [
+     "(?i)\\bno way\\b|\\bwtf\\b|\\bomg\\b|\\bmonka\\w+|😱|😳|\\bwhat\\b\\?*|\\bno puede ser\\b|\\bqu[eé] co[nñ]o\\b|\\bdios\\b"
+    ],
+    "text": {
+     "en": "chat can't believe it",
+     "es": "el chat no se lo cree"
+    }
+   },
+   {
+    "key": "hype",
+    "patterns": [
+     "(?i)\\bpog\\w*|\\bhype\\b|\\bletsgo+\\b|\\bclip (?:it|that)\\b|🔥|🙌|\\bvamos+\\b|\\bbrutal\\b|\\bclipea\\w*",
+     "\\bW\\b"
+    ],
+    "text": {
+     "en": "chat goes wild",
+     "es": "el chat enloquece"
+    }
+   },
+   {
+    "key": "rip",
+    "patterns": [
+     "\\bF\\b|\\bRIP\\b|💀"
+    ],
+    "text": {
+     "en": "chat pays respects",
+     "es": "el chat le rinde honores"
+    }
+   }
+  ],
+  "reaction_min": 2,
+  "reaction_divisor": 8,
+  "stop_words": [
+   "a",
+   "an",
+   "and",
+   "at",
+   "but",
+   "chat",
+   "for",
+   "i",
+   "i'm",
+   "im",
+   "in",
+   "is",
+   "it",
+   "just",
+   "like",
+   "me",
+   "my",
+   "of",
+   "oh",
+   "ok",
+   "okay",
+   "on",
+   "or",
+   "so",
+   "that",
+   "the",
+   "they",
+   "this",
+   "to",
+   "was",
+   "we",
+   "with",
+   "yeah",
+   "you"
+  ],
+  "fallback": {
+   "en": {
+    "clip": "Clip from the stream",
+    "moment_suffix": " moment",
+    "at": "at "
+   },
+   "es": {
+    "clip": "Clip del directo",
+    "moment_suffix": "",
+    "at": "en "
+   }
+  }
+ },
+ "posting": {
+  "caption_template": "{title}. Gameplay by {creator} on {platform}. #GTA #GamingClips",
+  "hashtags": [
+   "#GTA",
+   "#GamingClips"
+  ]
+ },
+ "output": {
+  "decision": null,
+  "preset_id": null,
+  "title_template": null,
+  "caption_style": null,
+  "destinations": null
+ }
+}
