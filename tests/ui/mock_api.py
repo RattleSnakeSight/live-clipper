@@ -423,7 +423,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         armed = [c for c in db["channels"].values() if c["armed"]]
         return {"version": "0.1.0", "uptime": 12.5, "pid": 1, "services": {
             "monitor": {"channels": len(db["channels"]), "armed": len(armed)},
-            "publish": {"mode": db["mode"], "queued": sum(d["state"] == "queued" for d in db["deliveries"].values())},
+            "publish": {"mode": db["mode"], "queued": sum(d["status"] == "queued" for d in db["deliveries"].values())},
             "maintenance": {"state": "healthy", "paused": False}}}
 
     @app.get("/api/app-state/{key}")

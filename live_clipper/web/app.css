@@ -60,7 +60,7 @@ code, pre, kbd { font-family: var(--mono); font-size: 0.92em; }
 }
 .wordmark { font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none; }
 .topbar-end { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-.menu-btn { display: none; }
+.topbar .menu-btn { display: none; }
 .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100dvh - 56px); }
 .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; }
 .sidebar ul { list-style: none; margin: 0; padding: 0; position: sticky; top: 72px; }
@@ -70,9 +70,10 @@ code, pre, kbd { font-family: var(--mono); font-size: 0.92em; }
 }
 .sidebar a:hover { background: var(--raised); }
 .sidebar a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-main { padding: 28px 32px 64px; max-width: 1280px; width: 100%; outline: none; }
+main { padding: 28px 32px 64px; max-width: 1280px; width: 100%; }
+main:focus, main:focus-visible { outline: none; }
 .title-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-.title-row > div { flex: 1 1 320px; }
+.title-row > div:first-child { flex: 1 1 320px; }
 .title-row p { color: var(--muted); margin-top: 4px; }
 .finding { color: var(--text) !important; font-weight: 500; }
 
@@ -277,7 +278,7 @@ dialog .row { margin-top: 16px; justify-content: flex-end; }
   .guide-layout { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  .menu-btn { display: inline-flex; }
+  .topbar .menu-btn { display: inline-flex; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; position: fixed; top: 56px; left: 0; right: 0; bottom: 0; z-index: var(--z-sidebar); overflow: auto; border-right: 0; }
   .sidebar.open { display: block; }

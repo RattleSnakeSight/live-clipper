@@ -35,7 +35,7 @@ export const DELIVERY_STATES = {
   disallowed: ['Not allowed', 'neutral', 'This channel may not post here.'],
   published: ['Posted', 'pos', 'Public on the site.'],
   private: ['Posted privately', 'pos', 'Uploaded as private; only you can see it.'],
-  draft: ['Saved as draft', 'pos', 'Finish it in the site's own app.'],
+  draft: ['Saved as draft', 'pos', "Finish it in the site's own app."],
   failed: ['Failed', 'neg', 'The upload failed. See the error.'],
   cancelled: ['Cancelled', 'neutral', ''],
   skipped: ['Skipped', 'neutral', ''],
