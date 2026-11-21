@@ -364,6 +364,7 @@ def test_titles_do_not_overwrite_captions_finished_meanwhile():
             t = threading.Thread(target=lambda: eng.store.merge_json(
                 "clips", cid, "captions", {"es": {"status": "ready", "srt": "captions/es.srt"}}))
             t.start()
+            fired.append(t)
             t.join(0.3)
         real_update(table, row_id, **fields)
 
@@ -371,5 +372,6 @@ def test_titles_do_not_overwrite_captions_finished_meanwhile():
     postprocess._set_titles(eng, cid, {"segments": [{"start": 0, "end": 2, "text": "what a play"}],
                                        "language": "en"}, "en")
     eng.store.update = real_update
+    fired[1].join(10)                             # the racing writer may still be finishing on a slow machine
     caps = eng.store.clip(cid)["captions"]
     assert caps["es"]["status"] == "ready" and caps["es"]["title"] and caps["en"]["title"]
