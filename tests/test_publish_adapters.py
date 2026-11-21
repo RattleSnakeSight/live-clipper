@@ -14,7 +14,7 @@ from live_clipper.publish.instagram import InstagramAdapter
 from live_clipper.publish.tiktok import MB, TikTokAdapter, chunk_plan
 from live_clipper.publish.youtube import YouTubeAdapter
 
-CREDS = {"access_token": "AT-very-secret-123", "refresh_token": "RT-very-secret-456", "client_id": "cid",
+CREDS = {"access_token": "AT-very-secret-123", "refresh_token": "RT-very-secret-456", "client_id": "cid",  # gitleaks:allow (synthetic test value)
          "client_secret": "csecret-789"}
 
 

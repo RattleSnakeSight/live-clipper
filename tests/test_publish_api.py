@@ -17,7 +17,7 @@ from live_clipper.publish.youtube import YouTubeAdapter
 from live_clipper.server import create_app
 
 BASE = "http://127.0.0.1:8765"
-CSECRET, ATOKEN, RTOKEN, CODE = "CSECRET-zzz-1234567", "AT-SECRET-tok-7654321", "RT-SECRET-tok-1357924", "AUTHCODE-xyz-987"
+CSECRET, ATOKEN, RTOKEN, CODE = "CSECRET-zzz-1234567", "AT-SECRET-tok-7654321", "RT-SECRET-tok-1357924", "AUTHCODE-xyz-987"  # gitleaks:allow (synthetic test values)
 
 
 @pytest.fixture
