@@ -62,7 +62,10 @@ class Guard:
         if changes_state and origin is not None and origin != f"http://{host}":
             return 403, "cross-origin request refused"
         path = conn.url.path
-        if path.startswith("/api/") and path != "/api/health":
+        # OAuth provider redirects arrive cross-site, so the SameSite=Strict cookie is absent. Those GET
+        # callbacks are authenticated by their single-use, server-side `state` instead of the token.
+        oauth_callback = scope.get("method") == "GET" and path.startswith("/api/oauth/") and path.endswith("/callback")
+        if path.startswith("/api/") and path != "/api/health" and not oauth_callback:
             header = conn.headers.get("authorization", "")
             cookie = conn.cookies.get(COOKIE, "")
             if not (_same(header, f"Bearer {self.ctx.token}") or (cookie and _same(cookie, self.ctx.token))):

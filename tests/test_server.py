@@ -177,3 +177,27 @@ def test_websockets_are_guarded_too(ctx):
         with pytest.raises(WebSocketDisconnect):
             with c.websocket_connect("/api/demo/ws", headers=headers) as ws:
                 ws.receive_json()
+
+
+def test_oauth_callback_reachable_without_cookie_but_other_api_not(tmp_path, monkeypatch):
+    """Provider redirects carry no SameSite=Strict cookie; the callback must reach its state check."""
+    from live_clipper.server import Guard
+
+    class Ctx:
+        port, token = 8765, "tok"
+
+    g = Guard(None, Ctx())
+    from starlette.requests import HTTPConnection
+
+    def scope(path, method="GET"):
+        return {"type": "http", "method": method, "path": path, "headers": [(b"host", b"127.0.0.1:8765")],
+                "query_string": b"", "root_path": "", "scheme": "http", "server": ("127.0.0.1", 8765)}
+
+    s = scope("/api/oauth/youtube/callback")
+    assert g.refuse(HTTPConnection(s), s) is None
+    s = scope("/api/oauth/source/twitch/callback")
+    assert g.refuse(HTTPConnection(s), s) is None
+    s = scope("/api/oauth/youtube/callback", "POST")
+    assert g.refuse(HTTPConnection(s), s)[0] == 401
+    s = scope("/api/oauth/youtube/start")
+    assert g.refuse(HTTPConnection(s), s)[0] == 401
