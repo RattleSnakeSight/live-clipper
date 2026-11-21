@@ -177,3 +177,28 @@ def test_render_requests_are_validated_before_scheduling(api):
     eng.store.update("clips", cid, status="cutting")
     assert c.post(f"/api/clips/{cid}/render", json={"preset_id": "default"}).status_code == 409
     assert c.post("/api/clips/999/render", json={"lang": "en"}).status_code == 404
+
+
+@needs_ffmpeg
+def test_window_override_recuts_from_the_source_or_is_refused(api):
+    import json
+    import subprocess
+
+    c, eng, _ = api
+    cid, d = source_clip(eng, seconds=12)  # source covers 998..1010 s; the clip is 1000..1006 around 1003
+    eng.store.update("clips", cid, window_start=1000.0, window_end=1006.0, action_time=1003.0)
+    eng.store.merge_json("clips", cid, "files", {"trim_in": 2.0, "duration": 6.0})
+
+    far = c.post(f"/api/clips/{cid}/render", json={"override": {"window.pre": 30, "window.post": 5}})
+    assert far.status_code == 400 and "source" in far.json()["detail"]
+    assert "override" not in eng.store.clip(cid)["trigger"]  # nothing applied, nothing claimed
+
+    r = c.post(f"/api/clips/{cid}/render", json={"override": {"window.pre": 4, "window.post": 5}})
+    assert r.status_code == 200, r.text
+    v = wait_idle(c, cid)
+    assert v["window_start"] == 999.0 and v["files"]["trim_in"] == 1.0 and v["files"]["duration"] == 9.0
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json",
+                          str(d / "preview.mp4")], capture_output=True, text=True, check=True).stdout
+    assert abs(float(json.loads(out)["format"]["duration"]) - 9.0) < 0.5
+    eff = eng.selection.resolve(v["channel_id"], eng.store.clip(cid))
+    assert eff["trail"]["window.pre"]["set_by"] == "override" and eff["values"]["window.pre"] == 4

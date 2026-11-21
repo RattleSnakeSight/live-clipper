@@ -584,6 +584,8 @@ class EditService:
                     res = e.selection.resolve(c["channel_id"], {**c, "trigger": trig})
                 except formats.FormatError as err:
                     raise HTTPException(400, err.message) from None
+                if {"window.pre", "window.post"} & set(sel_override):
+                    body["trim"] = await self._window_trim(e, c, res["values"], body.get("trim"))
                 e.store.merge_json("clips", cid, "trigger", {"override": trig["override"]})
                 c = self._clip(cid)
                 if preset_id is None and "output.preset_id" in sel_override:
@@ -666,6 +668,26 @@ class EditService:
             return {"published": sent}
 
         return r
+
+    @staticmethod
+    async def _window_trim(e: EditEngine, c: dict, values: dict, trim) -> list[float]:
+        """A per-clip `window.pre/post` override as a re-cut from the clip's source: the trim that gives that
+        window around the trigger moment. 400 when it does not fit the captured source."""
+        from .postprocess import EditError, validate_edit
+
+        if trim is not None:
+            raise HTTPException(400, "send either trim or a window.pre/window.post override, not both")
+        at, start = c.get("action_time"), c.get("window_start")
+        if at is None or start is None:
+            raise HTTPException(400, "this clip has no trigger moment to place a window around; use trim")
+        pre, post = float(values["window.pre"]), float(values["window.post"])
+        t = [at - pre - start, at + post - start]
+        try:
+            await asyncio.to_thread(validate_edit, e.for_clip(c), c, {"trim": t})
+        except EditError as err:
+            raise HTTPException(400, f"window {pre:g} s before / {post:g} s after the moment cannot be cut "
+                                     f"from this clip's captured source: {err}") from None
+        return t
 
     def _view(self, c: dict) -> dict:
         f = c["files"] or {}

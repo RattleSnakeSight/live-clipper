@@ -348,9 +348,11 @@ class Monitor:
             self.chat.start()
 
     async def stop(self) -> None:
-        for t in (self._watch_task, self._observe_task, self._official_task):
-            if t:
-                t.cancel()
+        tasks = [t for t in (self._watch_task, self._observe_task, self._official_task) if t]
+        for t in tasks:
+            t.cancel()
+        if tasks:                                     # a watch must not restart capture after this point
+            await asyncio.gather(*tasks, return_exceptions=True)
         if self.engine.hub is not None:
             self.engine.hub.unwatch(self.ch["platform"], self.ch["name"])
         self.media_on = self.slot_wait = False
@@ -414,13 +416,22 @@ class Maintenance:
         self.paused: set[int] = set()
         self.refused = 0
         self.last_refusal_log: dict[int, float] = {}
+        self._free: tuple[float, int] | None = None    # (when, bytes): the last disk measurement
+
+    FREE_FRESH_S = 1.0                                 # housekeeping re-measures every 0.5 s off the event loop
 
     def thresholds(self) -> tuple[int, int]:
         lo = max(0, int(self.s.min_free_mb)) * MB
         return lo, min(lo, max(0, int(self.s.critical_free_mb)) * MB)
 
     def free_bytes(self) -> int:
-        return shutil.disk_usage(self.s.data_dir).free
+        """Free bytes under data_dir; a measurement under FREE_FRESH_S old is reused (disk_usage can block)."""
+        last = self._free
+        if last is not None and time.monotonic() - last[0] < self.FREE_FRESH_S:
+            return last[1]
+        free = shutil.disk_usage(self.s.data_dir).free
+        self._free = (time.monotonic(), free)
+        return free
 
     def ring_free_bytes(self) -> int:
         return self.free_bytes()                       # the ring always lives under data_dir here
@@ -460,7 +471,8 @@ class Maintenance:
 
     async def enforce_producers(self) -> None:
         """Stop captures before the disk is exhausted; restart them once space is back (hysteresis)."""
-        free = self.ring_free_bytes()
+        self._free = None
+        free = await asyncio.to_thread(self.ring_free_bytes)  # a slow disk must not stall the event loop
         lo, crit = self.thresholds()
         if free < crit or self.ops_paused():
             for m in list(self.e.monitors.values()):
@@ -475,7 +487,7 @@ class Maintenance:
             for cid in sorted(self.paused):
                 self.paused.discard(cid)
                 m = self.e.monitors.get(cid)
-                if m and (not m.gated or m.gate_open):
+                if m and m.media_on and not m.slot_wait:   # not stopped meanwhile (offline, gate, slot)
                     m.capture.start()
                     self.e.store.log(f"disk: {free // MB} MB free; capture resumed", channel_id=cid)
 
@@ -493,6 +505,7 @@ class Engine:
                                      settings.disk_ceiling_mb * 1024 * 1024,
                                      log=lambda m, lvl="info": store.log(m, lvl))
         self.monitors: dict[int, Monitor] = {}
+        self.arm_errors: dict[int, str] = {}           # armed channels whose monitor could not start
         self.tasks: set[asyncio.Task] = set()
         # cutting, rendering and the hand-off to publishing; standalone (tests) when no edit service runs
         self.edit = edit or EditEngine(None, store.db, store=store, clips_dir=settings.clips_dir,
@@ -525,9 +538,17 @@ class Engine:
                     "retired from tracking: not re-armed"
                 self.store.log(f"{ch['platform']}/{ch['name']} is {kind}", "warn", channel_id=ch["id"])
             elif ch["armed"]:
-                self.arm(ch["id"])
+                try:                                  # one broken channel must not keep the others unmonitored
+                    self.arm(ch["id"])
+                except Exception as e:
+                    self.arm_errors[ch["id"]] = f"monitoring could not start: {type(e).__name__}: {e}"[:300]
+                    self.store.log(self.arm_errors[ch["id"]], "error", channel_id=ch["id"])
 
     async def stop(self) -> None:
+        for t in self._bg:                            # no restarts or new clips while monitors stop
+            t.cancel()
+        if self._bg:
+            await asyncio.wait(self._bg, timeout=10)
         for m in list(self.monitors.values()):
             await m.stop()
         if self.twitch_hub is not None:
@@ -545,6 +566,7 @@ class Engine:
         """After a crash/restart: never duplicate a clip; resume what can be resumed."""
         self.edit.recover()                           # edit reservations of a dead process
         self._reconcile_orphan_renders()
+        self._resume_handoffs()
         queued = 0
         for c in self.store.q("SELECT * FROM clips WHERE status NOT IN ('ready','failed','discarded','expired') "
                               "ORDER BY id"):
@@ -576,6 +598,31 @@ class Engine:
                 self.store.merge_json("clips", c["id"], "captions", {lang: patch})
                 self.store.log(f"clip {c['id']}: {lang} final left rendering by a restart -> {patch['final_status']}",
                                clip_id=c["id"])
+                n += 1
+        return n
+
+    def _resume_handoffs(self) -> int:
+        """Ready finals that never reached publishing (killed between saving "ready" and the hand-off, or a failed
+        hand-off): no selection decision for the language, or a qualified one without a delivery. The hand-off is
+        idempotent (publishing keeps one delivery per clip, destination and language)."""
+        n = 0
+        for c in self.store.q("SELECT id, trigger, captions, files FROM clips WHERE status='ready'"):
+            sel = (c["trigger"] or {}).get("selection") or {}
+            for lang in (c["files"] or {}).get("final") or {}:
+                if ((c["captions"] or {}).get(lang) or {}).get("final_status") != "ready":
+                    continue
+                d = sel.get(lang)
+                if d and (d.get("decision") != "qualified" or self.store.q1(
+                        "SELECT id FROM deliveries WHERE clip_id=? AND language=?", c["id"], lang)):
+                    continue
+                try:
+                    sent = self.edit.publisher.on_language_ready(c["id"], lang)
+                except Exception as e:
+                    self.store.log(f"clip {c['id']}: {lang} hand-off to publishing failed again: {e}", "error",
+                                   clip_id=c["id"])
+                    continue
+                self.store.log(f"clip {c['id']}: {lang} final handed to selection/publishing after a restart"
+                               + ("" if sent else " (not published)"), clip_id=c["id"])
                 n += 1
         return n
 
@@ -629,7 +676,11 @@ class Engine:
                     for trig in m.detector.tick(now):
                         self.on_trigger(m, trig)
             except Exception as e:
-                self.store.log(f"housekeeping error: {e}", "error")
+                log.exception("housekeeping pass failed; continuing")
+                try:
+                    self.store.log(f"housekeeping error: {e}", "error")
+                except Exception:
+                    log.exception("housekeeping error could not be stored")
             await asyncio.sleep(0.5)
 
     def _spawn(self, coro) -> asyncio.Task:
@@ -653,15 +704,21 @@ class Engine:
         if why := refusal(ch):
             self.store.update("channels", channel_id, armed=0)
             raise LiveRefused(why)
-        self.store.update("channels", channel_id, armed=1)
         if channel_id not in self.monitors:
-            m = Monitor(self, ch)
+            m = Monitor(self, ch)                     # built (and started) before "armed" is saved
             self.monitors[channel_id] = m
-            m.start()
+            try:
+                m.start()
+            except Exception:
+                self.monitors.pop(channel_id, None)
+                raise
             self.store.log(f"monitoring {ch['platform']}/{ch['name']}", channel_id=channel_id)
+        self.arm_errors.pop(channel_id, None)
+        self.store.update("channels", channel_id, armed=1)
 
     async def disarm(self, channel_id: int) -> None:
         self.store.update("channels", channel_id, armed=0)
+        self.arm_errors.pop(channel_id, None)
         m = self.monitors.pop(channel_id, None)
         if m:
             await m.stop()
@@ -746,13 +803,16 @@ class Engine:
         v = res["values"]
         start, end = self.window_for(m, trig.action_time, v)
         ids = self.simulcast_channels(m)
-        rows = self.store.q(f"SELECT id, channel_id, action_time, window_end, trigger FROM clips WHERE channel_id IN "
-                            f"({','.join('?' * len(ids))}) AND action_time>?", *ids, trig.action_time - 120)
-        c = moments.merge_target(rows, trig.kind, trig.action_time, start, end)
+        with self.store._lock:                        # read-modify-write of the trigger, like merge_json
+            rows = self.store.q(f"SELECT id, channel_id, action_time, window_end, trigger FROM clips WHERE "
+                                f"channel_id IN ({','.join('?' * len(ids))}) AND action_time>?", *ids,
+                                trig.action_time - 120)
+            c = moments.merge_target(rows, trig.kind, trig.action_time, start, end)
+            if c is not None:
+                merged = c["trigger"].setdefault("merged", [])
+                merged.append({"reason": trig.reason, "action_time": trig.action_time, "channel_id": m.id})
+                self.store.update("clips", c["id"], trigger=c["trigger"])
         if c is not None:
-            merged = c["trigger"].setdefault("merged", [])
-            merged.append({"reason": trig.reason, "action_time": trig.action_time, "channel_id": m.id})
-            self.store.update("clips", c["id"], trigger=c["trigger"])
             via = "" if c["channel_id"] == m.id else f" (same moment on simulcast channel {c['channel_id']})"
             self.store.log(f"trigger merged into clip {c['id']}{via}: {trig.reason}", channel_id=m.id,
                            clip_id=c["id"])

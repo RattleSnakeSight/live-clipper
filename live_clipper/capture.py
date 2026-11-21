@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import logging
 import os
 import shutil
 import signal
@@ -20,6 +21,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:                                   # owned by the edit subsystem; only the reference API is used
     from .buffer import BufferManager
 
+log = logging.getLogger(__name__)
+
 
 def _streamlink_bin() -> str:
     """Prefer the streamlink installed next to this interpreter (the project venv; streamlink.exe on Windows)."""
@@ -30,14 +33,29 @@ def _streamlink_bin() -> str:
 
 
 def _reader_command(command: list[str]) -> list[str]:
-    """Bind Linux capture readers to the worker without a threaded preexec_fn."""
-    if sys.platform != "linux":
-        return command
+    """Bind POSIX capture readers to the worker without a threaded preexec_fn (see _capture_exec)."""
+    if sys.platform == "win32":
+        return command                              # a Job Object instead (_spawn_reader)
     executable = shutil.which(command[0])
     if executable is None:
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), command[0])
     launcher = Path(__file__).with_name("_capture_exec.py").resolve()
-    return [sys.executable, "-I", "-S", str(launcher), str(os.getpid()), executable, *command[1:]]
+    mode = [] if sys.platform == "linux" else ["--watch"]  # Linux: parent-death signal; else a watchdog
+    return [sys.executable, "-I", "-S", str(launcher), *mode, str(os.getpid()), executable, *command[1:]]
+
+
+async def _spawn_reader(command: list[str], **kw) -> asyncio.subprocess.Process:
+    """Start a capture reader (streamlink or FFmpeg) that cannot outlive this worker."""
+    if sys.platform != "win32":
+        return await asyncio.create_subprocess_exec(*_reader_command(command), **kw)
+    from ._capture_exec import CREATE_SUSPENDED, bind_to_kill_job
+
+    p = await asyncio.create_subprocess_exec(*command, creationflags=CREATE_SUSPENDED, **kw)
+    try:
+        bind_to_kill_job(p.pid)                     # resumes the reader in every case
+    except Exception as e:                          # best effort: never fail a capture over it
+        log.warning("capture reader %s is not tied to this worker: %s", getattr(p, "pid", "?"), e)
+    return p
 
 
 STREAMLINK_PLATFORMS = {"twitch": "https://www.twitch.tv/{name}",
@@ -114,7 +132,11 @@ class Capture:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
+                cur = asyncio.current_task()
+                if cur is not None and cur.cancelling():  # our caller is being cancelled, not just the capture
+                    raise
+            except Exception:
                 pass
         self.health.state = "stopped"
 
@@ -188,14 +210,14 @@ class Capture:
             if prod:
                 r, w = os.pipe()
                 try:
-                    p1 = await asyncio.create_subprocess_exec(*_reader_command(prod), stdout=w, stderr=asyncio.subprocess.PIPE)
+                    p1 = await _spawn_reader(prod, stdout=w, stderr=asyncio.subprocess.PIPE)
                     self._procs = [p1]
-                    p2 = await asyncio.create_subprocess_exec(*_reader_command(ff), stdin=r, stderr=asyncio.subprocess.PIPE)
+                    p2 = await _spawn_reader(ff, stdin=r, stderr=asyncio.subprocess.PIPE)
                     self._procs = [p1, p2]
                 finally:
                     os.close(r); os.close(w)
             else:
-                p2 = await asyncio.create_subprocess_exec(*_reader_command(ff), stdin=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+                p2 = await _spawn_reader(ff, stdin=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
                 self._procs = [p2]
         except FileNotFoundError as e:
             await self._kill()                      # don't orphan streamlink if ffmpeg is missing
