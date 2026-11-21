@@ -69,7 +69,9 @@ def _ram_bytes(run: Callable = _run) -> int:
             return int(st.total)
         if sys.platform == "darwin":
             out = run(["sysctl", "-n", "hw.memsize"])
-            return int(out.strip()) if out else 0
+            if out and out.strip().isdigit():
+                return int(out.strip())
+            return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
         for line in Path("/proc/meminfo").read_text().splitlines():
             if line.startswith("MemTotal:"):
                 return int(line.split()[1]) * 1024

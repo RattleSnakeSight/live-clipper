@@ -451,12 +451,16 @@ def test_every_frame_read_has_an_explicit_one_thread_budget_and_is_niced(monkeyp
 
 
 def _fake_reads(monkeypatch, have=lambda t: True, delay=0.0, key_shift=0.0):
+    """Each fake read costs `delay` seconds on a fake clock, so deadline tests don't depend on runner speed."""
+    import time as _time
     calls = []
+    clock = [0.0]
+    if delay:
+        monkeypatch.setattr(_time, "monotonic", lambda: clock[0])
 
     def read(path, t, aw, ah, exact, timeout, offset=0.0):
-        import time as _t
         calls.append((round(t, 2), exact))
-        _t.sleep(delay)
+        clock[0] += delay
         if not have(t):
             return None, None
         return b"\x10" * (aw * ah * 3), (t if exact else t - key_shift)
