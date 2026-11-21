@@ -47,7 +47,7 @@ pytest -q
 
 ## Open issues
 
-- Public namespace for the repository: waiting on a maintainer decision.
+- The maintainer approved the authenticated GitHub namespace for the repository URL and CODEOWNERS only. Keep all other identity checks in force.
 
 ## Resuming
 
