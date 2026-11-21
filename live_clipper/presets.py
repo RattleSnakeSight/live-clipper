@@ -44,76 +44,137 @@ class _M(BaseModel):
 
 
 Frac = Field(ge=0.0, le=1.0)
+RGB = r"^#[0-9A-Fa-f]{6}$"
 
 
 class Window(_M):
-    pre_roll_s: float = Field(ge=0, le=120)  # seconds before the estimated action
-    post_roll_s: float = Field(ge=0, le=120)
-    max_clip_seconds: float = Field(ge=2, le=600)  # limit for operator trims (live windows are pre + post)
+    pre_roll_s: float = Field(ge=0, le=120,
+        description="Seconds of video kept before the moment chat reacted to.")
+    post_roll_s: float = Field(ge=0, le=120, description="Seconds of video kept after the moment.")
+    max_clip_seconds: float = Field(
+        ge=2, le=600, description="Longest clip you can make by trimming one by hand, in seconds.")
 
 
 class Encode(_M):
-    preview_height: int = Field(ge=240, le=4320)
-    final_height: int = Field(ge=240, le=4320)
+    preview_height: int = Field(
+        ge=240, le=4320,
+            description="Height in pixels of the quick preview video. Width follows the vertical shape.")
+    final_height: int = Field(
+        ge=240, le=4320,
+            description="Height in pixels of the finished video that gets posted. 1920 gives 1080x1920.")
     x264_preset: Literal[
         "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"
-    ]
-    preview_crf: int = Field(ge=0, le=51)  # live-cut preview
-    render_crf: int = Field(ge=0, le=51)  # finals and re-rendered previews
-    output_fps: int = Field(ge=0, le=240)  # cap (0 = none); a slower source is never duplicated
-    accurate_seek: bool  # False keeps the original input-side seek (see DEVIATIONS)
+    ] = Field(
+        description="Encoder speed. Slower settings make smaller files at the same quality but take longer.")
+    preview_crf: int = Field(
+        ge=0, le=51,
+            description="Quality of the preview video. Lower is sharper and bigger; 23 is a fair default.")
+    render_crf: int = Field(
+        ge=0, le=51,
+            description="Quality of the finished video. Lower is sharper and bigger; 18 to 23 looks good.")
+    output_fps: int = Field(
+        ge=0, le=240,
+            description=(
+                "Most frames per second in the output. 0 means no limit; slower sources are never padded."))
+    accurate_seek: bool = Field(
+        description=(
+            "Cut exactly at the start time. Off keeps the original faster cut, which can start a moment "
+            "late."))
 
 
 class Layout(_M):
-    mode: Literal["auto", "fit", "crop", "split", "stack"]
-    zoom: float | None = Field(None, ge=1.0, le=4.0)
-    dy: float | None = Field(None, ge=-0.5, le=0.5)
-    cx: float | None = Field(None, ge=0.0, le=1.0)
-    facecam: list[float] | None = Field(None, min_length=4, max_length=4)
-    gameplay: list[float] | None = Field(None, min_length=4, max_length=4)
-    facecam_frac: float | None = Field(None, ge=0.15, le=0.6)
-    pin: bool | None = None
+    mode: Literal["auto", "fit", "crop", "split", "stack"] = Field(
+        description=(
+            "How the stream is framed in the vertical video: auto picks for you, fit shows the whole frame, "
+            "crop cuts the centre, split and stack place facecam and gameplay together."))
+    zoom: float | None = Field(None, ge=1.0, le=4.0, description="Zoom into the picture. 1 is no zoom.")
+    dy: float | None = Field(
+        None, ge=-0.5, le=0.5,
+            description="Move the picture up (negative) or down (positive), as a share of its height.")
+    cx: float | None = Field(
+        None, ge=0.0, le=1.0,
+            description="Horizontal centre of a crop, from 0 (left edge) to 1 (right edge).")
+    facecam: list[float] | None = Field(
+        None, min_length=4, max_length=4,
+        description="Where the webcam sits in the stream frame: left, top, width, height, each from 0 to 1.")
+    gameplay: list[float] | None = Field(
+        None, min_length=4, max_length=4,
+        description=(
+            "Where the gameplay sits in the stream frame: left, top, width, height, each from 0 to 1."))
+    facecam_frac: float | None = Field(
+        None, ge=0.15, le=0.6,
+            description="Share of the video height given to the webcam panel in split layouts.")
+    pin: bool | None = Field(
+        None, description="Keep this layout fixed instead of letting automatic detection change it.")
 
 
 class Facecam(_M):
-    detect: bool  # auto layout may look for a webcam inset (else whole frame)
-    split_frac: float = Field(ge=0.15, le=0.6)  # share of the height for the facecam panel
+    detect: bool = Field(
+        description="Let the auto layout look for a webcam in the frame. Off shows the whole frame.")
+    split_frac: float = Field(
+        ge=0.15, le=0.6,
+            description="Share of the video height used by the webcam panel when a webcam is found.")
 
 
 class Captions(_M):
-    font: str = Field(min_length=1, max_length=64, pattern=r"^[^,\r\n]+$")  # ASS style field: no commas
-    bold: bool
-    size_frac: float = Field(gt=0, le=0.3)  # of the output width
-    outline_frac: float = Frac
-    shadow_frac: float = Frac
-    margin_v_frac: float = Frac  # of the output height
-    margin_lr_frac: float = Field(ge=0, le=0.4)
-    alignment: int = Field(ge=1, le=9)  # ASS numpad alignment (2 = bottom centre)
-    primary: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
-    outline_color: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
-    back_color: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+    font: str = Field(
+        min_length=1, max_length=64, pattern=r"^[^,\r\n]+$",
+        description="Font name for the captions, as installed on this computer. No commas.")
+    bold: bool = Field(description="Draw the captions in bold.")
+    size_frac: float = Field(gt=0, le=0.3, description="Caption text size as a share of the video width.")
+    outline_frac: float = Field(
+        ge=0.0, le=1.0,
+            description="Thickness of the outline around caption letters, as a share of the video width.")
+    shadow_frac: float = Field(
+        ge=0.0, le=1.0,
+            description="Size of the shadow behind caption letters, as a share of the video width.")
+    margin_v_frac: float = Field(
+        ge=0.0, le=1.0,
+            description="Distance of the captions from the screen edge, as a share of the video height.")
+    margin_lr_frac: float = Field(
+        ge=0, le=0.4,
+            description=(
+                "Space kept free on the left and right of the captions, as a share of the video width."))
+    alignment: int = Field(
+        ge=1, le=9,
+            description=(
+                "Where captions sit, as a number-pad position: 2 bottom centre, 5 middle, 8 top centre."))
+    primary: str = Field(pattern=RGB, description="Caption text colour as #RRGGBB.")
+    outline_color: str = Field(pattern=RGB,
+        description="Colour of the outline around caption letters, as #RRGGBB.")
+    back_color: str = Field(pattern=RGB,
+        description="Colour of the shadow behind caption letters, as #RRGGBB.")
 
 
 class Title(_M):
-    duration_s: float = Field(ge=0, le=60)  # hook overlay shown for the first N seconds
-    wrap_chars: int = Field(ge=8, le=80)
+    duration_s: float = Field(
+        ge=0, le=60,
+            description=(
+                "Seconds the title text shows at the start of the clip. 0 turns the title overlay off."))
+    wrap_chars: int = Field(ge=8, le=80,
+        description="Characters per line before the title wraps to the next line.")
 
 
 class Languages(_M):
-    render: Literal["original", "both"]  # automatic finals: original language only, or en + es
+    render: Literal["original", "both"] = Field(
+        description=(
+            "Which finished videos are made automatically: the spoken language only, or English and "
+            "Spanish."))
 
 
 class Preset(_M):
-    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
-    name: str = Field(min_length=1, max_length=80)
-    description: str = Field("", max_length=500)
-    window: Window
-    encode: Encode
-    layout: Layout
-    facecam: Facecam
-    captions: Captions
-    title: Title
-    languages: Languages
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
+                    description=(
+                        "Short unique name used in files and rules: lower-case letters, digits, dashes."))
+    name: str = Field(min_length=1, max_length=80, description="The name shown in the app.")
+    description: str = Field("", max_length=500, description="One line about what this look is for.")
+    window: Window = Field(description="How much video goes around each moment.")
+    encode: Encode = Field(description="Size, quality and speed of the videos made.")
+    layout: Layout = Field(description="How the stream is framed in the vertical video.")
+    facecam: Facecam = Field(description="Whether and how a webcam panel is placed above the gameplay.")
+    captions: Captions = Field(description="Look of the burned-in subtitles.")
+    title: Title = Field(description="The title text shown over the start of the clip.")
+    languages: Languages = Field(description="Which language versions are rendered.")
 
 
 @lru_cache

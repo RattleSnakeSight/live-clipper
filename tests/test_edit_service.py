@@ -177,3 +177,10 @@ def test_render_requests_are_validated_before_scheduling(api):
     eng.store.update("clips", cid, status="cutting")
     assert c.post(f"/api/clips/{cid}/render", json={"preset_id": "default"}).status_code == 409
     assert c.post("/api/clips/999/render", json={"lang": "en"}).status_code == 404
+
+
+def test_preset_schema_endpoint_describes_every_field(api):
+    c, _, _ = api
+    schema = c.get("/api/presets/schema").json()
+    assert schema["$defs"]["Encode"]["properties"]["render_crf"]["description"]
+    assert all(p.get("description") for d in schema["$defs"].values() for p in d["properties"].values())

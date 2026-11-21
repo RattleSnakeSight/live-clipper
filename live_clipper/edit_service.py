@@ -447,6 +447,10 @@ class EditService:
         def list_presets():
             return presets().list()
 
+        @r.get("/api/presets/schema")
+        def preset_schema():
+            return P.Preset.model_json_schema()
+
         @r.get("/api/presets/{pid}")
         def get_preset(pid: str):
             return presets().get(pid) or _404("preset")

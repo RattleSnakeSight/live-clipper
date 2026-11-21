@@ -117,6 +117,10 @@ class SelectService:
             return formats.resolve_effective(self.ctx.db, body.get("channel"), body.get("context") or {},
                                              body.get("clip") or {}, body.get("format_id"))
 
+        @r.get("/formats/schema")
+        async def format_schema():
+            return formats.SelectionFormat.model_json_schema()
+
         @r.get("/formats/{fid}")
         @guarded
         async def get_format(fid: str):
@@ -188,6 +192,10 @@ class SelectService:
             rules = formats.reorder_rules(self.ctx.db, [str(x) for x in ids])
             self._changed("rules", None)
             return {"rules": rules}
+
+        @r.get("/rules/schema")
+        async def rule_schema():
+            return formats.Rule.model_json_schema()
 
         @r.get("/rules/{rid}")
         @guarded

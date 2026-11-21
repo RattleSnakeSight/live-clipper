@@ -29,10 +29,12 @@ from pydantic import ValidationError
 
 import live_clipper
 from live_clipper import formats as F
+from live_clipper import presets as P
 from live_clipper.db import Database
 from live_clipper.monitor_service import parse_channel_url
 from live_clipper.presets import SHIPPED, PresetStore
 from live_clipper.publish.requirements import requirements_for
+from live_clipper.publish.service import SETTING_KEYS, check_settings
 from live_clipper.select_service import SelectService
 from live_clipper.setup_service import build_questions
 from live_clipper.sources import OFFICIAL, PLATFORMS, STREAM_PROBE, describe
@@ -204,6 +206,12 @@ def _seed_clips() -> tuple[dict, dict]:
                              "last_error": "Upload refused: quota used up for today." if dstate == "failed" else None,
                              "next_attempt_at": None, "created_at": NOW - i * 800, "updated_at": NOW - i * 700,
                              "history": []}
+    # a delivery whose upload may or may not have landed: the user checks the account and confirms
+    n = len(deliveries) + 1
+    deliveries[n] = {"id": n, "clip_id": 5, "destination_id": 1, "language": "en", "status": "needs_confirmation",
+                     "mode": "manual", "attempts": 1, "outcome": None, "url": None, "post_id": None,
+                     "last_error": None, "next_attempt_at": None, "created_at": NOW - 4000, "updated_at": NOW - 3900,
+                     "history": []}
     return clips, deliveries
 
 
@@ -545,7 +553,9 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     @app.get("/api/clips/{cid}")
     def get_clip(cid: int):
         c = clip(cid)
-        return {**c, "srt": {lg: SRT for lg, x in c["captions"].items() if x.get("srt")}, "values": {}}
+        base = presets.get(c["preset_id"]) or P.shipped()
+        return {**c, "srt": {lg: SRT for lg, x in c["captions"].items() if x.get("srt")},
+                "values": P.merge(base, c.get("overrides"))}
 
     @app.get("/api/clips/{cid}/media/{kind}")
     def clip_media(cid: int, kind: str):
@@ -566,6 +576,15 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             c["captions"][lg]["title"] = t
         if body.get("preset_id"):
             c["preset_id"] = body["preset_id"]
+        if body.get("overrides") is not None:
+            if not isinstance(body["overrides"], dict):
+                raise HTTPException(400, "overrides must be an object of preset values")
+            merged = P.merge(c.get("overrides") or {}, body["overrides"])
+            try:
+                P.validate(merged, base=presets.get(c["preset_id"]))
+            except ValidationError as e:
+                raise bad(e) from None
+            c["overrides"] = merged
         c.update(status="rendering", rendering=True)
         return {"ok": True, "status": "rendering"}
 
@@ -594,6 +613,10 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     @app.get("/api/presets")
     def list_presets():
         return presets.list()
+
+    @app.get("/api/presets/schema")
+    def preset_schema():
+        return P.Preset.model_json_schema()
 
     @app.get("/api/presets/{pid}")
     def get_preset(pid: str):
@@ -673,6 +696,21 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             raise HTTPException(400, "the test destination has no credentials")
         d["app_credentials_set"] = sorted({*d["app_credentials_set"], *(k for k, v in body.items() if v)})
         return {"app_credentials_set": d["app_credentials_set"]}
+
+    @app.put("/api/destinations/{did}/settings")
+    def put_settings(did: int, body: dict = Body(...)):
+        d = dest(did)
+        bad_keys = [k for k in body if k not in SETTING_KEYS]
+        if bad_keys:
+            raise HTTPException(400, f"unsupported setting(s): {bad_keys}")
+        if errs := check_settings(body):
+            raise HTTPException(400, {"message": "; ".join(errs.values()), "errors": errs})
+        st = {**d["settings"], **{k: v for k, v in body.items() if v not in ("", None)}}
+        for k, v in body.items():
+            if v in ("", None):
+                st.pop(k, None)
+        d["settings"] = st
+        return _dest_view(d)
 
     @app.post("/api/destinations/{did}/connect")
     def connect_destination(did: int):
@@ -769,6 +807,18 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         if d["status"] != "held":
             raise HTTPException(409, "only held deliveries can be posted")
         return _post(d)
+
+    @app.post("/api/publish/deliveries/{did}/confirm-posted")
+    def confirm_posted(did: int, body: dict = Body(default={})):
+        d = db["deliveries"].get(did) or nf("delivery")
+        if d["status"] not in ("needs_confirmation", "uncertain"):
+            raise HTTPException(409, "delivery is not awaiting confirmation")
+        url = str(body.get("url") or "").strip()
+        if url and not re.match(r"^https?://[^\s/]+", url):
+            msg = "Enter the full address of the post, starting with https://."
+            raise HTTPException(400, {"message": msg, "errors": {"url": msg}})
+        d.update(status="published", outcome="confirmed by user", url=url or d["url"], updated_at=time.time())
+        return delivery_view(d)
 
     @app.post("/api/publish/deliveries/{did}/retry")
     def retry(did: int):

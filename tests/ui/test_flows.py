@@ -190,3 +190,70 @@ def test_guide_renders_offline_markdown_safely(seeded_server, make_page):
     expect(article.get_by_role("link", name="Unsafe link")).to_have_count(0)
     expect(page.locator(".guide-layout nav [aria-current=page]")).to_have_text("Monitoring streams")
     assert not page.js_errors
+
+
+def test_destination_settings_form_validates_inline_and_saves(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/destinations")
+    form = page.locator("#dest-instagram form[data-settings=instagram]")
+    form.get_by_label("Login type").select_option("facebook")
+    form.get_by_label("Public video folder address (https)").fill("http://example.com/clips")
+    form.get_by_role("button", name="Save settings").click()
+    field = form.locator(".field").filter(has_text="Public video folder address")
+    expect(field.locator(".error")).to_contain_text("https://")
+    expect(page.locator("#toasts")).not_to_contain_text("Settings saved")
+    form.get_by_label("Public video folder address (https)").fill("https://example.com/clips")
+    form.get_by_label("Also show the Reel in the profile feed").select_option("false")
+    form.get_by_role("button", name="Save settings").click()
+    expect(page.locator("#toasts")).to_contain_text("Settings saved")
+    saved = page.request.get(seeded_server.url + "/api/destinations/3").json()["settings"]
+    assert saved == {"login": "facebook", "video_base_url": "https://example.com/clips",
+                     "share_to_feed": False}
+    page.reload()
+    form = page.locator("#dest-instagram form[data-settings=instagram]")
+    expect(form.get_by_label("Login type")).to_have_value("facebook")
+    expect(form.get_by_label("Public video folder address (https)")).to_have_value("https://example.com/clips")
+    # YouTube and TikTok have their own fields; an empty field clears the setting
+    yt = page.locator("#dest-youtube form[data-settings=youtube]")
+    yt.get_by_label("Who can watch uploads").select_option("unlisted")
+    yt.get_by_role("button", name="Save settings").click()
+    expect(page.locator("#toasts")).to_contain_text("Settings saved")
+    yt_saved = page.request.get(seeded_server.url + "/api/destinations/1").json()["settings"]
+    assert yt_saved == {"privacy": "unlisted"}
+    tiktok = page.locator("#dest-tiktok form[data-settings=tiktok]")
+    expect(tiktok.get_by_label("How clips are sent")).to_be_visible()
+    assert not page.js_errors
+
+
+def test_confirm_posted_takes_an_optional_post_address(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/clips/5")
+    page.get_by_role("button", name="Confirm posted").click()
+    dialog = page.get_by_role("dialog")
+    dialog.get_by_label("Post address (optional)").fill("not a link")
+    dialog.get_by_role("button", name="Mark as posted").click()
+    expect(dialog.locator(".error")).to_contain_text("https://")
+    dialog.get_by_label("Post address (optional)").fill("https://example.com/p/42")
+    dialog.get_by_role("button", name="Mark as posted").click()
+    expect(page.locator("#toasts")).to_contain_text("Marked as posted")
+    expect(page.get_by_role("link", name="Open post")).to_have_attribute("href", "https://example.com/p/42")
+    assert not page.js_errors
+
+
+def test_clip_editor_sends_only_the_changed_preset_values(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/clips/2")
+    box = page.locator("#clip-look")
+    expect(box.get_by_label("Video quality (CRF)")).to_have_value("21")
+    box.get_by_label("Video quality (CRF)").fill("18")
+    box.get_by_label("Caption position").select_option("8")
+    box.get_by_label("Show the title over the start of the clip").uncheck()
+    page.get_by_role("button", name="Render again").click()
+    expect(page.locator(".title-row")).to_contain_text("Rendering")
+    ov = page.request.get(seeded_server.url + "/api/clips/2").json()["overrides"]
+    assert ov == {"encode": {"render_crf": 18}, "captions": {"alignment": 8}, "title": {"duration_s": 0}}
+    # a value outside the preset's range is refused at the field
+    page.goto(seeded_server.url + "/#/clips/1")
+    page.get_by_label("Video quality (CRF)").fill("99")
+    page.get_by_role("button", name="Render again").click()
+    expect(page.locator("#render-err")).to_contain_text("less than or equal to 51")

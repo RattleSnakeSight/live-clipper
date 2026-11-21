@@ -64,49 +64,105 @@ def _check_regex(v: str | None) -> str | None:
 
 
 class Labels(_M):
-    game: str = Field(min_length=1, description="game name in reasons, e.g. 'GTA VI'")
-    game_short: str = Field(min_length=1, description="short game name, e.g. 'GTA'")
-    game_title: str = Field(min_length=1, description="game name as streamers title it, e.g. 'GTA 6'")
+    game: str = Field(min_length=1,
+        description="Game name as written in reasons and messages, for example 'GTA VI'.")
+    game_short: str = Field(min_length=1, description="Short game name, for example 'GTA'.")
+    game_title: str = Field(
+        min_length=1,
+            description="Game name the way streamers write it in stream titles, for example 'GTA 6'.")
 
 
 class Match(_M):
-    platforms: list[str] = []
-    title_regex: str
-    category_regex: str
-    category_evidence: bool = True        # a matching platform category counts as game evidence
-    gate_on_title: bool = True            # a gated channel captures only while the TITLE matches
+    platforms: list[str] = Field(
+        [],
+            description=(
+                "Platforms this format applies to, one per line (twitch, kick, youtube). Empty means all."))
+    title_regex: str = Field(
+        description=(
+            "Pattern (regular expression, any case) that the stream title must match to count as this game."))
+    category_regex: str = Field(
+        description=(
+            "Pattern (regular expression, any case) that the stream category must match to count as this "
+            "game."))
+    category_evidence: bool = Field(
+        True, description="Treat a matching platform category as proof that the game is being played.")
+    gate_on_title: bool = Field(
+        True,
+            description=(
+                "For channels that only record on topic, start only while the title matches, not just the "
+                "category."))
 
     _rx = field_validator("title_regex", "category_regex")(_check_regex)
 
 
 class TopicStates(_M):
-    title: str
-    category: str
-    archive: str
-    off_topic: str
-    unverified: str = "unverified"
+    title: str = Field(description="Status name used when the stream title matches the game.")
+    category: str = Field(description="Status name used when only the platform category matches the game.")
+    archive: str = Field(description="Status name used when a past broadcast's saved details match the game.")
+    off_topic: str = Field(description="Status name used when the stream is about something else.")
+    unverified: str = Field("unverified",
+        description="Status name used when the stream topic cannot be checked yet.")
 
 
 class EvidenceKeys(_M):
-    vod_metadata: str
-    mentions: str
+    vod_metadata: str = Field(
+        description="Name under which saved broadcast details are recorded as evidence.")
+    mentions: str = Field(description="Name under which game mentions in speech are recorded as evidence.")
 
 
 class Detector(_M):
-    sensitivity: str = "medium"
-    presets: dict[str, tuple[float, int, float]]
-    per_user_cap: int = Field(ge=1)
-    window: float = Field(gt=0)
-    reaction_delay: float = Field(ge=0)
-    baseline_seconds: float = Field(gt=0)
-    baseline_floor: float = Field(ge=0)
-    merge_gap: float = Field(ge=0)
-    distinct_gap: float = Field(ge=0)
-    warmup: float = Field(ge=0)
-    max_burst: float = Field(gt=0)
-    ratio: float | None = None
-    min_unique: int | None = None
-    min_abs: float | None = None
+    sensitivity: str = Field(
+        "medium",
+            description=(
+                "Which preset below decides how big a chat spike must be. Channels can pick their own."))
+    presets: dict[str, tuple[float, int, float]] = Field(
+        description=(
+            "Spike limits per sensitivity level: how many times above normal chat, how many different "
+            "chatters, and the least messages per 10 seconds."))
+    per_user_cap: int = Field(ge=1, description="Most messages from one chatter that count towards a spike.")
+    window: float = Field(gt=0,
+        description="Seconds of recent chat looked at when measuring the current pace.")
+    reaction_delay: float = Field(
+        ge=0,
+            description=(
+                "Seconds chat usually lags behind what happened on stream. The clip is centred earlier by "
+                "this much."))
+    baseline_seconds: float = Field(gt=0,
+        description="Seconds of chat history used to learn the channel's normal pace.")
+    baseline_floor: float = Field(
+        ge=0,
+            description=(
+                "Lowest normal pace assumed, in messages per 10 seconds, so quiet channels do not fire on "
+                "noise."))
+    merge_gap: float = Field(
+        ge=0,
+            description=(
+                "Seconds of calm chat before a spike counts as over. A spike that restarts sooner is the "
+                "same moment."))
+    distinct_gap: float = Field(
+        ge=0, description="Seconds after a moment began before a new spike counts as a separate moment.")
+    warmup: float = Field(ge=0,
+        description="Seconds of chat to collect after joining before any moment can trigger.")
+    max_burst: float = Field(
+        gt=0,
+            description=(
+                "A spike lasting longer than this many seconds is treated as the channel's new normal, not "
+                "a moment."))
+    ratio: float | None = Field(
+        None,
+            description=(
+                "Overrides the 'times above normal' limit of the sensitivity preset. Empty keeps the "
+                "preset."))
+    min_unique: int | None = Field(
+        None,
+            description=(
+                "Overrides the 'different chatters' limit of the sensitivity preset. Empty keeps the "
+                "preset."))
+    min_abs: float | None = Field(
+        None,
+            description=(
+                "Overrides the 'least messages per 10 seconds' limit of the sensitivity preset. Empty keeps "
+                "the preset."))
 
     @model_validator(mode="after")
     def _known_sensitivity(self):
@@ -117,60 +173,92 @@ class Detector(_M):
 
 
 class Window(_M):
-    pre: float = Field(ge=0, le=120)
-    post: float = Field(ge=0, le=120)
+    pre: float = Field(ge=0, le=120, description="Seconds of video kept before the moment.")
+    post: float = Field(ge=0, le=120, description="Seconds of video kept after the moment.")
 
 
 class Keywords(_M):
-    strong: str            # speech terms that name the game (applied to normalized lower-case ASCII text)
-    game_terms: str        # informational game vocabulary
-    greet_speech: str      # greetings/logistics in speech
-    greet_chat: str        # arriving-viewer greetings in chat
-    react_chat: str        # reactions in chat
+    strong: str = Field(
+        description="Pattern for spoken words that clearly name the game. Matched on plain lower-case text.")
+    game_terms: str = Field(
+        description="Pattern for game vocabulary that hints at gameplay but does not prove it.")
+    greet_speech: str = Field(
+        description="Pattern for greetings and housekeeping talk in speech, which count against a clip.")
+    greet_chat: str = Field(
+        description="Pattern for chat messages that welcome arriving viewers, which count against a clip.")
+    react_chat: str = Field(
+        description=(
+            "Pattern for chat messages that react to something that happened, which count for a clip."))
 
     _rx = field_validator("strong", "game_terms", "greet_speech", "greet_chat", "react_chat")(_check_regex)
 
 
 class Visual(_M):
-    cols: int = Field(ge=1)
-    rows: int = Field(ge=1)
-    flat_std: float
-    ncc: float
-    active_frac: float
-    static_frac: float
-    min_usable: float
+    cols: int = Field(ge=1,
+        description="Number of columns the frame is split into when comparing two frames.")
+    rows: int = Field(ge=1, description="Number of rows the frame is split into when comparing two frames.")
+    flat_std: float = Field(description="Frame cells flatter than this (little detail) are ignored as blank.")
+    ncc: float = Field(
+        description="How alike two cells must be to count as unchanged. Higher means stricter.")
+    active_frac: float = Field(
+        description="Share of cells that must change between frames to call it moving gameplay.")
+    static_frac: float = Field(
+        description="Below this share of changing cells, the picture counts as static.")
+    min_usable: float = Field(
+        description="Least share of cells with enough detail for a frame pair to be judged.")
 
 
 class Editorial(_M):
-    opening_s: float
-    min_setup_s: float
-    min_payoff_s: float
-    gameplay_ratio: float
-    camera_view_face_h: float
-    opinion_words: int
-    opinion_span_s: float
-    statement_max_greeting: float
-    surge_min_messages: int
-    surge_greeting_share: float
-    surge_max_reaction_share: float
-    reaction_share: float
-    speech_greeting_share: float
-    face_dominant_ratio: float
-    static_ratio: float
-    min_pairs: int
-    visual: Visual
+    opening_s: float = Field(
+        description="Seconds after a stream starts during which greetings are expected, not gameplay.")
+    min_setup_s: float = Field(description="Least seconds of lead-up a clip needs before the moment.")
+    min_payoff_s: float = Field(description="Least seconds a clip needs after the moment.")
+    gameplay_ratio: float = Field(
+        description="Share of compared frames that must show moving gameplay to confirm gameplay.")
+    camera_view_face_h: float = Field(
+        description=(
+            "A face taller than this share of the frame means the stream shows the camera, not the game."))
+    opinion_words: int = Field(
+        description="Words spoken near the moment that make it a statement worth clipping.")
+    opinion_span_s: float = Field(description="Seconds around the moment in which spoken words are counted.")
+    statement_max_greeting: float = Field(
+        description="Most greeting share (0 to 1) of that speech for it to still count as a statement.")
+    surge_min_messages: int = Field(
+        description="Chat messages needed in a spike before it can be called a greeting surge.")
+    surge_greeting_share: float = Field(
+        description="Share of greetings (0 to 1) in a spike that makes it a greeting surge.")
+    surge_max_reaction_share: float = Field(
+        description="Share of reactions (0 to 1) below which a greeting-heavy spike is a surge.")
+    reaction_share: float = Field(
+        description="Share of reaction messages (0 to 1) needed for chat to count as reacting.")
+    speech_greeting_share: float = Field(
+        description="Share of greeting words (0 to 1) that makes the speech count as greeting talk.")
+    face_dominant_ratio: float = Field(
+        description="Share of frames dominated by a face that marks the clip as a camera view.")
+    static_ratio: float = Field(
+        description="Share of static frame pairs that marks the clip as a still picture.")
+    min_pairs: int = Field(description="Least number of frame pairs needed before gameplay can be confirmed.")
+    visual: Visual = Field(
+        description="How frames are compared to tell moving gameplay from a still or camera picture.")
 
 
 class Scoring(_M):
-    fresh_half_life_h: float = Field(gt=0)
-    neutral_reaction: float = Field(ge=0)
-    min_score: float = Field(ge=0, description="auto-post rule threshold (chat spike ratio)")
+    fresh_half_life_h: float = Field(
+        gt=0, description="Hours after which a moment counts half as much when ranking, so newer clips win.")
+    neutral_reaction: float = Field(
+        ge=0, description="Score given to a clip with no chat measurement. 1 means chat at its normal level.")
+    min_score: float = Field(ge=0,
+        description="Auto-post threshold: moments scoring below this chat spike ratio are not posted.")
 
 
 class LanguagePolicy(_M):
-    prefs: list[str]
-    names: dict[str, str]
-    min_window_prob: float = Field(ge=0, le=1)
+    prefs: list[str] = Field(
+        description=(
+            "Caption languages to try, in order, one per line. Must include 'auto' (use the detected "
+            "language)."))
+    names: dict[str, str] = Field(description="Display name for each language code, for example en: English.")
+    min_window_prob: float = Field(
+        ge=0, le=1, description="How sure speech detection must be (0 to 1) before its language is trusted.")
 
     @model_validator(mode="after")
     def _auto(self):
@@ -183,34 +271,38 @@ class LanguagePolicy(_M):
 
 
 class TitleAction(_M):
-    key: str
-    priority: int
-    regex: str
+    key: str = Field(description="Short name of this kind of moment, used to pick a title template.")
+    priority: int = Field(description="When several kinds match, the one with the highest number wins.")
+    regex: str = Field(
+        description="Pattern (regular expression) that chat or speech must match for this kind of moment.")
     _rx = field_validator("regex")(_check_regex)
 
 
 class ContextRule(_M):
-    action: str | None = None
-    stars: bool = False
-    unless_primary: list[str] = []
-    text: str
+    action: str | None = Field(None,
+        description="Only add this context for the named kind of moment. Empty means any.")
+    stars: bool = Field(False, description="Add this context only when a star or wanted level was mentioned.")
+    unless_primary: list[str] = Field([],
+        description="Skip this context when the main kind of moment is one of these.")
+    text: str = Field(description="Name of the context phrase to add, as listed under context text.")
 
 
 class Place(_M):
-    regex: str
-    names: dict[str, str]
+    regex: str = Field(description="Pattern (regular expression) that finds this place in chat or speech.")
+    names: dict[str, str] = Field(description="How the place is named in each title language.")
     _rx = field_validator("regex")(_check_regex)
 
 
 class PlaceExclusion(_M):
-    vehicles: list[str]
-    place: str
+    vehicles: list[str] = Field(description="Vehicle names this rule applies to.")
+    place: str = Field(description="Place name that must not be paired with those vehicles in a title.")
 
 
 class TitleReaction(_M):
-    key: str
-    patterns: list[str]
-    text: dict[str, str]
+    key: str = Field(description="Short name of this kind of chat reaction.")
+    patterns: list[str] = Field(
+        description="Patterns (regular expressions) for chat messages that show this reaction.")
+    text: dict[str, str] = Field(description="Title wording for this reaction in each title language.")
 
     @field_validator("patterns")
     @classmethod
@@ -221,32 +313,44 @@ class TitleReaction(_M):
 
 
 class TitleFallback(_M):
-    clip: str
-    moment_suffix: str
-    at: str
+    clip: str = Field(description="Title used when nothing better can be said about the clip.")
+    moment_suffix: str = Field(description="Words added after the game name when only the moment is known.")
+    at: str = Field(description="Word placed before the time or place in a fallback title.")
 
 
 class Titles(_M):
-    max_len: int = Field(ge=10)
-    separator: str
-    phrase_max: int = Field(ge=4)
-    languages: list[str] = Field(min_length=1)
-    actions: list[TitleAction]
-    context_actions: list[str] = []
-    context_rules: list[ContextRule] = []
-    stars_regex: str
-    stars_fallback_regex: str
-    numbers: dict[str, int] = {}
-    vehicles: dict[str, str] = {}
-    places: list[Place] = []
-    place_exclusions: list[PlaceExclusion] = []
-    templates: dict[str, dict[str, tuple[str, str, str, str]]]
-    context_text: dict[str, dict[str, str]]
-    reactions: list[TitleReaction] = []
-    reaction_min: int = 2
-    reaction_divisor: int = Field(8, ge=1)
-    stop_words: list[str] = []
-    fallback: dict[str, TitleFallback]
+    max_len: int = Field(ge=10, description="Longest title allowed, in characters.")
+    separator: str = Field(description="Text placed between the parts of a title.")
+    phrase_max: int = Field(ge=4,
+        description="Longest quoted phrase from chat or speech used in a title, in characters.")
+    languages: list[str] = Field(min_length=1, description="Languages to write titles in, one per line.")
+    actions: list[TitleAction] = Field(
+        description="Kinds of moment a title can describe, with the words that find them.")
+    context_actions: list[str] = Field([],
+        description="Kinds of moment that only add context and never lead a title.")
+    context_rules: list[ContextRule] = Field([],
+        description="Extra phrases added to a title when their conditions hold.")
+    stars_regex: str = Field(description="Pattern that reads a star or wanted level from text.")
+    stars_fallback_regex: str = Field(
+        description="Backup pattern for star levels when the first one finds nothing.")
+    numbers: dict[str, int] = Field({}, description="Number words understood in text, such as five: 5.")
+    vehicles: dict[str, str] = Field({},
+        description="Vehicle words found in text and the name used in titles.")
+    places: list[Place] = Field([], description="Places that can be named in titles.")
+    place_exclusions: list[PlaceExclusion] = Field([],
+        description="Vehicle and place pairs that never go together in a title.")
+    templates: dict[str, dict[str, tuple[str, str, str, str]]] = Field(
+        description=(
+            "Title wording per language and kind of moment. Four variants each, so titles do not repeat."))
+    context_text: dict[str, dict[str, str]] = Field(
+        description="Wording of each context phrase per language, as referenced by the context rules.")
+    reactions: list[TitleReaction] = Field([], description="Chat reactions that can be quoted in titles.")
+    reaction_min: int = Field(2,
+        description="Least number of chat messages that must show a reaction before it is used.")
+    reaction_divisor: int = Field(
+        8, ge=1, description="A reaction must also come from at least one in this many chat messages.")
+    stop_words: list[str] = Field([], description="Words ignored when picking a phrase to quote.")
+    fallback: dict[str, TitleFallback] = Field(description="Fallback title wording per language.")
 
     _rx = field_validator("stars_regex", "stars_fallback_regex")(_check_regex)
 
@@ -268,46 +372,69 @@ class Titles(_M):
 
 
 class Posting(_M):
-    caption_template: str
-    hashtags: list[str] = []
+    caption_template: str = Field(
+        description=(
+            "Post description. Placeholders in braces are filled in: {title}, {creator}, {platform} and "
+            "{game}."))
+    hashtags: list[str] = Field(
+        [], description="Hashtags added to every post unless the description already has them, one per line.")
 
 
 Decision = Literal["skip", "hold", "force_qualify"]
 
 
 class Output(_M):
-    decision: Decision | None = None
-    preset_id: str | None = None
-    title_template: str | None = None
-    caption_style: str | None = None
-    destinations: list[str] | None = None
+    decision: Decision | None = Field(
+        None,
+            description=(
+                "Post, hold for review or skip clips whatever the score says. Empty decides by score."))
+    preset_id: str | None = Field(None,
+        description="Preset (look) used for the clips. Empty uses the default preset.")
+    title_template: str | None = Field(
+        None,
+            description=(
+                "Title pattern, for example {title} | {channel}. Placeholders: {title}, {channel}, {game}, "
+                "{platform}. Empty uses the generated title."))
+    caption_style: str | None = Field(None,
+        description="Name of the caption style to use. Empty keeps the preset's style.")
+    destinations: list[str] | None = Field(
+        None,
+            description=(
+                "Limit posting to these destinations, one per line. Empty keeps each channel's own choice."))
 
 
 class SelectionFormat(_M):
-    id: str = Field(pattern=ID_RE)
-    name: str = Field(min_length=1, max_length=120)
-    version: int = 1
-    description: str = ""
-    labels: Labels
-    match: Match
-    topic_states: TopicStates
-    evidence_keys: EvidenceKeys
-    detector: Detector
-    window: Window
-    keywords: Keywords
-    editorial: Editorial
-    scoring: Scoring
-    language: LanguagePolicy
-    titles: Titles
-    posting: Posting
-    output: Output = Output()
+    id: str = Field(pattern=ID_RE,
+        description="Short unique name used in files and rules: lower-case letters, digits, dashes.")
+    name: str = Field(min_length=1, max_length=120, description="The name shown in the app.")
+    version: int = Field(1, description="Version number of this file layout. Leave it as it is.")
+    description: str = Field("", description="One line about what this format is for.")
+    labels: Labels = Field(description="Names for the game used in titles and messages.")
+    match: Match = Field(description="When this format applies to a stream.")
+    topic_states: TopicStates = Field(description="Status names for how well a stream matches the game.")
+    evidence_keys: EvidenceKeys = Field(description="Names under which proof of the game is recorded.")
+    detector: Detector = Field(description="How chat activity turns into a moment.")
+    window: Window = Field(description="How much video goes around a moment.")
+    keywords: Keywords = Field(description="Word patterns that tell game talk from greetings and reactions.")
+    editorial: Editorial = Field(description="Checks that decide whether a moment is worth posting.")
+    scoring: Scoring = Field(description="How moments are ranked and which ones post automatically.")
+    language: LanguagePolicy = Field(
+        description="Which spoken languages are expected and how captions pick one.")
+    titles: Titles = Field(description="How clip titles are written.")
+    posting: Posting = Field(description="Text added to every post.")
+    output: Output = Field(Output(),
+        description="Default decision, look and destinations for clips of this format.")
 
 
 class RuleConditions(_M):
-    platforms: list[str] = []
-    categories: list[str] = []           # regular expressions, case-insensitive
-    title_regex: str | None = None
-    languages: list[str] = []
+    platforms: list[str] = Field([],
+        description="Only clips from these platforms, one per line. Empty means any.")
+    categories: list[str] = Field(
+        [], description="Patterns (regular expressions, any case) for the stream category. One must match.")
+    title_regex: str | None = Field(
+        None, description="Pattern (regular expression, any case) that the stream title must match.")
+    languages: list[str] = Field([],
+        description="Only these spoken languages, as codes like en or es. Empty means any.")
     _rx = field_validator("title_regex")(_check_regex)
 
     @field_validator("categories")
@@ -319,44 +446,77 @@ class RuleConditions(_M):
 
 
 class RuleScenario(_M):
-    trigger_types: list[str] = []         # chat_spike | manual | audio_spike
-    evidence: list[str] = []              # every listed evidence must be present on the clip
+    trigger_types: list[str] = Field(
+        [], description="Only clips found this way: chat_spike, audio_spike or manual. Empty means any.")
+    evidence: list[str] = Field(
+        [],
+            description=(
+                "Evidence that must all be present: chat, topic, speech, gameplay, statement or reaction."))
 
 
 class RuleDuration(_M):
-    min_s: float | None = Field(None, ge=0)
-    max_s: float | None = Field(None, ge=0)
+    min_s: float | None = Field(None, ge=0, description="Only clips at least this many seconds long.")
+    max_s: float | None = Field(None, ge=0, description="Only clips at most this many seconds long.")
 
 
 class RuleStreamers(_M):
-    channels: list[str] = []
-    mode: Literal["any", "all"] = "any"
-    simulcast_group: str | None = None
-    min_count: int | None = Field(None, ge=1)
-    max_count: int | None = Field(None, ge=1)
+    channels: list[str] = Field([],
+        description="Only clips involving these streamers, one per line. Empty means any.")
+    mode: Literal["any", "all"] = Field(
+        "any",
+            description="For clips with several streamers: any listed streamer matches, or all of them must.")
+    simulcast_group: str | None = Field(None,
+        description="Only clips from this named group of simulcasting channels.")
+    min_count: int | None = Field(None, ge=1,
+        description="Only clips with at least this many streamers in them.")
+    max_count: int | None = Field(None, ge=1,
+        description="Only clips with at most this many streamers in them.")
 
 
 class RuleActions(_M):
-    decision: Decision | None = None
-    threshold: float | None = Field(None, ge=0)
-    window_pre: float | None = Field(None, ge=0, le=120)
-    window_post: float | None = Field(None, ge=0, le=120)
-    preset_id: str | None = None
-    title_template: str | None = None
-    caption_style: str | None = None
-    destinations: list[str] | None = None
+    decision: Decision | None = Field(
+        None, description="Post, hold for review or skip matching clips whatever the score says.")
+    threshold: float | None = Field(
+        None, ge=0, description="Least score a matching clip needs. Empty keeps the format's value.")
+    window_pre: float | None = Field(
+        None, ge=0, le=120,
+            description=(
+                "Seconds of video before the moment for matching clips. Empty keeps the format's value."))
+    window_post: float | None = Field(
+        None, ge=0, le=120,
+            description=(
+                "Seconds of video after the moment for matching clips. Empty keeps the format's value."))
+    preset_id: str | None = Field(None, description="Switch matching clips to this preset (look).")
+    title_template: str | None = Field(
+        None,
+            description=(
+                "Title pattern for matching clips, for example {title} | {channel}. Placeholders: {title}, "
+                "{channel}, {game}, {platform}. Empty keeps the format's value."))
+    caption_style: str | None = Field(None,
+        description="Caption style for matching clips. Empty keeps the format's value.")
+    destinations: list[str] | None = Field(
+        None,
+            description=(
+                "Post matching clips only to these destinations, one per line. Empty keeps the channel's "
+                "choice."))
 
 
 class Rule(_M):
-    id: str = Field(pattern=ID_RE)
-    name: str = Field(min_length=1, max_length=120)
-    enabled: bool = True
-    format_id: str | None = None          # None: applies whatever format is in effect
-    conditions: RuleConditions = RuleConditions()
-    scenario: RuleScenario = RuleScenario()
-    duration: RuleDuration = RuleDuration()
-    streamers: RuleStreamers = RuleStreamers()
-    actions: RuleActions = RuleActions()
+    id: str = Field(pattern=ID_RE,
+        description="Short unique name of the rule: lower-case letters, digits, dashes.")
+    name: str = Field(min_length=1, max_length=120,
+        description="A short name so you recognise the rule in the list.")
+    enabled: bool = Field(True, description="Turn the rule on or off without deleting it.")
+    format_id: str | None = Field(
+        None,
+            description=(
+                "Apply the rule only while this format is in effect. Empty applies it with any format."))
+    conditions: RuleConditions = Field(RuleConditions(), description="Which streams the rule applies to.")
+    scenario: RuleScenario = Field(RuleScenario(),
+        description="How the moment was found and what proof exists for it.")
+    duration: RuleDuration = Field(RuleDuration(), description="How long the clip must be.")
+    streamers: RuleStreamers = Field(RuleStreamers(), description="Which streamers are in the clip.")
+    actions: RuleActions = Field(RuleActions(), description="What the rule changes for the clips it matches.")
 
 
 # rule action -> effective value key it sets
