@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "pytest-timeout", "ruff"]
 ui = ["playwright"]
 
 [project.scripts]
@@ -55,6 +55,9 @@ markers = [
     "asr: real faster-whisper run (downloads a model on first use; opt in with LIVE_CLIPPER_ASR_TEST=1)",
     "ui: browser tests (need the ui extra and `python -m playwright install chromium`)",
 ]
+# a hung test fails with every thread's stack instead of eating the CI job (slow end-to-end tests raise it)
+timeout = 300
+timeout_method = "thread"
 # starlette nags about its own httpx dependency; not actionable here
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 

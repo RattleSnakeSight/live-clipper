@@ -22,7 +22,8 @@ from e2e_util import (
     x264_crf,
 )
 
-pytestmark = pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="needs ffmpeg and ffprobe on PATH")
+pytestmark = [pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="needs ffmpeg and ffprobe on PATH"),
+              pytest.mark.timeout(900)]  # real FFmpeg pipelines with restarts: minutes on a slow runner
 
 
 @pytest.fixture

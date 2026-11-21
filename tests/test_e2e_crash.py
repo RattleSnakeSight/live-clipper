@@ -32,7 +32,8 @@ from live_clipper.events import Trigger
 from live_clipper.paths import get_paths
 from live_clipper.store import Store
 
-pytestmark = pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="needs ffmpeg and ffprobe on PATH")
+pytestmark = [pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="needs ffmpeg and ffprobe on PATH"),
+              pytest.mark.timeout(900)]  # real FFmpeg pipelines with restarts: minutes on a slow runner
 
 
 def read_line(proc, timeout: float) -> dict:

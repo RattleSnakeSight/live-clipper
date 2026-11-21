@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -40,7 +44,7 @@ jobs:
       - run: python -m playwright install chromium
         if: runner.os != 'Linux'
       - run: ruff check .
-      - run: python -m pytest -q -rs
+      - run: python -m pytest -q -rs --durations=20
 
   secrets:
     runs-on: ubuntu-latest
