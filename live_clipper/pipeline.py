@@ -99,18 +99,23 @@ class Selection:
         t = (clip or {}).get("trigger") or {}
         key, ctx = self.context(channel_id, topic if topic is not None else t.get("topic"))
         facts: dict[str, Any] = {"kind": kind or (clip or {}).get("kind") or t.get("kind")}
+
+        def run(facts: dict) -> dict:
+            try:
+                return formats.resolve_effective(self.db, key, ctx, facts)
+            except formats.NotFound:  # the channel names a format that was deleted: the active one applies
+                log.warning("channel %s names unknown format %r; using the active format", channel_id,
+                            ctx.get("format_id"))
+                return formats.resolve_effective(self.db, key, {**ctx, "format_id": None}, facts)
+
         if clip:
             files = clip.get("files") or {}
-            facts.update(evidence=evidence(clip), language=language or clip.get("source_lang") or None,
+            fmt = formats.effective_format(run(dict(facts)))  # evidence names follow the channel's format
+            facts.update(evidence=evidence(clip, fmt), language=language or clip.get("source_lang") or None,
                          override=t.get("override") or {})
             if files.get("duration") is not None:
                 facts["duration_s"] = float(files["duration"])
-        try:
-            return formats.resolve_effective(self.db, key, ctx, facts)
-        except formats.NotFound:  # the channel names a format that was deleted: the active one applies
-            log.warning("channel %s names unknown format %r; using the active format", channel_id,
-                        ctx.get("format_id"))
-            return formats.resolve_effective(self.db, key, {**ctx, "format_id": None}, facts)
+        return run(facts)
 
     def fmt(self, clip: dict | None) -> formats.SelectionFormat:
         if not clip:

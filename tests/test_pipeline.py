@@ -222,3 +222,18 @@ def test_selection_reads_publishing_rows_through_the_store_views(tmp_path):
     assert candidates.started_on(store, c) == ["Clips channel"]   # the test destination never counts
     d = store.q1("SELECT * FROM deliveries WHERE destination_id=1")
     assert d["history"] == [] and d["account_key"] == "" and d["public_at"] == 0
+
+
+def test_rule_evidence_uses_the_channels_format_not_the_active_one(tmp_path):
+    s, store, sel, _ = setup(tmp_path)
+    db = store.db
+    formats.duplicate_format(db, formats.active_id(db), "own", "Own")
+    own = formats.get_format(db, "own")
+    formats.update_format(db, "own", {"topic_states": {**own["topic_states"], "title": "live_own_topic"}})
+    formats.create_rule(db, {"id": "topic-bar", "name": "Topic bar", "scenario": {"evidence": ["topic"]},
+                             "actions": {"threshold": 0.5}})
+    ch = store.add_channel("custom", "rtmp://x/a", "rtmp://x/a", display_name="streamer_alpha")
+    store.update("channels", ch, format_id="own")
+    cid = clip(store, ch, topic={"state": "live_own_topic"})
+    res = sel.resolve(ch, store.clip(cid))
+    assert res["format_id"] == "own" and [r["id"] for r in res["matched_rules"]] == ["topic-bar"]
