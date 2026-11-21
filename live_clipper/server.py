@@ -142,6 +142,7 @@ def create_app(ctx: AppContext) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index(t: str | None = None):
         if t and _same(t, ctx.token):
+            log.info("browser opened the app (one-time link redeemed)")
             response = RedirectResponse("/", status_code=303)
             response.set_cookie(COOKIE, ctx.token, max_age=30 * 86400, httponly=True, samesite="strict")
             return response
