@@ -208,59 +208,93 @@ GUIDE = {
     "updating": ("Updating", "# Updating\n\nYour data folder is kept when you update.\n\n```\npip install --upgrade live-clipper\n```\n"),
 }
 
-DEST_STEPS = {
-    "youtube": [
-        ("Use a Google account with a YouTube channel", "Brand and personal channels both work.",
-         "Uploads fail because there is no channel to post to."),
-        ("Create a Google Cloud project and enable YouTube Data API v3", "Free. No billing account is needed.",
-         "Sign-in works but every upload is refused."),
-        ("Create an OAuth client of type Desktop app", "Copy its client ID and secret into the form below.",
-         "Sign-in cannot start."),
-        ("Register the redirect address shown below", "Add it exactly as shown.",
-         "Google shows a redirect_uri_mismatch error."),
-        ("Optional: request an audit to post publicly", "Unaudited apps can only upload private videos.",
-         "Videos stay private."),
-    ],
-    "tiktok": [
-        ("Create a TikTok developer app", "Add the Content Posting API product.", "Sign-in cannot start."),
-        ("Add the video.upload scope", "Without audit, posts are visible only to you.", "Uploads are refused."),
-        ("Register the redirect address shown below", "Add it exactly as shown.", "TikTok rejects the sign-in."),
-    ],
-    "instagram": [
-        ("Switch to a Business or Creator account linked to a Facebook Page", "Personal accounts cannot post by API.",
-         "Every post is refused."),
-        ("Create a Meta app and add Instagram Graph API", "Free.", "No token can be created."),
-        ("Paste a long-lived access token", "The token lasts 60 days; the app reminds you to renew it.",
-         "Posting stops when the token expires."),
-    ],
+def _step(text, verified=True):
+    return {"text": text, "verified": verified}
+
+
+# Trimmed copy of live_clipper/publish/requirements.py (same shape as the real `requirements` field).
+REQUIREMENTS = {
+    "youtube": {
+        "label": "YouTube Shorts", "account": "Any Google account with a YouTube channel (post to your own channel).",
+        "free": True,
+        "developer_app_steps": [_step("Sign in to Google Cloud and create a project."),
+                                _step("Enable \"YouTube Data API v3\" for it."),
+                                _step("Create an OAuth client of type \"Desktop app\"."),
+                                _step("Consent screen wording for Personal mode is not confirmed.", verified=False)],
+        "scopes": ["https://www.googleapis.com/auth/youtube.upload"],
+        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/youtube/callback",
+        "redirect_note": "Desktop clients accept any loopback port; PKCE (S256) is always used.",
+        "verification_audit": [_step("Consent screen in Testing: refresh tokens expire after 7 days.")],
+        "quotas": {"summary": "About 100 uploads per day.", "per_day": 100, "tracked_locally": True},
+        "fails_without": {"client_id": "Connect cannot start: Google rejects the authorization request.",
+                          "scope_youtube.upload": "Upload is refused (403)."},
+        "tos_rights": "Third-party streamer content needs the streamer's permission; you confirm that once per destination.",
+        "notes": ["Shorts: vertical, up to 3 minutes."],
+        "docs": ["https://developers.google.com/youtube/v3/guides/uploading_a_video"], "as_of": "2026-11-20",
+    },
+    "tiktok": {
+        "label": "TikTok", "account": "A TikTok account you own; developer account at developers.tiktok.com.",
+        "free": True,
+        "developer_app_steps": [_step("Create an app and add Login Kit and Content Posting API."),
+                                _step("Register the redirect URI below under Login Kit for desktop.")],
+        "scopes": ["user.info.basic", "video.upload", "video.publish"],
+        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/tiktok/callback",
+        "redirect_note": "Only localhost / 127.0.0.1 hosts.",
+        "verification_audit": [_step("Unaudited apps: every direct post is private (SELF_ONLY).")],
+        "quotas": {"summary": "About 15 posts/day per creator.", "per_day": 15, "tracked_locally": True},
+        "fails_without": {"client_key": "Connect cannot start.", "audit": "Posts are private."},
+        "tos_rights": "Confirm the streamer's permission once per destination.",
+        "notes": [], "docs": ["https://developers.tiktok.com/doc/login-kit-desktop"], "as_of": "2026-11-20",
+    },
+    "instagram": {
+        "label": "Instagram Reels", "account": "An Instagram professional account (Business or Creator).",
+        "free": True,
+        "developer_app_steps": [_step("Create a Meta developer app of type Business and add Instagram."),
+                                _step("Click \"Generate token\" and paste the long-lived token into the token form.")],
+        "scopes": {"instagram_login": ["instagram_business_basic", "instagram_business_content_publish"]},
+        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/instagram/callback",
+        "redirect_note": "Configurable per destination because loopback is unverified for Meta.",
+        "verification_audit": [_step("Own account only: App Review not required.")],
+        "quotas": {"summary": "50 API posts per rolling 24 h.", "per_day": 50, "tracked_locally": False},
+        "fails_without": {"token_refresh": "Long-lived tokens last 60 days."},
+        "tos_rights": "No private mode exists: a published Reel is public.",
+        "notes": [], "docs": [], "as_of": "2026-11-20",
+    },
+    "test": {
+        "label": "Test destination — nothing is posted", "account": "None: a local fake provider on this machine.",
+        "free": True, "developer_app_steps": [], "scopes": [], "redirect_uri": "", "redirect_note": "",
+        "verification_audit": [], "quotas": {"summary": "none", "tracked_locally": False}, "fails_without": {},
+        "tos_rights": "Nothing leaves this machine; no acknowledgement needed.", "notes": ["Never counted as a real post."],
+        "docs": [], "as_of": "2026-11-20",
+    },
 }
 
 
 def _destinations(port: int) -> dict:
-    base = f"http://127.0.0.1:{port}/api/oauth"
     out = {}
-    for d, name, auth, quota in (("youtube", "YouTube Shorts", "oauth", "About 6 uploads a day on the free quota."),
-                                 ("tiktok", "TikTok", "oauth", "Limited by TikTok per account."),
-                                 ("instagram", "Instagram Reels", "token", "25 posts a day per account.")):
-        out[d] = {
-            "id": d, "name": name, "test": False, "auth": auth, "connected": False, "account": None,
-            "enabled": False, "rights_acknowledged": False, "credentials_saved": False,
-            "redirect_uri": f"{base}/{d}/callback" if auth == "oauth" else None,
-            "credential_fields": [{"name": "client_id", "label": "Client ID", "secret": False,
-                                   "help": "From your developer app's credentials page."},
-                                  {"name": "client_secret", "label": "Client secret", "secret": True,
-                                   "help": "Stored encrypted on this computer."}] if auth == "oauth" else [],
-            "steps": [{"title": t, "detail": dd, "fails_without": f} for t, dd, f in DEST_STEPS[d]],
-            "facts": [{"label": "Account type", "value": "Business or Creator" if d == "instagram" else "Any"},
-                      {"label": "Quota", "value": quota}, {"label": "Cost", "value": "Free"}],
-            "terms": "You must own the clips you post or have the streamer's permission to post them.",
-        }
-    out["test"] = {
-        "id": "test", "name": "Test destination", "test": True, "auth": "none", "connected": True,
-        "account": "Local test folder", "enabled": True, "rights_acknowledged": True, "credentials_saved": True,
-        "redirect_uri": None, "credential_fields": [], "steps": [], "facts": [], "terms": "",
-    }
+    for i, prov in enumerate(("youtube", "tiktok", "instagram", "test"), start=1):
+        req = copy.deepcopy(REQUIREMENTS[prov])
+        req["redirect_uri"] = req["redirect_uri"].replace("{port}", str(port))
+        out[i] = {"id": i, "provider": prov, "label": req["label"], "test": prov == "test", "account": None,
+                  "status": "disconnected", "status_detail": "", "enabled": False, "rights_acknowledged": False,
+                  "rights_ack_at": None, "credentials_set": [], "app_credentials_set": [], "settings": {},
+                  "requirements": req, "quota": {"used_today": 0, "limit": req["quotas"]["per_day"]}
+                  if req["quotas"].get("per_day") else None}
     return out
+
+
+def _dest_view(d: dict) -> dict:
+    if d["test"]:
+        d["setup"] = {"state": "active" if d["enabled"] else "ready_to_enable", "steps": []}
+        return d
+    has = bool(d["app_credentials_set"]) or d["status"] == "connected"
+    steps = [{"id": "app_credentials", "done": has}, {"id": "connect", "done": d["status"] == "connected"},
+             {"id": "rights_acknowledgement", "done": d["rights_acknowledged"]}, {"id": "enable", "done": d["enabled"]}]
+    state = ("needs_credentials" if not has else "needs_connect" if d["status"] != "connected"
+             else "needs_acknowledgement" if not d["rights_acknowledged"] else "ready_to_enable" if not d["enabled"]
+             else "active")
+    d["setup"] = {"state": state, "steps": steps}
+    return d
 
 
 def _seed_channels() -> dict:
@@ -292,12 +326,14 @@ def _seed_clips() -> tuple[dict, dict]:
                     "preset_id": "vertical-default", "language": "en", "captions": "No way he made that jump",
                     "trim_in": 0.0, "trim_out": 28.0 + i, "destinations": ["test", "youtube"],
                     "reason": "Chat rate jumped to 4 times its usual level."}
-        if st in ("posted", "failed", "queued"):
-            deliveries[i] = {"id": i, "clip_id": i, "destination": "test",
-                             "state": {"posted": "posted", "failed": "failed", "queued": "queued"}[st],
-                             "url": "https://example.com/clip" if st == "posted" else None,
-                             "error": "Upload refused: quota used up for today." if st == "failed" else None,
-                             "created_at": NOW - i * 800}
+        dstate = {"posted": "published", "failed": "failed", "queued": "queued", "held": "held"}.get(st)
+        for dest_id in ((4, 1) if st == "held" else (4,) if dstate else ()):
+            n = len(deliveries) + 1
+            deliveries[n] = {"id": n, "clip_id": i, "destination_id": dest_id, "language": "en", "status": dstate,
+                             "mode": "manual", "attempts": 1 if dstate in ("published", "failed") else 0,
+                             "url": "https://example.com/clip" if dstate == "published" else None,
+                             "last_error": "Upload refused: quota used up for today." if st == "failed" else None,
+                             "created_at": NOW - i * 800, "updated_at": NOW - i * 700}
     return clips, deliveries
 
 
@@ -367,7 +403,9 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     }
     db["clips"], db["deliveries"] = _seed_clips() if seed else ({}, {})
     if seed:
-        db["destinations"]["youtube"].update(connected=True, account="@example_clips", credentials_saved=True)
+        db["destinations"][1].update(status="connected", account="@example_clips", app_credentials_set=["client_id"],
+                                     rights_acknowledged=True, rights_ack_at=NOW, enabled=True)
+        db["destinations"][4].update(status="connected", account="test", enabled=True)
     ids = {"channel": 100, "delivery": 100, "rule": 100}
 
     app = FastAPI()
@@ -506,7 +544,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
 
     def channel_from(body: dict, existing: dict | None = None) -> dict:
         url = str(body.get("url", existing["url"] if existing else "")).strip()
-        for p, rx in PLATFORM_RE:
+        for p, rx in PLATFORM_RE:  # noqa: B007 (p is used after the loop)
             if m := rx.match(url):
                 break
         else:
@@ -775,80 +813,141 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     doc_routes("formats", BUILTIN_FORMAT, FORMAT_SCHEMA)
     doc_routes("presets", BUILTIN_PRESET, PRESET_SCHEMA)
 
-    # publish
+    # publish (same shapes as live_clipper/publish/service.py)
+    dests = db["destinations"]
+
+    def dest(did: int) -> dict:
+        return dests.get(did) or nf("destination")
+
     @app.get("/api/destinations")
     def destinations():
-        return {"destinations": list(db["destinations"].values())}
+        return {"destinations": [_dest_view(d) for d in dests.values()]}
 
-    @app.put("/api/destinations/{did}")
-    def put_destination(did: str, body: dict = Body(...)):
-        d = db["destinations"].get(did) or nf("destination")
-        if body.get("enabled") and not (d["connected"] and (d["rights_acknowledged"] or body.get("rights_acknowledged"))):
-            raise HTTPException(409, "Connect the account and confirm posting rights first.")
-        d.update({k: body[k] for k in ("enabled", "rights_acknowledged") if k in body})
-        return d
+    @app.get("/api/destinations/{did}")
+    def get_destination(did: int):
+        return _dest_view(dest(did))
 
     @app.put("/api/destinations/{did}/credentials")
-    def put_credentials(did: str, body: dict = Body(...)):
-        d = db["destinations"].get(did) or nf("destination")
-        fields = body.get("fields", {})
-        missing = {f["name"]: "Required." for f in d["credential_fields"] if not fields.get(f["name"])}
-        if missing:
-            raise HTTPException(422, {"errors": missing})
-        d["credentials_saved"] = True
-        return d
+    def put_credentials(did: int, body: dict = Body(...)):
+        d = dest(did)
+        if d["test"]:
+            raise HTTPException(400, "the test destination has no credentials")
+        d["app_credentials_set"] = sorted({*d["app_credentials_set"], *(k for k, v in body.items() if v)})
+        return {"app_credentials_set": d["app_credentials_set"]}
 
-    @app.delete("/api/destinations/{did}")
-    def disconnect_destination(did: str):
-        d = db["destinations"].get(did) or nf("destination")
-        d.update(connected=False, account=None, enabled=False)
-        return d
+    @app.post("/api/destinations/{did}/connect")
+    def connect_destination(did: int):
+        d = dest(did)
+        if d["test"]:
+            d.update(status="connected", account="test")
+            return {"action": "verified", "ok": True, "account": "test"}
+        if not d["app_credentials_set"]:
+            raise HTTPException(400, "enter this app's client ID (and secret) first, or use the token form")
+        d.update(status="connected", account="@example_clips")  # the mock skips the browser round trip
+        return {"action": "authorize", "authorize_url": f"https://example.com/oauth/{d['provider']}/authorize"}
 
-    @app.get("/api/oauth/{did}/start")
-    def oauth_start(did: str):
-        d = db["destinations"].get(did) or nf("destination")
-        if not d["credentials_saved"]:
-            raise HTTPException(409, "Save the client ID and secret first.")
-        d.update(connected=True, account="@example_clips")
-        return {"authorize_url": f"https://example.com/oauth/{did}/authorize"}
+    @app.post("/api/destinations/{did}/disconnect")
+    def disconnect_destination(did: int):
+        d = dest(did)
+        d.update(status="disconnected", account=None, enabled=False)
+        return _dest_view(d)
+
+    @app.put("/api/destinations/{did}/enabled")
+    def set_enabled(did: int, body: dict = Body(...)):
+        d = dest(did)
+        if body.get("enabled") and not d["test"]:
+            if d["status"] != "connected":
+                raise HTTPException(409, "connect the destination before enabling it")
+            if not d["rights_acknowledged"]:
+                raise HTTPException(409, "acknowledge that you have the streamer's permission first")
+        d["enabled"] = bool(body.get("enabled"))
+        return _dest_view(d)
+
+    @app.put("/api/destinations/{did}/acknowledge")
+    def acknowledge(did: int, body: dict = Body(...)):
+        d = dest(did)
+        ack = bool(body.get("acknowledged"))
+        d.update(rights_acknowledged=ack, rights_ack_at=time.time() if ack else None)
+        if not ack:
+            d["enabled"] = False
+        return _dest_view(d)
 
     @app.post("/api/destinations/instagram/token")
     def instagram_token(body: dict = Body(...)):
-        if not body.get("access_token"):
-            raise HTTPException(422, {"errors": {"access_token": "Paste the token."}})
-        db["destinations"]["instagram"].update(connected=True, account="@example_clips")
-        return db["destinations"]["instagram"]
+        if len(str(body.get("access_token", "")).strip()) < 16:
+            raise HTTPException(400, "that does not look like an access token")
+        d = next(x for x in dests.values() if x["provider"] == "instagram")
+        d.update(status="connected", account="@example_clips")
+        return _dest_view(d)
 
     @app.get("/api/publish/mode")
     def get_mode():
-        return {"mode": db["mode"]}
+        return {"mode": db["mode"], "modes": ["auto", "manual"],
+                "detail": "auto posts finished clips to every connected, enabled destination; manual holds them "
+                          "until you click Post"}
 
     @app.put("/api/publish/mode")
     def put_mode(body: dict = Body(...)):
         if body.get("mode") not in ("auto", "manual"):
-            raise HTTPException(422, {"errors": {"mode": "Pick auto or manual."}})
+            raise HTTPException(400, "mode must be auto or manual")
         db["mode"] = body["mode"]
         return {"mode": db["mode"]}
 
-    @app.get("/api/publish/deliveries")
-    def deliveries(clip_id: int | None = None):
-        rows = sorted(db["deliveries"].values(), key=lambda d: -d["created_at"])
-        if clip_id:
-            rows = [d for d in rows if d["clip_id"] == clip_id]
-        return {"deliveries": rows}
+    @app.get("/api/publish/test-mode")
+    def get_test_mode():
+        return {"enabled": dests[4]["enabled"], "label": REQUIREMENTS["test"]["label"]}
 
-    @app.post("/api/publish/deliveries")
-    def post_delivery(body: dict = Body(...)):
-        c = db["clips"].get(body.get("clip_id")) or nf("clip")
-        dest = db["destinations"].get(body.get("destination")) or nf("destination")
-        if not dest["connected"]:
-            raise HTTPException(409, f"{dest['name']} is not connected.")
+    @app.put("/api/publish/test-mode")
+    def put_test_mode(body: dict = Body(...)):
+        dests[4].update(enabled=bool(body.get("enabled")), status="connected", account="test")
+        return {"enabled": dests[4]["enabled"], "label": REQUIREMENTS["test"]["label"]}
+
+    def delivery_view(d: dict) -> dict:
+        t = dests[d["destination_id"]]
+        return {**d, "destination": t["provider"], "destination_label": t["label"], "test": t["test"],
+                "real": not t["test"]}
+
+    @app.get("/api/publish/deliveries")
+    def deliveries(clip_id: str | None = None, status: str | None = None):
+        rows = sorted(db["deliveries"].values(), key=lambda d: -d["id"])
+        if clip_id is not None:
+            rows = [d for d in rows if str(d["clip_id"]) == clip_id]
+        if status:
+            rows = [d for d in rows if d["status"] in status.split(",")]
+        return {"deliveries": [delivery_view(d) for d in rows]}
+
+    def _post(d: dict) -> dict:
+        t = dests[d["destination_id"]]
+        if t["status"] != "connected" or not t["enabled"]:
+            raise HTTPException(403, f"{t['label']} is not connected and enabled")
+        d.update(status="published", url="https://example.com/posted", attempts=d.get("attempts", 0) + 1,
+                 updated_at=time.time())
+        db["clips"][d["clip_id"]]["status"] = "posted"
+        return delivery_view(d)
+
+    @app.post("/api/publish/deliveries/{did}/post")
+    def post_held(did: int):
+        d = db["deliveries"].get(did) or nf("delivery")
+        if d["status"] != "held":
+            raise HTTPException(409, "only held deliveries can be posted")
+        return _post(d)
+
+    @app.post("/api/publish/deliveries/{did}/retry")
+    def retry(did: int):
+        d = db["deliveries"].get(did) or nf("delivery")
+        d.update(status="queued", last_error=None)
+        return delivery_view(d)
+
+    @app.post("/api/publish/post")
+    def post_clip(body: dict = Body(...)):
+        c = db["clips"].get(int(body.get("clip_id", 0))) or nf("clip")
+        dest(int(body.get("destination_id", 0)))
         ids["delivery"] += 1
-        d = {"id": ids["delivery"], "clip_id": c["id"], "destination": dest["id"], "state": "posted",
-             "url": "https://example.com/posted", "error": None, "created_at": time.time()}
+        d = {"id": ids["delivery"], "clip_id": c["id"], "destination_id": int(body["destination_id"]),
+             "language": body.get("language", "en"), "status": "queued", "mode": "manual", "attempts": 0,
+             "url": None, "last_error": None, "created_at": time.time(), "updated_at": time.time()}
         db["deliveries"][d["id"]] = d
-        c["status"] = "posted"
-        return d
+        return _post(d)
 
     @app.middleware("http")
     async def no_cache(request: Request, call_next):
