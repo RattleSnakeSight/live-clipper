@@ -62,16 +62,16 @@ Or use the install scripts from a clone: `sh scripts/install.sh` (macOS, Linux) 
 
 ## Platforms
 
-What each platform is used for, as a plain statement. Nothing here has been run against the real services
-yet; the verified list is in [Status](#status).
-
 | Platform | Live status | Chat | Capture | Posting |
 |---|---|---|---|---|
-| Twitch | planned | planned | planned | not a posting target |
-| Kick | planned | planned | planned | not a posting target |
-| YouTube | planned | planned | planned | adapter written, untested live |
-| TikTok | not applicable | not applicable | not applicable | adapter written, untested live |
-| Instagram | not applicable | not applicable | not applicable | adapter written, untested live |
+| Twitch | official API (Helix) or stream probe | IRC read-only, or EventSub with your token | Streamlink | not a posting target |
+| Kick | official API, or stream probe | webhooks only (needs a public HTTPS address) | Streamlink | not a posting target |
+| YouTube | official Data API, or stream probe | live chat API (uses quota) | Streamlink (YouTube may refuse some networks) | Shorts upload (your own Google app) |
+| TikTok | not applicable | not applicable | not applicable | Content Posting API (your own TikTok app) |
+| Instagram | not applicable | not applicable | not applicable | Reels via Graph API (your own Meta app) |
+
+All of the above is written and tested against recorded and fake responses and local test streams. None of
+it has been run against a real account on the real services yet. See [Status](#status).
 
 Being allowed to watch a channel is not permission to record it or repost it. Ask each streamer before you
 clip and post their stream. You are responsible for following their rules and each platform's terms.
@@ -123,15 +123,26 @@ More in the [troubleshooting guide](live_clipper/guide/troubleshooting.md).
 
 ## Status
 
-<!-- TODO(integrator): status -->
+Verified with automated tests on Linux, macOS and Windows (Python 3.11 and 3.13), on every change:
 
-Verified:
+- Monitoring: channel states, retries, reconnects and crash recovery, using local test streams and fake
+  platform responses. Live-status clients for Twitch, Kick and YouTube against recorded API responses.
+- Clip selection: same decisions as the design this was ported from, on identical synthetic inputs.
+- Cutting and editing: cut windows and output files (size, codec, frame rate, audio) checked with ffprobe.
+- End to end on real FFmpeg: a local test stream with a chat spike becomes one rendered clip that is posted to
+  the built-in test destination (automatic mode) or held for review (manual mode). Custom formats, rules and
+  per-clip overrides change the rendered file. Killing the worker mid-way does not duplicate clips or posts.
+- Posting: upload, retry, rate-limit, expired and revoked sign-in paths against fake platform responses.
+- The browser app: setup wizard, guided tour (finish, skip, restart, replay), help text on every control.
 
-- TODO
+Not verified yet:
 
-Pending:
-
-- TODO
+- Any real platform account: live status, chat, capture and posting have not been run against real
+  Twitch, Kick, YouTube, TikTok or Instagram accounts. That needs your own developer apps and sign-in.
+- Speech-to-text captions with a real downloaded model are tested on request (`LIVE_CLIPPER_ASR_TEST=1`),
+  not on every change; the default test run uses a fixed transcript. The opt-in run passed on Windows.
+- Captions in a second language need converted translation models that the app does not download yet.
+  Original-language captions work; a second-language render reports that the model is missing.
 
 ## Development
 
