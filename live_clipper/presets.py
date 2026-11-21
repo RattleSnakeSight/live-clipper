@@ -26,7 +26,7 @@ from .render import SPLIT_FRAC
 DEFAULT_ID = "default"
 SHIPPED = {DEFAULT_ID: Path(__file__).parent / "presets" / "default.json"}
 
-# the whole `edit` namespace (one registration per namespace): presets, clips, clip log
+# the `edit` namespace: editing presets (clips live in the shared pipeline store, live_clipper.store)
 register_migrations(
     "edit",
     [
@@ -34,19 +34,6 @@ register_migrations(
 CREATE TABLE IF NOT EXISTS edit_presets(
     id TEXT PRIMARY KEY, name TEXT NOT NULL, data_json TEXT NOT NULL,
     builtin INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL);
-CREATE TABLE IF NOT EXISTS edit_clips(
-    id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending', kind TEXT NOT NULL DEFAULT 'chat_spike',
-    trigger TEXT NOT NULL DEFAULT '{}', window_start REAL, window_end REAL, action_time REAL,
-    epoch INTEGER, truncated TEXT DEFAULT '', title TEXT DEFAULT '', source_lang TEXT DEFAULT '',
-    captions TEXT NOT NULL DEFAULT '{}', layout TEXT NOT NULL DEFAULT '{}',
-    timings TEXT NOT NULL DEFAULT '{}',
-    files TEXT NOT NULL DEFAULT '{}', error TEXT DEFAULT '', preset_id TEXT NOT NULL DEFAULT 'default',
-    overrides TEXT NOT NULL DEFAULT '{}', updated_at REAL);
-CREATE INDEX IF NOT EXISTS edit_clips_channel ON edit_clips(channel_id, id);
-CREATE TABLE IF NOT EXISTS edit_log(
-    id INTEGER PRIMARY KEY, ts REAL NOT NULL, level TEXT NOT NULL, channel_id INTEGER, clip_id INTEGER,
-    message TEXT NOT NULL);
 """
     ],
 )

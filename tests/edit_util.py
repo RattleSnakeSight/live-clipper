@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import shutil
 import subprocess
 
@@ -16,6 +17,7 @@ needs_ffmpeg = pytest.mark.skipif(
     not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="needs ffmpeg"
 )
 FAST = {"encode": {"x264_preset": "ultrafast"}}
+_KEYS = itertools.count(1)
 
 
 def ff(*args):
@@ -32,6 +34,7 @@ def make_engine() -> EditEngine:
 def make_clip(eng: EditEngine, *, layout=None, overrides=None, status="ready", channel_id=1, **fields) -> int:
     cid = eng.store.create_clip(
         channel_id,
+        f"test:{next(_KEYS)}",
         "chat_spike",
         {"reason": "synthetic"},
         layout=layout or {},

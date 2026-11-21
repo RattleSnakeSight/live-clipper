@@ -406,8 +406,10 @@ def record(store, clip_id: int, verdict: dict) -> dict:
     return verdict
 
 
-async def check(engine, clip_id: int, transcript: dict | None = None) -> dict | None:
-    """Assess one clip inside the shared media slot and persist the verdict."""
+async def check(engine, clip_id: int, transcript: dict | None = None,
+                fmt: formats.SelectionFormat | None = None) -> dict | None:
+    """Assess one clip inside the shared media slot and persist the verdict (fmt: the moment's effective
+    selection format; default the active one)."""
     import asyncio
     import contextlib
     clip = engine.store.clip(clip_id)
@@ -415,7 +417,7 @@ async def check(engine, clip_id: int, transcript: dict | None = None) -> dict | 
         return None
     mt = getattr(engine, "maintenance", None)
     async with (mt.media_slot() if mt else contextlib.nullcontext()):
-        v = await asyncio.to_thread(assess, clip, engine.clip_dir(clip_id), transcript)
+        v = await asyncio.to_thread(assess, clip, engine.clip_dir(clip_id), transcript, None, fmt)
     return record(engine.store, clip_id, v)
 
 

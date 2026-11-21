@@ -159,3 +159,13 @@ Channel status values shown in the UI: `offline`, `waiting`, `recording`, `recon
   (used by `postprocess.post_cut`) are expected from select; they are imported lazily.
 - `buffer.RING_MARKER = ".live-clipper-ring"` for whoever places a transient ring directory.
 - `edit.clip` (UI refresh, `{id}`) is published in addition to `edit.clip_ready`.
+### monitor (proposed)
+
+- monitor: `live_clipper/events.py` (ChatEvent, ChatHealth, Trigger), `live_clipper/config.py` (`Settings` =
+  `engine.settings`, `RING_MARKER`) and `live_clipper/store.py` (original `Store` API; clips live in `monitor_clips`)
+  are added by the monitor branch because the engine needs them; `select`/`edit` should import these rather than
+  add their own copies.
+- monitor: settings keys read: `monitor.<Settings field>`, `processing.max_concurrent_recordings`, `storage.dir`,
+  `ffmpeg_path`. Vault entries: `source.<platform>` (live-status and chat credentials).
+- monitor: the optional Kick chat webhook listener binds `127.0.0.1:<monitor.kick_webhook_port>` (default 8788) only
+  when `monitor.kick_webhook_url` is set.

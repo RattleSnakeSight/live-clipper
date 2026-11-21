@@ -12,4 +12,5 @@ SERVICES: list[str] = [
     "live_clipper.publish.service:PublishService",
     "live_clipper.select_service:SelectService",
     "live_clipper.edit_service:EditService",
+    "live_clipper.monitor_service:MonitorService",
 ]

@@ -1,0 +1,1377 @@
+{
+ "capture": {
+  "long_failure_backoff_cap": {
+   "epochs": [],
+   "final_health": {
+    "detail": "Connection refused",
+    "restarts": 7,
+    "state": "waiting_for_live"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002",
+    "run0003",
+    "run0004",
+    "run0005",
+    "run0006",
+    "run0007"
+   ],
+   "runs": [
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 2.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 4.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 3,
+     "run": 3,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 8.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 4,
+     "run": 4,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 15.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 5,
+     "run": 5,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 15.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 6,
+     "run": 6,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 15.0,
+     "detail": "Connection refused",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 7,
+     "run": 7,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    }
+   ],
+   "warn_logs": []
+  },
+  "missing_ffmpeg": {
+   "epochs": [],
+   "final_health": {
+    "detail": "missing binary: ffmpeg",
+    "restarts": 2,
+    "state": "error"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002"
+   ],
+   "runs": [
+    {
+     "action_needed": "Install ffmpeg on the worker",
+     "backoff_s": 1.0,
+     "detail": "missing binary: ffmpeg",
+     "got_media": false,
+     "loop_state_before_backoff": "error",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": false,
+     "state_after_run": "error"
+    },
+    {
+     "action_needed": "Install ffmpeg on the worker",
+     "backoff_s": 2.0,
+     "detail": "missing binary: ffmpeg",
+     "got_media": false,
+     "loop_state_before_backoff": "error",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": false,
+     "state_after_run": "error"
+    }
+   ],
+   "warn_logs": []
+  },
+  "operator_reconnect_mid_stream": {
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "capture start",
+     "segments": 4
+    },
+    {
+     "id": 1,
+     "reason": "capture restart",
+     "segments": 3
+    }
+   ],
+   "final_health": {
+    "detail": "capture exited (0)",
+    "restarts": 2,
+    "state": "reconnecting"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002"
+   ],
+   "runs": [
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "capture exited (-15)",
+     "got_media": true,
+     "loop_state_before_backoff": "reconnecting",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": true,
+     "state_after_run": "live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "capture exited (0)",
+     "got_media": true,
+     "loop_state_before_backoff": "reconnecting",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": true,
+     "state_after_run": "live"
+    }
+   ],
+   "warn_logs": [
+    "capture run 1 ended: capture exited (-15)",
+    "capture run 2 ended: capture exited (0)"
+   ]
+  },
+  "rumble_without_feed": {
+   "epochs": [],
+   "final_health": {
+    "detail": "Rumble has no supported public media path (no Streamlink plugin; rumble.com blocks cloud requests). Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+    "restarts": 2,
+    "state": "error"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002"
+   ],
+   "runs": [
+    {
+     "action_needed": "Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+     "backoff_s": 1.0,
+     "detail": "Rumble has no supported public media path (no Streamlink plugin; rumble.com blocks cloud requests). Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+     "got_media": false,
+     "loop_state_before_backoff": "error",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": false,
+     "state_after_run": "error"
+    },
+    {
+     "action_needed": "Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+     "backoff_s": 2.0,
+     "detail": "Rumble has no supported public media path (no Streamlink plugin; rumble.com blocks cloud requests). Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+     "got_media": false,
+     "loop_state_before_backoff": "error",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": false,
+     "state_after_run": "error"
+    }
+   ],
+   "warn_logs": []
+  },
+  "source_command": {
+   "explicit_streamlink": "hls://h/x.m3u8",
+   "kick": [
+    [
+     "streamlink",
+     "--stdout",
+     "--loglevel",
+     "warning",
+     "--hls-live-edge",
+     "2",
+     "--stream-segment-threads",
+     "2",
+     "--retry-open",
+     "1",
+     "https://kick.com/name",
+     "best"
+    ],
+    [
+     "-i",
+     "pipe:0"
+    ]
+   ],
+   "realtime_file_flag": [
+    "-re",
+    "-i",
+    "http://h/a.m3u8"
+   ],
+   "rtmp_listen": [
+    "-listen",
+    "1",
+    "-i",
+    "rtmp://0.0.0.0:1935/live/listen"
+   ],
+   "rumble_no_url": "ValueError: Rumble has no supported public media path (no Streamlink plugin; rumble.com blocks cloud requests). Set a creator-provided feed URL (RTMP/SRT/HLS) as the source URL.",
+   "srt": [
+    "-i",
+    "srt://h:9000"
+   ],
+   "twitch": [
+    [
+     "streamlink",
+     "--stdout",
+     "--loglevel",
+     "warning",
+     "--hls-live-edge",
+     "2",
+     "--stream-segment-threads",
+     "2",
+     "--retry-open",
+     "1",
+     "https://www.twitch.tv/Name",
+     "best"
+    ],
+    [
+     "-i",
+     "pipe:0"
+    ]
+   ],
+   "youtube_at": "https://www.youtube.com/@name/live",
+   "youtube_channel": "https://www.youtube.com/channel/UCx/live",
+   "youtube_handle": "https://www.youtube.com/@name/live"
+  },
+  "twitch_generic_failure_without_media": {
+   "epochs": [],
+   "final_health": {
+    "detail": "error: Unable to open URL: 500 Server Error",
+    "restarts": 2,
+    "state": "waiting_for_live"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002"
+   ],
+   "runs": [
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "error: Unable to open URL: 500 Server Error",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 2.0,
+     "detail": "error: Unable to open URL: 500 Server Error",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": false,
+     "state_after_run": "starting"
+    }
+   ],
+   "warn_logs": []
+  },
+  "twitch_offline_x3_live_drop_offline_live": {
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "capture restart",
+     "segments": 5
+    },
+    {
+     "id": 1,
+     "reason": "capture restart",
+     "segments": 3
+    }
+   ],
+   "final_health": {
+    "detail": "capture exited (0)",
+    "restarts": 6,
+    "state": "reconnecting"
+   },
+   "run_dirs": [
+    "run0001",
+    "run0002",
+    "run0003",
+    "run0004",
+    "run0005",
+    "run0006"
+   ],
+   "runs": [
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "channel offline; retrying",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 1,
+     "run": 1,
+     "source_available_set": false,
+     "state_after_run": "waiting_for_live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 2.0,
+     "detail": "channel offline; retrying",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 2,
+     "run": 2,
+     "source_available_set": false,
+     "state_after_run": "waiting_for_live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 4.0,
+     "detail": "channel offline; retrying",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 3,
+     "run": 3,
+     "source_available_set": false,
+     "state_after_run": "waiting_for_live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "capture exited (0)",
+     "got_media": true,
+     "loop_state_before_backoff": "reconnecting",
+     "restarts": 4,
+     "run": 4,
+     "source_available_set": true,
+     "state_after_run": "live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 2.0,
+     "detail": "channel offline; retrying",
+     "got_media": false,
+     "loop_state_before_backoff": "waiting_for_live",
+     "restarts": 5,
+     "run": 5,
+     "source_available_set": true,
+     "state_after_run": "waiting_for_live"
+    },
+    {
+     "action_needed": "",
+     "backoff_s": 1.0,
+     "detail": "capture exited (0)",
+     "got_media": true,
+     "loop_state_before_backoff": "reconnecting",
+     "restarts": 6,
+     "run": 6,
+     "source_available_set": true,
+     "state_after_run": "live"
+    }
+   ],
+   "warn_logs": [
+    "capture run 4 ended: capture exited (0)",
+    "capture run 6 ended: capture exited (0)"
+   ]
+  }
+ },
+ "chat": {
+  "chat_backoff_sequence": [
+   1.0,
+   2.0,
+   4.0,
+   8.0,
+   16.0,
+   32.0,
+   60.0,
+   60.0,
+   60.0
+  ],
+  "kick": [
+   {
+    "channel": "SlugName",
+    "emotes": [
+     "catJAM"
+    ],
+    "msg_id": "k1",
+    "platform": "kick",
+    "sent_at": 1795175999.25,
+    "text": "hi [emote:123:catJAM] [emote:9:catJAM]",
+    "ts_source": "",
+    "user_id": "9",
+    "user_name": "viewer"
+   }
+  ],
+  "kick_health_after": {
+   "detail": "receiving webhooks",
+   "state": "healthy"
+  },
+  "kick_webhook_codes": {
+   "bad_signature": 401,
+   "malformed_chat_body": 400,
+   "missing_id": 401,
+   "other_channel": 200,
+   "other_event_type": 200,
+   "replayed_same_id": 200,
+   "valid": 200
+  },
+  "kick_without_public_url": {
+   "action": "Set the public URL setting to a public HTTPS URL so Kick can deliver chat webhooks",
+   "state": "unavailable"
+  },
+  "twitch": [
+   {
+    "channel": "SomeChan",
+    "emotes": [
+     "Kappa",
+     "Keepo"
+    ],
+    "msg_id": "abc-1",
+    "platform": "twitch",
+    "sent_at": 1700000000.123,
+    "text": "Kappa Keepo hi",
+    "ts_source": "",
+    "user_id": "42",
+    "user_name": "Bob"
+   },
+   {
+    "channel": "SomeChan",
+    "emotes": [
+     "LUL"
+    ],
+    "msg_id": "e-9",
+    "platform": "twitch",
+    "sent_at": 1700000000.5,
+    "text": "LUL wow",
+    "ts_source": "",
+    "user_id": "7",
+    "user_name": "al"
+   }
+  ],
+  "twitch_emotes": [
+   "Kappa",
+   "Keepo"
+  ],
+  "twitch_hub_retry_later_s": [
+   30.0,
+   60.0,
+   120.0,
+   240.0,
+   480.0,
+   900,
+   900
+  ],
+  "twitch_irc_parse": [
+   "PRIVMSG",
+   [
+    "#somechan",
+    "Kappa Keepo hi"
+   ]
+  ],
+  "youtube": {
+   "emitted": [
+    [
+     "y1",
+     "B",
+     "hello"
+    ],
+    [
+     "y2",
+     "C",
+     "x"
+    ]
+   ],
+   "final_action": "YouTube API quota exceeded: request a quota increase or wait for the daily reset (midnight Pacific)",
+   "health_at_each_sleep": [
+    "healthy",
+    "healthy",
+    "degraded"
+   ],
+   "message_params": {
+    "liveChatId": "CHAT1",
+    "maxResults": "200",
+    "part": "snippet,authorDetails"
+   },
+   "sleeps": [
+    2.5,
+    1.0,
+    300
+   ]
+  }
+ },
+ "crash_restart": {
+  "armed_flags": {
+   "armed_feed": 1,
+   "idle_feed": 0,
+   "retired_feed": 0,
+   "vod_feed": 0
+  },
+  "monitors_after_restart": [
+   "armed_feed"
+  ],
+  "post_cut_started_order": [
+   "preview_ready_resumable",
+   "captioning_resumable",
+   "rendering_resumable"
+  ],
+  "recovery_queue": [
+   "preview_ready_resumable",
+   "captioning_resumable",
+   "rendering_resumable"
+  ],
+  "recovery_slots": 2,
+  "ring_after_startup_sweep": [],
+  "second_recover_queue": [
+   "preview_ready_resumable",
+   "captioning_resumable",
+   "rendering_resumable"
+  ],
+  "statuses_after": {
+   "captioning_missing_source": [
+    "failed",
+    "worker restarted before the cut finished; buffer was lost"
+   ],
+   "captioning_resumable": [
+    "captioning",
+    ""
+   ],
+   "cutting_with_files": [
+    "failed",
+    "worker restarted before the cut finished; buffer was lost"
+   ],
+   "discarded": [
+    "discarded",
+    ""
+   ],
+   "pending_no_media": [
+    "failed",
+    "worker restarted before the cut finished; buffer was lost"
+   ],
+   "preview_ready_resumable": [
+    "preview_ready",
+    ""
+   ],
+   "ready": [
+    "ready",
+    ""
+   ],
+   "rendering_resumable": [
+    "rendering",
+    ""
+   ],
+   "vod_import_cutting": [
+    "failed",
+    "worker restarted before the VOD cut finished; Import / Resume re-cuts it"
+   ]
+  }
+ },
+ "disk_producers": {
+  "critical_free_mb": 1000,
+  "min_free_mb": 4000,
+  "sequence": [
+   {
+    "admit_clip": "ok",
+    "free_mb": 50000,
+    "paused": false,
+    "starts": 1,
+    "stops": 0
+   },
+   {
+    "admit_clip": "free disk 900 MB is below 4000 MB",
+    "free_mb": 900,
+    "paused": true,
+    "starts": 1,
+    "stops": 1
+   },
+   {
+    "admit_clip": "free disk 2000 MB is below 4000 MB",
+    "free_mb": 2000,
+    "paused": true,
+    "starts": 1,
+    "stops": 1
+   },
+   {
+    "admit_clip": "free disk 3999 MB is below 4000 MB",
+    "free_mb": 3999,
+    "paused": true,
+    "starts": 1,
+    "stops": 1
+   },
+   {
+    "admit_clip": "ok",
+    "free_mb": 4000,
+    "paused": false,
+    "starts": 2,
+    "stops": 1
+   },
+   {
+    "admit_clip": "free disk 900 MB is below 4000 MB",
+    "free_mb": 900,
+    "paused": true,
+    "starts": 2,
+    "stops": 2
+   }
+  ]
+ },
+ "engine_three_channels": {
+  "after_disarm": {
+   "armed_flags": [
+    0,
+    0,
+    0
+   ],
+   "monitors": 0,
+   "segments_left": [
+    0,
+    0,
+    0
+   ]
+  },
+  "capture_tasks": [
+   "lc-capture-1",
+   "lc-capture-2",
+   "lc-capture-3"
+  ],
+  "clip_t0": {
+   "dedupe_key_shape": "chat_spike",
+   "merged": [
+    "chat_spike@5",
+    "chat_spike@13.9"
+   ],
+   "status": "pending",
+   "topic": {
+    "capture_epoch": 1,
+    "category": "",
+    "kind": "no_lookup_yet",
+    "state": "unverified",
+    "title": "",
+    "why": "no public title/category lookup exists for custom sources"
+   },
+   "window_rel": [
+    -18.0,
+    12.0
+   ]
+  },
+  "dedupe_same_key_returns_none": true,
+  "engine_tasks_spawned": 0,
+  "per_channel": {
+   "feed1": {
+    "backoffs": [
+     1.0,
+     1.0
+    ],
+    "buffer_seconds": 6.0,
+    "capture_state": "reconnecting",
+    "chat": "unavailable",
+    "chat_detail": "no chat adapter for this platform",
+    "epochs": 2,
+    "gate_open": true,
+    "restarts": 2,
+    "watch": {
+     "enabled": false,
+     "poll_seconds": 120,
+     "state": "off"
+    }
+   },
+   "feed2": {
+    "backoffs": [
+     1.0,
+     2.0,
+     1.0
+    ],
+    "buffer_seconds": 8.0,
+    "capture_state": "reconnecting",
+    "chat": "unavailable",
+    "chat_detail": "no chat adapter for this platform",
+    "epochs": 1,
+    "gate_open": true,
+    "restarts": 3,
+    "watch": {
+     "enabled": false,
+     "poll_seconds": 120,
+     "state": "off"
+    }
+   },
+   "feed3": {
+    "backoffs": [
+     1.0
+    ],
+    "buffer_seconds": 24.0,
+    "capture_state": "reconnecting",
+    "chat": "unavailable",
+    "chat_detail": "no chat adapter for this platform",
+    "epochs": 1,
+    "gate_open": true,
+    "restarts": 1,
+    "watch": {
+     "enabled": false,
+     "poll_seconds": 120,
+     "state": "off"
+    }
+   }
+  },
+  "trigger_with_gate_closed": null,
+  "triggers": {
+   "t+0": true,
+   "t+13.9_inside_window_end+2": false,
+   "t+30_new": true,
+   "t+5_manual": true,
+   "t+5_merged": false
+  }
+ },
+ "evidence": {
+  "freshness_rule": "fresh while age <= 2.5 * interval (interval = base for live answers)",
+  "sequence": [
+   {
+    "answer": "live",
+    "answer_at": 0,
+    "boundary_at": null,
+    "evaluated_at": 0,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 0,
+    "boundary_at": null,
+    "evaluated_at": 30,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 0,
+    "boundary_at": null,
+    "evaluated_at": 749,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 0,
+    "boundary_at": null,
+    "evaluated_at": 751,
+    "evidence_state": "unverified",
+    "kind": "stale",
+    "note_status_returned": true
+   },
+   {
+    "answer": "error",
+    "answer_at": 300,
+    "boundary_at": null,
+    "evaluated_at": 300,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 300,
+    "boundary_at": null,
+    "evaluated_at": 330,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 300,
+    "boundary_at": null,
+    "evaluated_at": 1049,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 300,
+    "boundary_at": null,
+    "evaluated_at": 1051,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 360,
+    "boundary_at": null,
+    "evaluated_at": 360,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 360,
+    "boundary_at": null,
+    "evaluated_at": 390,
+    "evidence_state": "live_gta",
+    "kind": "",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 360,
+    "boundary_at": null,
+    "evaluated_at": 1109,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 360,
+    "boundary_at": null,
+    "evaluated_at": 1111,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "live",
+    "answer_at": 480,
+    "boundary_at": null,
+    "evaluated_at": 480,
+    "evidence_state": "live_off_topic",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 480,
+    "boundary_at": null,
+    "evaluated_at": 510,
+    "evidence_state": "live_off_topic",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 480,
+    "boundary_at": null,
+    "evaluated_at": 1229,
+    "evidence_state": "live_off_topic",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 480,
+    "boundary_at": null,
+    "evaluated_at": 1231,
+    "evidence_state": "unverified",
+    "kind": "stale",
+    "note_status_returned": true
+   },
+   {
+    "answer": "offline",
+    "answer_at": 780,
+    "boundary_at": 780.0,
+    "evaluated_at": 780,
+    "evidence_state": "unverified",
+    "kind": "offline",
+    "note_status_returned": false
+   },
+   {
+    "answer": "offline",
+    "answer_at": 780,
+    "boundary_at": 780.0,
+    "evaluated_at": 810,
+    "evidence_state": "unverified",
+    "kind": "offline",
+    "note_status_returned": false
+   },
+   {
+    "answer": "offline",
+    "answer_at": 780,
+    "boundary_at": 780.0,
+    "evaluated_at": 1529,
+    "evidence_state": "unverified",
+    "kind": "offline",
+    "note_status_returned": false
+   },
+   {
+    "answer": "offline",
+    "answer_at": 780,
+    "boundary_at": 780.0,
+    "evaluated_at": 1531,
+    "evidence_state": "unverified",
+    "kind": "stale",
+    "note_status_returned": false
+   },
+   {
+    "answer": "live",
+    "answer_at": 1080,
+    "boundary_at": 780.0,
+    "evaluated_at": 1080,
+    "evidence_state": "live_gta_category",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 1080,
+    "boundary_at": 780.0,
+    "evaluated_at": 1110,
+    "evidence_state": "live_gta_category",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 1080,
+    "boundary_at": 780.0,
+    "evaluated_at": 1829,
+    "evidence_state": "live_gta_category",
+    "kind": "",
+    "note_status_returned": true
+   },
+   {
+    "answer": "live",
+    "answer_at": 1080,
+    "boundary_at": 780.0,
+    "evaluated_at": 1831,
+    "evidence_state": "unverified",
+    "kind": "stale",
+    "note_status_returned": true
+   },
+   {
+    "answer": "error",
+    "answer_at": 1100,
+    "boundary_at": 780.0,
+    "evaluated_at": 1100,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 1100,
+    "boundary_at": 780.0,
+    "evaluated_at": 1130,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 1100,
+    "boundary_at": 780.0,
+    "evaluated_at": 1849,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   },
+   {
+    "answer": "error",
+    "answer_at": 1100,
+    "boundary_at": 780.0,
+    "evaluated_at": 1851,
+    "evidence_state": "unverified",
+    "kind": "lookup_failed",
+    "note_status_returned": false
+   }
+  ]
+ },
+ "observe_ungated": {
+  "note": "first sleep = initial spread uniform(1,12) pinned to 1; later sleeps = wait + uniform(0,10) pinned to 0",
+  "sleeps_with_jitter_at_min": [
+   1,
+   300,
+   60,
+   120,
+   240,
+   480,
+   900,
+   900,
+   300,
+   300
+  ]
+ },
+ "status_rules": {
+  "is_gta6": {
+   "GTA 5 RP": false,
+   "GTA 6 day 1": true,
+   "GTA VII": false,
+   "GTA-6 RP": true,
+   "GTAVI": true,
+   "Grand Theft Auto VI": true,
+   "Just chatting": false,
+   "Sports talk": false,
+   "grand theft auto 6": true,
+   "gta vi heists": true,
+   "gta6": true
+  },
+  "parse_public_jsonld": {
+   "ended": "offline",
+   "naive_date_ambiguous": "unavailable",
+   "no_metadata": "unavailable",
+   "open_ended_live": "live",
+   "scheduled": "offline",
+   "string_flag_ambiguous": "unavailable",
+   "two_live_titles": "unavailable"
+  },
+  "topic_state": {
+   "error": "unverified",
+   "live_category_only": "live_gta_category",
+   "live_category_only_category_off": "live_off_topic",
+   "live_no_metadata": "unverified",
+   "live_other_title_gta_category": "live_gta_category",
+   "live_title_gta": "live_gta",
+   "offline": "unverified"
+  }
+ },
+ "streamlink_status": {
+  "argv_after_binary": [
+   "--json",
+   "https://www.twitch.tv/x"
+  ],
+  "results": {
+   "empty": {
+    "category": "",
+    "detail": "",
+    "id": "",
+    "state": "offline",
+    "title": ""
+   },
+   "garbage": {
+    "detail": "unreadable status response",
+    "state": "error"
+   },
+   "live": {
+    "category": "Grand Theft Auto VI",
+    "detail": "",
+    "id": "4242",
+    "state": "live",
+    "title": "GTA 6 RP"
+   },
+   "no_streams_no_error": {
+    "category": "",
+    "detail": "",
+    "id": "",
+    "state": "offline",
+    "title": "x"
+   },
+   "offline_error": {
+    "detail": "No playable streams found on this URL: https://www.twitch.tv/x",
+    "state": "offline"
+   },
+   "other_error": {
+    "detail": "Unable to open URL: 403 Client Error",
+    "state": "error"
+   },
+   "timeout": {
+    "detail": "status check timed out",
+    "state": "error"
+   }
+  },
+  "routing": {
+   "custom": {
+    "detail": "no supported live-metadata source for this platform",
+    "state": "unavailable"
+   },
+   "kick": "https://kick.com/kicker",
+   "rumble_403": {
+    "detail": "Rumble refused the public status request (HTTP 403); no supported public live-metadata path from this network. Retrying with backoff.",
+    "retry_after": 120.0,
+    "state": "unavailable"
+   },
+   "twitch": "https://www.twitch.tv/SomeOne",
+   "youtube": {
+    "detail": "no supported live-metadata source for this platform",
+    "state": "unavailable"
+   }
+  }
+ },
+ "watch_gated": {
+  "answers": [
+   {
+    "state": "offline"
+   },
+   {
+    "category": "Grand Theft Auto VI",
+    "state": "live",
+    "title": "Just chatting"
+   },
+   {
+    "category": "",
+    "state": "live",
+    "title": "GTA 6 tonight"
+   },
+   {
+    "detail": "status check timed out",
+    "state": "error"
+   },
+   {
+    "category": "",
+    "state": "live",
+    "title": "GTA 6 tonight"
+   },
+   {
+    "detail": "HTTP 429",
+    "retry_after": 600.0,
+    "state": "unavailable"
+   },
+   {
+    "detail": "HTTP 429",
+    "retry_after": null,
+    "state": "unavailable"
+   },
+   {
+    "state": "unavailable"
+   },
+   {
+    "state": "unavailable"
+   },
+   {
+    "state": "unavailable"
+   },
+   {
+    "category": "",
+    "state": "live",
+    "title": "GTA VI heists"
+   },
+   {
+    "state": "offline"
+   }
+  ],
+  "poll_seconds": 120,
+  "with_tab_share_holding_gate": [
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": false,
+    "label": "offline",
+    "wait_s": 120
+   },
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": false,
+    "label": "live_off_topic",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "start_capture_and_chat"
+    ],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [],
+    "fails": 1,
+    "gate_open": true,
+    "label": "error",
+    "wait_s": 240
+   },
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [],
+    "fails": 1,
+    "gate_open": true,
+    "label": "unavailable",
+    "wait_s": 600.0
+   },
+   {
+    "actions": [],
+    "fails": 2,
+    "gate_open": true,
+    "label": "unavailable",
+    "wait_s": 480
+   },
+   {
+    "actions": [],
+    "fails": 3,
+    "gate_open": true,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [],
+    "fails": 4,
+    "gate_open": true,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [],
+    "fails": 5,
+    "gate_open": true,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "stop_capture_and_chat(purge=True)"
+    ],
+    "fails": 0,
+    "gate_open": false,
+    "label": "offline",
+    "wait_s": 120
+   }
+  ],
+  "without_tab_share": [
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": false,
+    "label": "offline",
+    "wait_s": 120
+   },
+   {
+    "actions": [],
+    "fails": 0,
+    "gate_open": false,
+    "label": "live_off_topic",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "start_capture_and_chat"
+    ],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "stop_capture_and_chat(purge=True)"
+    ],
+    "fails": 1,
+    "gate_open": false,
+    "label": "error",
+    "wait_s": 240
+   },
+   {
+    "actions": [
+     "start_capture_and_chat"
+    ],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "stop_capture_and_chat(purge=True)"
+    ],
+    "fails": 1,
+    "gate_open": false,
+    "label": "unavailable",
+    "wait_s": 600.0
+   },
+   {
+    "actions": [],
+    "fails": 2,
+    "gate_open": false,
+    "label": "unavailable",
+    "wait_s": 480
+   },
+   {
+    "actions": [],
+    "fails": 3,
+    "gate_open": false,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [],
+    "fails": 4,
+    "gate_open": false,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [],
+    "fails": 5,
+    "gate_open": false,
+    "label": "unavailable",
+    "wait_s": 900
+   },
+   {
+    "actions": [
+     "start_capture_and_chat"
+    ],
+    "fails": 0,
+    "gate_open": true,
+    "label": "live_gta",
+    "wait_s": 120
+   },
+   {
+    "actions": [
+     "stop_capture_and_chat(purge=True)"
+    ],
+    "fails": 0,
+    "gate_open": false,
+    "label": "offline",
+    "wait_s": 120
+   }
+  ]
+ }
+}

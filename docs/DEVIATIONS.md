@@ -184,3 +184,29 @@ shipped preset, every output is unchanged.
 - The auto-layout decision in the recorded reference fell back to `fit` because numpy was missing on that host.
   Here numpy and onnxruntime are installed and the real detector decides; for the synthetic source it also picks
   `fit`. The parity comparison ignores the fallback text and detector details.
+
+## Monitoring and recording (`monitor` branch)
+
+Parity evidence: `tests/parity/test_monitoring_parity.py` replays the original characterization sequences (capture
+state machine and backoffs, gated watch, passive observation, topic evidence, stream-probe parsing, chat
+normalization, three-channel engine, crash restart, disk producers) and compares every value with
+`tests/parity/data/monitoring_ref.json`. Everything not listed below is unchanged.
+
+| Area / file | Change | Reason |
+|---|---|---|
+| `sources/`, `engine.py` (`Monitor._official`), `source_status.py` (`hub=`) | When the user connects an official API for Twitch (Helix Get Streams), Kick (`/public/v1/livestreams`) or YouTube (Data API `search.list` + `videos.list`), live status comes from that API. Offline: capture is not started (no stream-probe retries); live: the original capture loop runs unchanged. Topic-gated channels read the same official answer. Without an official API the original stream probe is used and labelled "stream probe (no official API connected)". Rejected credentials are `needs_action` with the exact fix; capture is not started on a guess. | Public product requirement: official status where the user has credentials. |
+| `sources/kick.py` | Uses the documented v1 livestreams endpoint (marked deprecated); the v2 cursor endpoint's parameters could not be verified. Broadcast id = `started_at`. | Only verifiable endpoint with multi-broadcaster lookup. |
+| `sources/youtube.py` | `search.list` limited to 100 calls per 24 h and spaced `86400 * channels / 100` s per channel; quota exhaustion is shown as unavailable for an hour. | YouTube search quota bucket. |
+| `engine.py` | Recording-slot limit `processing.max_concurrent_recordings` (wizard): extra channels wait (`waiting`, "waiting for a free recording slot") and start when a slot frees. In ungated mode without an official API the original loop runs continuously, so each such channel holds a slot. | Wizard limit. |
+| `engine.py` `public_state()` | Internal states kept; mapped to UI states offline / waiting / recording / reconnecting / needs_action / disabled. | UI contract. |
+| `engine.py` | Not ported: tab share, VOD import, cold tier, publisher/routine/editorial/winners/freshness/reach sweeps, prune, readiness heartbeat/outage file, `discard`/`reserve_edit`/`request_render`/failed-final backfill. Clip-storage ceiling admission and storage cleanup belong to the ops maintenance service. | Owned by other subsystems or not in the public product. The core supervisor records worker restarts in `events`. |
+| `engine.py` | Detector, clipper, postprocess, moments and render are imported lazily; while missing, chat is shown but never triggers, and a cut fails with the import error. | Subsystems owned by `select` / `edit`. |
+| `chat/kick.py` `ACT_URL`, `chat/twitch.py` `ACT_401_SIGNIN`, `chat_tokens.py` `ACT_REVOKED` | Fix texts point at the public app's Sources page instead of environment variables / the original settings page. | Public UI. Excluded from the parity comparison by path. |
+| `chat_tokens.py` | Google refresh endpoint added (YouTube sign-in). | YouTube OAuth sign-in. |
+| `capture.py` | FFmpeg binary from setting `ffmpeg_path` (default `ffmpeg` on PATH); Streamlink found as `streamlink.exe` next to the interpreter on Windows. | Cross-platform. |
+| `config.py`, task names | Ring marker `.live-clipper-ring`, asyncio task names `lc-*`, status User-Agent `live-clipper (status check)`. | Public naming. |
+| `store.py` | Original `Store` API over the app database; logical tables `channels`/`clips`/`log`/`clip_ledger` live in `monitor_*` tables (SQL table names are rewritten). | Namespaced tables. |
+| `monitor_service.py` | Only `ungated` and `topic_gated` watch modes are offered; Rumble is not offered (no official status API; it still works as a creator-provided feed URL). VOD-only / retired channels stay refused. | Public scope. |
+
+Recording note shown in the API and UI: monitoring permission (live status or chat) does not grant the right to
+record or redistribute a stream; Streamlink and FFmpeg are third-party tools.
