@@ -28,6 +28,26 @@ evidence, visual evidence (numpy), language decisions and the detector against t
 | `events.py` | `ChatEvent`/`Trigger` shipped with the detector. | The detector needs them; unchanged copy. |
 | `editorial.assess`, `editorial.sweep` | Unchanged, but their frame sampling (`facecam`, `faces`) and final render (`postprocess.render_final`) come from the edit subsystem. | Ownership; not runnable until edit lands. |
 
+### Dropped hosted/private integrations
+
+| Where | What | Why |
+|---|---|---|
+| `moments`, `candidates`, `winners` | External publisher handoffs (Metricool receipts, `external_receipts`, the routine) are not read: occupancy, conflicts, creator spacing, `started_on` and the posted-moment set use native `deliveries` only. | Hosted third-party integration; not part of the free local app. |
+| `winners` | Metric collection is not ported: YouTube feed/API collection, Metricool analytics ingest, observation import, receipts check, report, cycle. Post anchors, readings and proof come from optional `store.post_anchors()`, `store.post_readings(anchors)` and `store.post_proof(kind, ref)` (publish side). Without them there is no pattern preference (factor 1.0, as on a fresh install). `_comparison_ids` uses the anchor's `post_id` instead of parsing the URL. The verdict, pattern and factor math is unchanged. | Post identity and metrics belong to publishing; parts of it were hosted services. |
+| `winners.features` | The SRT parser is a private copy in `winners.py`, not an import of `captions.subs`. | `captions/` belongs to the edit subsystem. |
+| `freshness` | Only `max_age_s, margin_s, moment_time, expires_at, reason, native_reason, expired` are ported. The fresh-start `recovery` gate in `reason`/`expired` and the expiry cycle/gc/tombstone (media removal) are not. | Fresh-start recovery and retention belong to ops. |
+| Google Drive cold tier, calendar | Not ported. | Hosted/private integrations, not selection. |
+
+### Ported tests
+
+`test_detector` (16/16), `test_titles` (8/8), `test_moments` and `test_streamer_policy` (all, with external-handoff
+cases replaced by native deliveries), `test_candidates`, `test_winners` (verdict, pattern and preference tests on a
+store that supplies post data; tests of metric collection, imports and receipts dropped with those features),
+`test_editorial_gate` (verdict fixtures with numpy frames; the persistence/dispatch tests need the publisher),
+the pure parts of `test_language_policy`. `test_gameplay_gate` is API/publisher based: its decisions are covered
+by the parity pipeline cases and `test_editorial_gate`. Real streamer names in the original tests were replaced
+with synthetic ones.
+
 ### Not covered here
 
 | Area | Why |
