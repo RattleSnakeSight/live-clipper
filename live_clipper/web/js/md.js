@@ -83,7 +83,8 @@ export function renderMarkdown(src, linkFor) {
     }
     const head = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
     if (head) {
-      root.append(h(`h${Math.min(head[1].length, 4)}`, {}, inline(head[2], linkFor)));
+      // the page already has its h1, so Markdown headings start at h2
+      root.append(h(`h${Math.min(head[1].length + 1, 5)}`, {}, inline(head[2], linkFor)));
       i++;
       continue;
     }

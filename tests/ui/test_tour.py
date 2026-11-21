@@ -123,7 +123,8 @@ def test_replay_tutorial_from_settings_runs_to_completion(seeded_server, make_pa
     expect(tour(page)).to_have_count(0)  # already skipped in this profile
     page.get_by_role("button", name="Replay tutorial").click()
     total = int(tour(page).locator(".count").inner_text().split(" of ")[1])
-    for _ in range(total - 1):
+    for i in range(total - 1):
+        expect(tour(page).locator(".count")).to_have_text(f"Step {i + 1} of {total}")
         page.get_by_role("button", name="Next").click()
     page.get_by_role("button", name="Finish").click()
     expect(tour(page)).to_have_count(0)

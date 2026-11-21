@@ -211,9 +211,9 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* guide (rendered markdown) */
 .md { max-width: 72ch; }
-.md h1 { font-size: 24px; margin: 0 0 12px; }
+.md h2:first-child { font-size: 24px; margin: 0 0 12px; }
 .md h2 { margin: 24px 0 8px; }
-.md h3 { margin: 18px 0 6px; }
+.md h3, .md h4, .md h5 { margin: 18px 0 6px; font-size: 15px; }
 .md p, .md ul, .md ol, .md pre, .md blockquote, .md table { margin: 0 0 12px; }
 .md pre { background: var(--raised); padding: 12px; border-radius: var(--radius-control); overflow-x: auto; }
 .md code { background: var(--raised); padding: 1px 4px; border-radius: 4px; }
