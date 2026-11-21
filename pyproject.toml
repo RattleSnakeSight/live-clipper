@@ -17,6 +17,10 @@ dependencies = [
     "cryptography",
     "platformdirs",
     "numpy",
+    # captions: speech recognition + offline translation (models download on first use into the data dir)
+    "faster-whisper>=1.1",
+    "ctranslate2>=4.4",
+    "sentencepiece>=0.2",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +36,7 @@ version = { attr = "live_clipper.__version__" }
 include = ["live_clipper*"]
 
 [tool.setuptools.package-data]
-live_clipper = ["web/**/*", "formats/**/*", "guide/*.md"]
+live_clipper = ["web/**/*", "formats/**/*", "guide/*.md", "presets/*.json", "models/*", "fonts/*"]
 
 [tool.ruff]
 line-length = 110
@@ -43,6 +47,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["asr: real faster-whisper run (downloads a model on first use; opt in with LIVE_CLIPPER_ASR_TEST=1)"]
 # starlette nags about its own httpx dependency; not actionable here
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
@@ -53,3 +58,10 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 # the publishing adapters keep the reference's line layout (documented in docs/DEVIATIONS.md)
 "live_clipper/publish/*.py" = ["E501"]
 "tests/*publish*.py" = ["F811", "F401", "E501"]  # shared fixtures are imported from publish_util
+# media modules ported line-for-line from the original design: keep their layout for reviewable parity
+"live_clipper/{buffer,timeline,clipper,render,postprocess,facecam,faces,loudness}.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
+"live_clipper/captions/*.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
+"tests/{test_timeline,test_captions_text,test_hook_render,test_split_layout,test_edit_postprocess}.py" = ["E501", "E741", "B905"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Body", "fastapi.Query"]

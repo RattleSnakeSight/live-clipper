@@ -1,0 +1,46 @@
+{
+  "id": "default",
+  "name": "Default vertical clip",
+  "description": "1080x1920 finals with burned captions and a 2.8 s hook title; 720x1280 previews.",
+  "window": {
+    "pre_roll_s": 18.0,
+    "post_roll_s": 12.0,
+    "max_clip_seconds": 60.0
+  },
+  "encode": {
+    "preview_height": 1280,
+    "final_height": 1920,
+    "x264_preset": "veryfast",
+    "preview_crf": 23,
+    "render_crf": 21,
+    "output_fps": 30,
+    "accurate_seek": false
+  },
+  "layout": {
+    "mode": "auto"
+  },
+  "facecam": {
+    "detect": true,
+    "split_frac": 0.32
+  },
+  "captions": {
+    "font": "Inter",
+    "bold": true,
+    "size_frac": 0.068,
+    "outline_frac": 0.0075,
+    "shadow_frac": 0.002,
+    "margin_v_frac": 0.27,
+    "margin_lr_frac": 0.06,
+    "alignment": 2,
+    "primary": "#FFFFFF",
+    "outline_color": "#000000",
+    "back_color": "#000000"
+  },
+  "title": {
+    "duration_s": 2.8,
+    "wrap_chars": 20
+  },
+  "languages": {
+    "render": "original"
+  }
+}

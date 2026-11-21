@@ -1,0 +1,549 @@
+{
+  "version": 1,
+  "notes": "Implementation-neutral inputs for cut/render parity. Times in 'rel' are seconds relative to the timeline start of the FIRST buffered segment (seg0.t_start). Timeline mapping used to build the index: received_at = T0 + pts_end + latency, so t = pts + T0 + latency (offset = min(received_at - pts_end)).",
+  "timeline": {
+    "T0": 1000000.0,
+    "latency_s": 0.3
+  },
+  "roll": {
+    "pre_roll_s": 18.0,
+    "post_roll_s": 12.0,
+    "max_clip_seconds": 60.0
+  },
+  "sources": {
+    "src60": {
+      "duration_s": 40,
+      "video": "testsrc2=s=1280x720:r=60",
+      "audio": "sine=frequency=440:sample_rate=48000",
+      "encode": [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-g",
+        "120",
+        "-keyint_min",
+        "120",
+        "-sc_threshold",
+        "0",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-f",
+        "mpegts"
+      ],
+      "file": "src60.ts"
+    },
+    "src30": {
+      "duration_s": 20,
+      "video": "testsrc2=s=1280x720:r=30",
+      "audio": "sine=frequency=330:sample_rate=48000",
+      "encode": [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-g",
+        "60",
+        "-keyint_min",
+        "60",
+        "-sc_threshold",
+        "0",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-f",
+        "mpegts"
+      ],
+      "file": "src30.ts"
+    },
+    "vod40": {
+      "duration_s": 40,
+      "video": "testsrc2=s=1280x720:r=30",
+      "audio": "sine=frequency=550:sample_rate=48000",
+      "encode": [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-g",
+        "250",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4"
+      ],
+      "file": "vod40.mp4"
+    }
+  },
+  "segmenting": {
+    "segment_seconds": 2.0,
+    "note": "capture.py:173-177 command with the synthetic file as input (-i <file>) instead of streamlink/HLS"
+  },
+  "live_cuts": [
+    {
+      "id": "mid_unaligned",
+      "source": "src60",
+      "action_rel": 23.3,
+      "layout": {
+        "mode": "auto"
+      },
+      "expect": {
+        "start_rel": 5.3,
+        "end_rel": 35.3,
+        "trim_in": 1.2667,
+        "source_t0_rel": 4.0333,
+        "duration": 30.0,
+        "truncated": ""
+      }
+    },
+    {
+      "id": "aligned",
+      "source": "src60",
+      "action_rel": 22.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "expect": {
+        "start_rel": 4.0,
+        "end_rel": 34.0,
+        "trim_in": 1.9667,
+        "source_t0_rel": 2.0333,
+        "duration": 30.0,
+        "truncated": ""
+      }
+    },
+    {
+      "id": "buffer_start",
+      "source": "src60",
+      "action_rel": 10.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "expect": {
+        "start_rel": 0.0,
+        "end_rel": 22.0,
+        "trim_in": 0.0,
+        "source_t0_rel": 0.0,
+        "duration": 22.0,
+        "truncated": "buffer_start"
+      }
+    },
+    {
+      "id": "stream_ended",
+      "source": "src60",
+      "action_rel": 35.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "segment_timeout_s": 1.5,
+      "expect": {
+        "start_rel": 17.0,
+        "end_rel": 40.0333,
+        "trim_in": 0.9667,
+        "source_t0_rel": 16.0333,
+        "duration": 23.0333,
+        "truncated": "stream_ended"
+      }
+    },
+    {
+      "id": "gap_after_pts_jump",
+      "source": "src60",
+      "action_rel": 15.0,
+      "prefer_rel": 15.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "index": {
+        "pts_jump_after_segment": 10,
+        "pts_jump_s": 500.0
+      },
+      "expect": {
+        "start_rel": 0.0,
+        "end_rel": 20.0333,
+        "trim_in": 0.0,
+        "source_t0_rel": 0.0,
+        "duration": 20.0333,
+        "truncated": "gap_after",
+        "note": "window [-3,27]: resolve() picks epoch 0 (contains prefer) and reports gap_after (not propagated: only buffer_start/gap_before are kept at clipper.py:80); the stream loop sets gap_after when the next segment is in another epoch"
+      }
+    },
+    {
+      "id": "gap_before_prefer_new_epoch",
+      "source": "src60",
+      "action_rel": 28.0,
+      "prefer_rel": 28.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "index": {
+        "pts_jump_after_segment": 10,
+        "pts_jump_s": 500.0
+      },
+      "expect": {
+        "start_rel": 20.0333,
+        "end_rel": 40.0,
+        "trim_in": 0.0,
+        "source_t0_rel": 20.0333,
+        "duration": 19.9667,
+        "truncated": "gap_before",
+        "note": "resolve() prefers the run containing prefer (epoch 1) and reports gap_before, kept by cut_clip; window end 40.0 is reached because the last segment ends at 40.0333 (>= 40 - 0.02)"
+      }
+    },
+    {
+      "id": "receipt_gap_hidden_stall",
+      "source": "src60",
+      "action_rel": 15.0,
+      "prefer_rel": 15.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "index": {
+        "receipt_delay_after_segment": 10,
+        "receipt_delay_s": 30.0
+      },
+      "expect": {
+        "start_rel": 0.0,
+        "end_rel": 20.0333,
+        "duration": 20.0333,
+        "truncated": "gap_after"
+      }
+    },
+    {
+      "id": "fps30_source_no_cap",
+      "source": "src30",
+      "action_rel": 8.0,
+      "layout": {
+        "mode": "fit"
+      },
+      "expect": {
+        "start_rel": 0.0,
+        "end_rel": 20.0,
+        "trim_in": 0.0,
+        "source_t0_rel": 0.0,
+        "duration": 20.0,
+        "truncated": "buffer_start"
+      },
+      "segment_timeout_s": 1.5
+    }
+  ],
+  "layout_previews": {
+    "source": "src60",
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "layouts": {
+      "fit": {
+        "mode": "fit"
+      },
+      "fit_zoom": {
+        "mode": "fit",
+        "zoom": 1.3,
+        "dy": 0.0
+      },
+      "crop": {
+        "mode": "crop",
+        "cx": 0.5,
+        "zoom": 1.0
+      },
+      "stack": {
+        "mode": "stack"
+      },
+      "split_explicit": {
+        "mode": "split",
+        "facecam": [
+          0.0,
+          0.0,
+          0.25,
+          0.3
+        ],
+        "source": [
+          1280,
+          720
+        ]
+      },
+      "split_no_coords": {
+        "mode": "split"
+      },
+      "auto_resolved_split": {
+        "mode": "auto",
+        "resolved": {
+          "mode": "split",
+          "facecam": [
+            0.7,
+            0.05,
+            0.25,
+            0.3
+          ],
+          "facecam_frac": 0.32,
+          "source": [
+            1280,
+            720
+          ]
+        }
+      }
+    }
+  },
+  "final_renders": {
+    "from_live_cut": "mid_unaligned",
+    "settings": {
+      "final_height": 1920,
+      "preview_height": 1280,
+      "x264_preset": "veryfast",
+      "output_fps": 30
+    },
+    "cases": [
+      {
+        "id": "final_en_plain",
+        "lang": "en",
+        "captions": false,
+        "title": null,
+        "layout": {
+          "mode": "fit"
+        }
+      },
+      {
+        "id": "final_en_captions",
+        "lang": "en",
+        "captions": true,
+        "title": null,
+        "layout": {
+          "mode": "fit"
+        }
+      },
+      {
+        "id": "final_en_captions_title",
+        "lang": "en",
+        "captions": true,
+        "title": "Zentorno slams into the gas station — chat loses it",
+        "layout": {
+          "mode": "fit"
+        },
+        "note": "TITLE_FONT is a Debian path; on hosts without it the harness substitutes a local font (recorded)"
+      },
+      {
+        "id": "final_es_split_captions",
+        "lang": "es",
+        "captions": true,
+        "title": null,
+        "layout": {
+          "mode": "split",
+          "facecam": [
+            0.0,
+            0.0,
+            0.25,
+            0.3
+          ],
+          "source": [
+            1280,
+            720
+          ]
+        }
+      },
+      {
+        "id": "final_auto_layout_decision",
+        "lang": "en",
+        "captions": false,
+        "title": null,
+        "layout": {
+          "mode": "auto"
+        }
+      },
+      {
+        "id": "preview_rerender",
+        "lang": null,
+        "captions": false,
+        "title": null,
+        "layout": {
+          "mode": "fit"
+        },
+        "height_key": "preview_height"
+      },
+      {
+        "id": "final_after_trim",
+        "lang": "en",
+        "captions": false,
+        "title": null,
+        "layout": {
+          "mode": "fit"
+        },
+        "trim": [
+          2.0,
+          12.0
+        ]
+      }
+    ]
+  },
+  "vod_cut": {
+    "source": "vod40",
+    "action_s": 23.3,
+    "expect": {
+      "s": 5.3,
+      "e": 35.3,
+      "duration": 30.0,
+      "truncated": ""
+    }
+  },
+  "caption_transcript": {
+    "language": "en",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 9.0,
+        "text": "Okay chat I'm taking the Zentorno straight through the LSPD roadblock. Oh no, I just crashed into the gas station! That was insane, did you see that?"
+      },
+      {
+        "start": 9.2,
+        "end": 9.3,
+        "text": "Yes"
+      },
+      {
+        "start": 12.0,
+        "end": 15.0,
+        "text": "a very long sentence about the stuff in the game that we like"
+      },
+      {
+        "start": 20.0,
+        "end": 20.2,
+        "text": "Wow"
+      }
+    ],
+    "word_timing": "uniform: step=(end-start)/n, word i = [start+i*step, start+(i+1)*step-0.02] (tests/test_captions_text.py:_seg)",
+    "play_res_preview": [
+      720,
+      1280
+    ],
+    "play_res_final": [
+      1080,
+      1920
+    ]
+  },
+  "titles": [
+    {
+      "lang": "en",
+      "reason": "chat_burst",
+      "chat": [
+        "LUL",
+        "KEKW LUL",
+        "OMEGALUL",
+        "lmao",
+        "LUL LUL"
+      ],
+      "transcript": {
+        "language": "en",
+        "segments": [
+          "Okay chat, I'm taking the Zentorno straight through the LSPD roadblock.",
+          "Oh no, I just crashed into the gas station!",
+          "The cops are chasing me"
+        ]
+      }
+    },
+    {
+      "lang": "es",
+      "reason": "chat_burst",
+      "chat": [
+        "LUL",
+        "KEKW LUL",
+        "OMEGALUL",
+        "lmao",
+        "LUL LUL"
+      ],
+      "transcript": {
+        "language": "en",
+        "segments": [
+          "Okay chat, I'm taking the Zentorno straight through the LSPD roadblock.",
+          "Oh no, I just crashed into the gas station!",
+          "The cops are chasing me"
+        ]
+      }
+    },
+    {
+      "lang": "en",
+      "reason": "emote_burst",
+      "chat": [
+        "POGGERS",
+        "Pog",
+        "W",
+        "clip it",
+        "hype"
+      ],
+      "transcript": {
+        "language": "en",
+        "segments": [
+          "We're robbing the Fleeca bank, Lester is on the radio",
+          "Hold the door!"
+        ]
+      }
+    },
+    {
+      "lang": "es",
+      "reason": "chat_burst",
+      "chat": [
+        "F",
+        "F",
+        "RIP",
+        "F"
+      ],
+      "transcript": {
+        "language": "es",
+        "segments": [
+          "Bueno chat, voy a robar el banco Maze Bank con Lester",
+          "¡No puede ser, me atrapó la policía!"
+        ]
+      }
+    },
+    {
+      "lang": "en",
+      "reason": "audio_spike",
+      "chat": [],
+      "transcript": {
+        "language": "en",
+        "segments": [
+          "hmm let me think about where we should go next honestly"
+        ]
+      }
+    },
+    {
+      "lang": "en",
+      "reason": "",
+      "chat": [],
+      "transcript": {
+        "language": "en",
+        "segments": []
+      }
+    },
+    {
+      "lang": "es",
+      "reason": "manual",
+      "chat": [],
+      "transcript": {
+        "language": "es",
+        "segments": []
+      }
+    }
+  ],
+  "expect_rule": "clip_start = max(window_start, t_start of the first selected segment); trim_in = clip_start - that segment's t_start; duration(result) = min(window_end, last fed segment t_end) - clip_start. Numbers below are for the segment layout ffmpeg 9.1 produced from these sources: CSV boundaries 0, 2.033333, 4.033333, ... (first segment 2.0333 s, then 2.0 s; last ends at 40.033333 for src60, 20.0 for src30)."
+}

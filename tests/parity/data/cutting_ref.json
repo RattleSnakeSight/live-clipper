@@ -1,0 +1,2052 @@
+{
+ "recorded_with": "original implementation, FFmpeg 9.1 (gyan.dev full build), Windows 11, Python 3.13; numpy/onnxruntime absent (auto layout fell back to fit)",
+ "segments": {
+  "src60": [
+   {
+    "name": "s000000.ts",
+    "pts_start": 0.0,
+    "pts_end": 2.033333
+   },
+   {
+    "name": "s000001.ts",
+    "pts_start": 2.033333,
+    "pts_end": 4.033333
+   },
+   {
+    "name": "s000002.ts",
+    "pts_start": 4.033333,
+    "pts_end": 6.033333
+   },
+   {
+    "name": "s000003.ts",
+    "pts_start": 6.033333,
+    "pts_end": 8.033333
+   },
+   {
+    "name": "s000004.ts",
+    "pts_start": 8.033333,
+    "pts_end": 10.033333
+   },
+   {
+    "name": "s000005.ts",
+    "pts_start": 10.033333,
+    "pts_end": 12.033333
+   },
+   {
+    "name": "s000006.ts",
+    "pts_start": 12.033333,
+    "pts_end": 14.033333
+   },
+   {
+    "name": "s000007.ts",
+    "pts_start": 14.033333,
+    "pts_end": 16.033333
+   },
+   {
+    "name": "s000008.ts",
+    "pts_start": 16.033333,
+    "pts_end": 18.033333
+   },
+   {
+    "name": "s000009.ts",
+    "pts_start": 18.033333,
+    "pts_end": 20.033333
+   },
+   {
+    "name": "s000010.ts",
+    "pts_start": 20.033333,
+    "pts_end": 22.033333
+   },
+   {
+    "name": "s000011.ts",
+    "pts_start": 22.033333,
+    "pts_end": 24.033333
+   },
+   {
+    "name": "s000012.ts",
+    "pts_start": 24.033333,
+    "pts_end": 26.033333
+   },
+   {
+    "name": "s000013.ts",
+    "pts_start": 26.033333,
+    "pts_end": 28.033333
+   },
+   {
+    "name": "s000014.ts",
+    "pts_start": 28.033333,
+    "pts_end": 30.033333
+   },
+   {
+    "name": "s000015.ts",
+    "pts_start": 30.033333,
+    "pts_end": 32.033333
+   },
+   {
+    "name": "s000016.ts",
+    "pts_start": 32.033333,
+    "pts_end": 34.033333
+   },
+   {
+    "name": "s000017.ts",
+    "pts_start": 34.033333,
+    "pts_end": 36.033333
+   },
+   {
+    "name": "s000018.ts",
+    "pts_start": 36.033333,
+    "pts_end": 38.033333
+   },
+   {
+    "name": "s000019.ts",
+    "pts_start": 38.033333,
+    "pts_end": 40.033333
+   }
+  ],
+  "src30": [
+   {
+    "name": "s000000.ts",
+    "pts_start": 0.0,
+    "pts_end": 4.066667
+   },
+   {
+    "name": "s000001.ts",
+    "pts_start": 4.066667,
+    "pts_end": 6.066667
+   },
+   {
+    "name": "s000002.ts",
+    "pts_start": 6.066667,
+    "pts_end": 8.066667
+   },
+   {
+    "name": "s000003.ts",
+    "pts_start": 8.066667,
+    "pts_end": 10.066667
+   },
+   {
+    "name": "s000004.ts",
+    "pts_start": 10.066667,
+    "pts_end": 12.066667
+   },
+   {
+    "name": "s000005.ts",
+    "pts_start": 12.066667,
+    "pts_end": 14.066667
+   },
+   {
+    "name": "s000006.ts",
+    "pts_start": 14.066667,
+    "pts_end": 16.066667
+   },
+   {
+    "name": "s000007.ts",
+    "pts_start": 16.066667,
+    "pts_end": 18.066667
+   },
+   {
+    "name": "s000008.ts",
+    "pts_start": 18.066667,
+    "pts_end": 20.066667
+   }
+  ]
+ },
+ "live_cuts": {
+  "mid_unaligned": {
+   "ok": true,
+   "start_rel": 5.3,
+   "end_rel": 35.3,
+   "source_t0_rel": 4.0333,
+   "trim_in": 1.2667,
+   "duration": 30.0,
+   "truncated": "",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": {
+    "mode": "auto",
+    "preview": {
+     "mode": "fit",
+     "provisional": true,
+     "fallback": "preview: the layout is decided at the first final render"
+    }
+   },
+   "error": "",
+   "window_rel": [
+    5.3,
+    35.3
+   ],
+   "prefer_rel": 23.3,
+   "first_frame_error_s": -0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 20
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 30.0,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0,
+      "duration": 30.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 30.0
+     },
+     "faststart": true,
+     "keyframes": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 30.0,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 30.0
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 32.032,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 5.4333,
+      "duration": 32.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 5.4013,
+      "duration": 31.9147
+     },
+     "keyframes": [
+      5.433,
+      7.433,
+      9.433,
+      11.433,
+      13.433,
+      15.433
+     ]
+    }
+   }
+  },
+  "aligned": {
+   "ok": true,
+   "start_rel": 4.0,
+   "end_rel": 34.0,
+   "source_t0_rel": 2.0333,
+   "trim_in": 1.9667,
+   "duration": 30.0,
+   "truncated": "",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    4.0,
+    34.0
+   ],
+   "prefer_rel": 22.0,
+   "first_frame_error_s": 0.0,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 20
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 30.0,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0,
+      "duration": 30.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 30.0
+     },
+     "faststart": true,
+     "keyframes": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 30.0,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 30.0
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 32.016,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 3.4333,
+      "duration": 32.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 3.4173,
+      "duration": 31.8933
+     },
+     "keyframes": [
+      3.433,
+      5.433,
+      7.433,
+      9.433,
+      11.433,
+      13.433
+     ]
+    }
+   }
+  },
+  "buffer_start": {
+   "ok": true,
+   "start_rel": 0.0,
+   "end_rel": 22.0,
+   "source_t0_rel": 0.0,
+   "trim_in": 0.0,
+   "duration": 22.0,
+   "truncated": "buffer_start",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    -8.0,
+    22.0
+   ],
+   "prefer_rel": 10.0,
+   "first_frame_error_s": 0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 20
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 22.0,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0333,
+      "duration": 21.9667
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 21.9947
+     },
+     "faststart": true,
+     "keyframes": [
+      0.033,
+      2.033,
+      4.033,
+      6.033,
+      8.033,
+      10.033
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 21.9947,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 21.9947
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 22.0213,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 1.4333,
+      "duration": 22.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 1.412,
+      "duration": 21.888
+     },
+     "keyframes": [
+      1.433,
+      3.433,
+      5.433,
+      7.433,
+      9.433,
+      11.433
+     ]
+    }
+   }
+  },
+  "stream_ended": {
+   "ok": true,
+   "start_rel": 17.0,
+   "end_rel": 40.0333,
+   "source_t0_rel": 16.0333,
+   "trim_in": 0.9667,
+   "duration": 23.0333,
+   "truncated": "stream_ended",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    17.0,
+    47.0
+   ],
+   "prefer_rel": 35.0,
+   "first_frame_error_s": -0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 20
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 23.0667,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0,
+      "duration": 23.0667
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 23.0543
+     },
+     "faststart": true,
+     "keyframes": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 23.0543,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 23.0543
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 24.0213,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 17.4333,
+      "duration": 24.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 17.412,
+      "duration": 23.8933
+     },
+     "keyframes": [
+      17.433,
+      19.433,
+      21.433,
+      23.433,
+      25.433,
+      27.433
+     ]
+    }
+   }
+  },
+  "gap_after_pts_jump": {
+   "ok": true,
+   "start_rel": 0.0,
+   "end_rel": 20.0333,
+   "source_t0_rel": 0.0,
+   "trim_in": 0.0,
+   "duration": 20.0333,
+   "truncated": "gap_after",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    -3.0,
+    27.0
+   ],
+   "prefer_rel": 15.0,
+   "first_frame_error_s": 0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 10
+    },
+    {
+     "id": 1,
+     "reason": "pts discontinuity 20.03->520.03",
+     "n": 10
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 20.0333,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0333,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 19.9893
+     },
+     "faststart": true,
+     "keyframes": [
+      0.033,
+      2.033,
+      4.033,
+      6.033,
+      8.033,
+      10.033
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 19.9893,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 19.9893
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 20.0213,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 1.4333,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 1.412,
+      "duration": 19.904
+     },
+     "keyframes": [
+      1.433,
+      3.433,
+      5.433,
+      7.433,
+      9.433,
+      11.433
+     ]
+    }
+   }
+  },
+  "gap_before_prefer_new_epoch": {
+   "ok": true,
+   "start_rel": 20.0333,
+   "end_rel": 40.0,
+   "source_t0_rel": 20.0333,
+   "trim_in": 0.0,
+   "duration": 19.9667,
+   "truncated": "gap_before",
+   "epoch": 1,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    10.0,
+    40.0
+   ],
+   "prefer_rel": 28.0,
+   "first_frame_error_s": 0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 10
+    },
+    {
+     "id": 1,
+     "reason": "pts discontinuity 20.03->520.03",
+     "n": 10
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 20.0,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0333,
+      "duration": 19.9667
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 19.967
+     },
+     "faststart": true,
+     "keyframes": [
+      0.033,
+      2.033,
+      4.033,
+      6.033,
+      8.033,
+      10.033
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 19.967,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 19.967
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 20.032,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 21.4333,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 21.4013,
+      "duration": 19.904
+     },
+     "keyframes": [
+      21.433,
+      23.433,
+      25.433,
+      27.433,
+      29.433,
+      31.433
+     ]
+    }
+   }
+  },
+  "receipt_gap_hidden_stall": {
+   "ok": true,
+   "start_rel": 0.0,
+   "end_rel": 20.0333,
+   "source_t0_rel": 0.0,
+   "trim_in": 0.0,
+   "duration": 20.0333,
+   "truncated": "gap_after",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    -3.0,
+    27.0
+   ],
+   "prefer_rel": 15.0,
+   "first_frame_error_s": 0.0167,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 10
+    },
+    {
+     "id": 1,
+     "reason": "receipt gap 30.0s",
+     "n": 10
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 20.0333,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0333,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 19.9893
+     },
+     "faststart": true,
+     "keyframes": [
+      0.033,
+      2.033,
+      4.033,
+      6.033,
+      8.033,
+      10.033
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 19.9893,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 19.9893
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 20.0213,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "60/1",
+      "start_time": 1.4333,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 1.412,
+      "duration": 19.904
+     },
+     "keyframes": [
+      1.433,
+      3.433,
+      5.433,
+      7.433,
+      9.433,
+      11.433
+     ]
+    }
+   }
+  },
+  "fps30_source_no_cap": {
+   "ok": true,
+   "start_rel": 0.0,
+   "end_rel": 20.0,
+   "source_t0_rel": 0.0,
+   "trim_in": 0.0,
+   "duration": 20.0,
+   "truncated": "buffer_start",
+   "epoch": 0,
+   "files": {
+    "preview": "preview.mp4",
+    "audio": "audio.wav",
+    "source": "source.ts"
+   },
+   "layout": null,
+   "error": "",
+   "window_rel": [
+    -10.0,
+    20.0
+   ],
+   "prefer_rel": 8.0,
+   "first_frame_error_s": 0.0,
+   "epochs": [
+    {
+     "id": 0,
+     "reason": "start",
+     "n": 9
+    }
+   ],
+   "outputs": {
+    "preview.mp4": {
+     "exists": true,
+     "format_duration": 20.0,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 720,
+      "height": 1280,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 0.0333,
+      "duration": 19.9667
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 0.0,
+      "duration": 20.0
+     },
+     "faststart": true,
+     "keyframes": [
+      0.033,
+      2.033,
+      4.033,
+      6.033,
+      8.033,
+      10.033
+     ]
+    },
+    "audio.wav": {
+     "exists": true,
+     "format_duration": 20.0,
+     "audio": {
+      "codec_name": "pcm_s16le",
+      "profile": null,
+      "sample_rate": "16000",
+      "channels": 1,
+      "start_time": null,
+      "duration": 20.0
+     }
+    },
+    "source.ts": {
+     "exists": true,
+     "format_duration": 20.032,
+     "video": {
+      "codec_name": "h264",
+      "profile": "High",
+      "width": 1280,
+      "height": 720,
+      "pix_fmt": "yuv420p",
+      "sample_aspect_ratio": "1:1",
+      "avg_frame_rate": "30/1",
+      "start_time": 1.4667,
+      "duration": 20.0
+     },
+     "audio": {
+      "codec_name": "aac",
+      "profile": "LC",
+      "sample_rate": "48000",
+      "channels": 2,
+      "start_time": 1.4453,
+      "duration": 20.032
+     },
+     "keyframes": [
+      1.467,
+      3.467,
+      5.467,
+      7.467,
+      9.467,
+      11.467
+     ]
+    }
+   }
+  }
+ },
+ "layout_previews": {
+  "fit": {
+   "filter_complex": "[0:v]fps=30,split=2[a][b];[a]scale=90:160:force_original_aspect_ratio=increase,crop=90:160,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=720:1280[bg];[b]scale=720:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-76:shortest=1,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "fit_zoom": {
+   "filter_complex": "[0:v]fps=30,split=2[a][b];[a]scale=90:160:force_original_aspect_ratio=increase,crop=90:160,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=720:1280[bg];[b]scale=936:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+0:shortest=1,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "crop": {
+   "filter_complex": "[0:v]fps=30,crop=w='min(iw,ih/1.0*9/16)':h='ih/1.0':x='max(0,min(iw-ow,0.5*iw-ow/2))':y='(ih-oh)/2',scale=720:1280,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "stack": {
+   "filter_complex": "[0:v]fps=30,split=2[fc][gp];[fc]crop=iw*0.25:ih*0.3:iw*0.0:ih*0.0,scale=720:460:force_original_aspect_ratio=increase,crop=720:460[top];[gp]crop=iw*0.8:ih*1.0:iw*0.1:ih*0.0,scale=720:820:force_original_aspect_ratio=increase,crop=720:820[bot];[top][bot]vstack=2,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "split_explicit": {
+   "filter_complex": "[0:v]fps=30,split=3[fc][gp][bk];[fc]crop=iw*0.25:ih*0.3:iw*0.0:ih*0.0,scale=720:410:force_original_aspect_ratio=increase:flags=lanczos,crop=720:410:(iw-ow)/2:(ih-oh)*0.3[top];[bk]scale=90:108:force_original_aspect_ratio=increase,crop=90:108,boxblur=6:2,eq=brightness=-0.15:saturation=1.1,scale=720:870[bg];[gp]delogo=x=1:y=1:w=329:h=220,scale=720:870:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[bot];[top][bot]vstack=2,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "split_no_coords": {
+   "filter_complex": "[0:v]fps=30,split=2[a][b];[a]scale=90:160:force_original_aspect_ratio=increase,crop=90:160,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=720:1280[bg];[b]scale=720:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-76:shortest=1,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  },
+  "auto_resolved_split": {
+   "filter_complex": "[0:v]fps=30,split=3[fc][gp][bk];[fc]crop=iw*0.25:ih*0.3:iw*0.7:ih*0.05,scale=720:410:force_original_aspect_ratio=increase:flags=lanczos,crop=720:410:(iw-ow)/2:(ih-oh)*0.3[top];[bk]scale=90:108:force_original_aspect_ratio=increase,crop=90:108,boxblur=6:2,eq=brightness=-0.15:saturation=1.1,scale=720:870[bg];[gp]delogo=x=886:y=31:w=340:h=225,scale=720:870:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[bot];[top][bot]vstack=2,setsar=1[base];[base]null[v]",
+   "cut": {
+    "ok": true,
+    "start_rel": 6.0,
+    "end_rel": 14.0,
+    "source_t0_rel": 4.0333,
+    "trim_in": 1.9667,
+    "duration": 8.0,
+    "truncated": "",
+    "epoch": 0,
+    "files": {
+     "preview": "preview.mp4",
+     "audio": "audio.wav",
+     "source": "source.ts"
+    },
+    "layout": null,
+    "error": "",
+    "window_rel": null,
+    "prefer_rel": null,
+    "first_frame_error_s": null
+   },
+   "preview": {
+    "exists": true,
+    "format_duration": 8.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 8.0
+    },
+    "faststart": true
+   }
+  }
+ },
+ "final_renders": {
+  "final_en_plain": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_en.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "fit"
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     9.1
+    ]
+   },
+   "first_frame_error_s": 0.75,
+   "diff_vs_plain_at_1s": null
+  },
+  "final_en_captions": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]ass='<clip>/en.ass'[subs];[subs]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_en.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "fit"
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     6.7,
+     12.0
+    ]
+   },
+   "first_frame_error_s": 0.75,
+   "diff_vs_plain_at_1s": {
+    "top_third": 0.071,
+    "caption_band": 22.706
+   }
+  },
+  "final_en_captions_title": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]ass='<clip>/en.ass'[subs];[subs]drawtext=textfile=<hook>:expansion=none:fontfile='<font>':fontsize=72:fontcolor=white:line_spacing=18:box=1:boxcolor=black@0.62:boxborderw=36:x=(w-text_w)/2:y=max(h*0.03\\,(541-text_h)/2):enable='lt(t,2.8)'[titled];[titled]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_en.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "fit"
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     6.7,
+     12.0
+    ]
+   },
+   "first_frame_error_s": 0.75,
+   "diff_vs_plain_at_1s": {
+    "top_third": 37.23,
+    "caption_band": 22.708
+   }
+  },
+  "final_es_split_captions": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=3[fc][gp][bk];[fc]crop=iw*0.25:ih*0.3:iw*0.0:ih*0.0,scale=1080:614:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:614:(iw-ow)/2:(ih-oh)*0.3[top];[bk]scale=135:163:force_original_aspect_ratio=increase,crop=135:163,boxblur=6:2,eq=brightness=-0.15:saturation=1.1,scale=1080:1306[bg];[gp]delogo=x=1:y=1:w=329:h=220,scale=1080:1306:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[bot];[top][bot]vstack=2,setsar=1[base];[base]ass='<clip>/split_<n>.ass'[subs];[subs]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_es.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "split",
+    "facecam": [
+     0.0,
+     0.0,
+     0.25,
+     0.3
+    ],
+    "source": [
+     1280,
+     720
+    ]
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     3.7,
+     12.0
+    ]
+   },
+   "first_frame_error_s": null,
+   "diff_vs_plain_at_1s": null
+  },
+  "final_auto_layout_decision": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_en.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "auto",
+    "resolved": {
+     "mode": "fit",
+     "layout_version": 1,
+     "source": [
+      1280,
+      720
+     ],
+     "window": {
+      "source": "source.ts",
+      "trim_in": 1.267,
+      "duration": 30.0
+     }
+    }
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     9.1
+    ]
+   },
+   "first_frame_error_s": null,
+   "diff_vs_plain_at_1s": null
+  },
+  "preview_rerender": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 1.2667,
+    "duration": 30.0
+   },
+   "out_size": [
+    720,
+    1280
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "1.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "30.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=90:160:force_original_aspect_ratio=increase,crop=90:160,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=720:1280[bg];[b]scale=720:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-76:shortest=1,setsar=1[base];[base]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/preview.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "fit"
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 30.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 720,
+     "height": 1280,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 29.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 30.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     9.1
+    ]
+   },
+   "first_frame_error_s": 0.75,
+   "diff_vs_plain_at_1s": null
+  },
+  "final_after_trim": {
+   "rc": 0,
+   "files_in": {
+    "source": "source.ts",
+    "trim_in": 3.2667,
+    "duration": 10.0
+   },
+   "out_size": [
+    1080,
+    1920
+   ],
+   "ffmpeg_args": [
+    [
+     "-ss",
+     "3.267",
+     "-i",
+     "<clip>/source.ts",
+     "-t",
+     "10.000",
+     "-filter_complex",
+     "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]null[v]",
+     "-map",
+     "[v]",
+     "-map",
+     "0:a:0?",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "veryfast",
+     "-crf",
+     "21",
+     "-pix_fmt",
+     "yuv420p",
+     "-c:a",
+     "aac",
+     "-b:a",
+     "160k",
+     "-ar",
+     "48000",
+     "-movflags",
+     "+faststart",
+     "-f",
+     "mp4",
+     "<clip>/final_en.<tmp>.part.mp4"
+    ]
+   ],
+   "layout_after": {
+    "mode": "fit"
+   },
+   "output": {
+    "exists": true,
+    "format_duration": 10.0,
+    "video": {
+     "codec_name": "h264",
+     "profile": "High",
+     "width": 1080,
+     "height": 1920,
+     "pix_fmt": "yuv420p",
+     "sample_aspect_ratio": "1:1",
+     "avg_frame_rate": "30/1",
+     "start_time": 0.7667,
+     "duration": 9.2333
+    },
+    "audio": {
+     "codec_name": "aac",
+     "profile": "LC",
+     "sample_rate": "48000",
+     "channels": 2,
+     "start_time": 0.0,
+     "duration": 10.0
+    },
+    "faststart": true,
+    "keyframes": [
+     0.767,
+     9.1
+    ]
+   },
+   "first_frame_error_s": 0.75,
+   "diff_vs_plain_at_1s": null
+  }
+ },
+ "captions": {
+  "cues": [
+   {
+    "start": 0.0,
+    "end": 2.647,
+    "text": "Okay chat I'm taking the\nZentorno straight through"
+   },
+   {
+    "start": 2.667,
+    "end": 3.647,
+    "text": "the LSPD roadblock."
+   },
+   {
+    "start": 3.667,
+    "end": 6.647,
+    "text": "Oh no, I just crashed\ninto the gas station!"
+   },
+   {
+    "start": 6.667,
+    "end": 9.1,
+    "text": "That was insane,\ndid you see that?"
+   },
+   {
+    "start": 9.2,
+    "end": 10.0,
+    "text": "Yes"
+   },
+   {
+    "start": 12.0,
+    "end": 15.1,
+    "text": "a very long sentence about the\nstuff in the game that we like"
+   },
+   {
+    "start": 20.0,
+    "end": 20.8,
+    "text": "Wow"
+   }
+  ],
+  "srt": "1\n00:00:00,000 --> 00:00:02,647\nOkay chat I'm taking the\nZentorno straight through\n\n2\n00:00:02,667 --> 00:00:03,647\nthe LSPD roadblock.\n\n3\n00:00:03,667 --> 00:00:06,647\nOh no, I just crashed\ninto the gas station!\n\n4\n00:00:06,667 --> 00:00:09,100\nThat was insane,\ndid you see that?\n\n5\n00:00:09,200 --> 00:00:10,000\nYes\n\n6\n00:00:12,000 --> 00:00:15,100\na very long sentence about the\nstuff in the game that we like\n\n7\n00:00:20,000 --> 00:00:20,800\nWow\n",
+  "vtt": "WEBVTT\n\n00:00:00.000 --> 00:00:02.647\nOkay chat I'm taking the\nZentorno straight through\n\n00:00:02.667 --> 00:00:03.647\nthe LSPD roadblock.\n\n00:00:03.667 --> 00:00:06.647\nOh no, I just crashed\ninto the gas station!\n\n00:00:06.667 --> 00:00:09.100\nThat was insane,\ndid you see that?\n\n00:00:09.200 --> 00:00:10.000\nYes\n\n00:00:12.000 --> 00:00:15.100\na very long sentence about the\nstuff in the game that we like\n\n00:00:20.000 --> 00:00:20.800\nWow\n",
+  "ass_720x1280": "[Script Info]\nScriptType: v4.00+\nPlayResX: 720\nPlayResY: 1280\nWrapStyle: 0\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Inter,49,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5.4,1.4,2,43,43,346,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.65,Default,,0,0,0,,Okay chat I'm taking the\\NZentorno straight through\nDialogue: 0,0:00:02.67,0:00:03.65,Default,,0,0,0,,the LSPD roadblock.\nDialogue: 0,0:00:03.67,0:00:06.65,Default,,0,0,0,,Oh no, I just crashed\\Ninto the gas station!\nDialogue: 0,0:00:06.67,0:00:09.10,Default,,0,0,0,,That was insane,\\Ndid you see that?\nDialogue: 0,0:00:09.20,0:00:10.00,Default,,0,0,0,,Yes\nDialogue: 0,0:00:12.00,0:00:15.10,Default,,0,0,0,,a very long sentence about the\\Nstuff in the game that we like\nDialogue: 0,0:00:20.00,0:00:20.80,Default,,0,0,0,,Wow\n",
+  "ass_1080x1920": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Inter,73,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,8.1,2.2,2,65,65,518,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.65,Default,,0,0,0,,Okay chat I'm taking the\\NZentorno straight through\nDialogue: 0,0:00:02.67,0:00:03.65,Default,,0,0,0,,the LSPD roadblock.\nDialogue: 0,0:00:03.67,0:00:06.65,Default,,0,0,0,,Oh no, I just crashed\\Ninto the gas station!\nDialogue: 0,0:00:06.67,0:00:09.10,Default,,0,0,0,,That was insane,\\Ndid you see that?\nDialogue: 0,0:00:09.20,0:00:10.00,Default,,0,0,0,,Yes\nDialogue: 0,0:00:12.00,0:00:15.10,Default,,0,0,0,,a very long sentence about the\\Nstuff in the game that we like\nDialogue: 0,0:00:20.00,0:00:20.80,Default,,0,0,0,,Wow\n",
+  "split_ass_1080x1920": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Inter,73,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,8.1,2.2,8,65,65,643,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:02.65,Default,,0,0,0,,Okay chat I'm taking the\\NZentorno straight through\nDialogue: 0,0:00:02.67,0:00:03.65,Default,,0,0,0,,the LSPD roadblock.\nDialogue: 0,0:00:03.67,0:00:06.65,Default,,0,0,0,,Oh no, I just crashed\\Ninto the gas station!\nDialogue: 0,0:00:06.67,0:00:09.10,Default,,0,0,0,,That was insane,\\Ndid you see that?\nDialogue: 0,0:00:09.20,0:00:10.00,Default,,0,0,0,,Yes\nDialogue: 0,0:00:12.00,0:00:15.10,Default,,0,0,0,,a very long sentence about the\\Nstuff in the game that we like\nDialogue: 0,0:00:20.00,0:00:20.80,Default,,0,0,0,,Wow\n"
+ },
+ "render_facts": {
+  "size_for": {
+   "1280": [
+    720,
+    1280
+   ],
+   "1920": [
+    1080,
+    1920
+   ],
+   "640": [
+    360,
+    640
+   ]
+  },
+  "fps_cap": {
+   "30/60.0": 30,
+   "30/30.0": 0,
+   "30/29.97": 0,
+   "60/30.0": 0,
+   "30/None": 30,
+   "0/60.0": 0,
+   "30/30.02": 30
+  },
+  "title_y": {
+   "fit": "max(h*0.03\\,(541-text_h)/2)",
+   "split": "max(h*0.03\\,614-text_h-h*0.025)",
+   "crop": "h*0.06",
+   "stack": "h*0.06"
+  },
+  "wrap_title_20": "Zentorno slams into\nthe gas station —\nchat loses it badly",
+  "channel_layout": {
+   "none": {
+    "mode": "auto"
+   },
+   "legacy_fit": {
+    "mode": "auto"
+   },
+   "pinned_fit": {
+    "mode": "fit",
+    "pin": true
+   },
+   "crop": {
+    "mode": "crop",
+    "cx": 0.3
+   }
+  },
+  "filter_final_fit_ass_title": "[0:v]fps=30,split=2[a][b];[a]scale=135:240:force_original_aspect_ratio=increase,crop=135:240,boxblur=6:2,eq=brightness=-0.12:saturation=1.2,scale=1080:1920[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=x=(W-w)/2:y=(H-h)/2+-115:shortest=1,setsar=1[base];[base]ass='<clip>/en.ass'[subs];[subs]drawtext=textfile=<hook>:expansion=none:fontfile='<font>':fontsize=72:fontcolor=white:line_spacing=18:box=1:boxcolor=black@0.62:boxborderw=36:x=(w-text_w)/2:y=max(h*0.03\\,(541-text_h)/2):enable='lt(t,2.8)'[titled];[titled]null[v]"
+ }
+}
