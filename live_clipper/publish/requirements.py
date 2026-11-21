@@ -51,7 +51,7 @@ REQUIREMENTS: dict[str, dict] = {
         "tos_rights": "Posting is automated; YouTube developer policies require the user's express consent and final "
                       "control. Third-party streamer content needs the streamer's permission; you confirm that once "
                       "per destination.",
-        "notes": ["Shorts: vertical, up to 3 minutes; \"#Shorts\" is added as a hint.",
+        "notes": ["Shorts: vertical, up to 3 minutes; \"#Shorts\" is added as a hint (not confirmed in Google's docs).",
                   "Since 2026-11-16 paidProductPlacementDetails.hasPaidProductPlacement is sent explicitly (false)."],
         "docs": ["https://developers.google.com/youtube/v3/guides/uploading_a_video",
                  "https://developers.google.com/identity/protocols/oauth2/native-app",
@@ -140,7 +140,9 @@ REQUIREMENTS: dict[str, dict] = {
         "tos_rights": "Meta Platform Terms: you need the necessary consents for content you post. Confirm the streamer's "
                       "permission once per destination. No private/draft mode exists: a published Reel is public.",
         "notes": ["Reels: MP4/MOV, 3 s to 15 min, 23-60 fps, max 300 MB (partly from a search snippet).",
-                  "Errors 190 = token expired; 4/17/32/613 = throttled (32 and 613 unverified)."],
+                  "Errors 190 = token expired; 4/17/368 = throttled (32 and 613 are not confirmed).",
+                  "Facebook Login scope business_management is requested by the app but not confirmed on the "
+                  "pages read."],
         "docs": ["https://developers.facebook.com/docs/instagram-platform/content-publishing",
                  "https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-instagram-login/"
                  "business-login",
