@@ -21,31 +21,26 @@ import json
 import re
 from datetime import UTC, datetime
 
-GTA6 = re.compile(r"\bgta\s*-?\s*(?:6|vi)\b|\bgrand\s+theft\s+auto\s*(?:6|vi)\b", re.I)
+
+def is_gta6(title: str | None, category: str | None = None, fmt=None) -> bool:
+    """Title only: a matching category alone never counts (reference rule). The pattern is the selection
+    format's `match.title_regex` (built-in: GTA 6 / GTA VI / Grand Theft Auto VI)."""
+    from .formats import title_matches
+    return title_matches(title, fmt)
 
 
-def is_gta6(title: str | None, category: str | None = None) -> bool:
-    """Title only: a matching category alone never counts (reference rule)."""
-    return bool(GTA6.search(title or ""))
+def is_gta6_category(category: str | None, fmt=None) -> bool:
+    """The platform's own category/game field names the format's game (evidence for a clip, never a capture gate)."""
+    from .formats import category_matches
+    return category_matches(category, fmt)
 
 
-def is_gta6_category(category: str | None) -> bool:
-    """The platform's own category/game field names GTA 6 (evidence for a clip, never a capture gate)."""
-    return bool(GTA6.search(category or ""))
-
-
-def topic_state(st: dict, category_counts: bool = True) -> str:
-    """live_gta (title) | live_gta_category (platform category) | live_off_topic | unverified. A live answer that
-    carries neither a title nor a category is NOT evidence that the stream is off topic: it is unverified."""
-    if (st or {}).get("state") != "live":
-        return "unverified"
-    if not str(st.get("title") or "").strip() and not str(st.get("category") or "").strip():
-        return "unverified"
-    if is_gta6(st.get("title")):
-        return "live_gta"
-    if category_counts and is_gta6_category(st.get("category")):
-        return "live_gta_category"
-    return "live_off_topic"
+def topic_state(st: dict, category_counts: bool = True, fmt=None) -> str:
+    """live_gta (title) | live_gta_category (platform category) | live_off_topic | unverified (the format's
+    `topic_states` names). A live answer that carries neither a title nor a category is NOT evidence that the
+    stream is off topic: it is unverified."""
+    from .formats import topic_state as format_topic_state
+    return format_topic_state(st, category_counts, fmt)
 
 
 async def streamlink_status(url: str, timeout: float = 40) -> dict:

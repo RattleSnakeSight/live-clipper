@@ -89,8 +89,8 @@ class Monitor:
         self.s = s
         cfg = engine.settings
         own = ch["settings"] or {}
-        self.detector = _detector(self.id, engine.channel_format(self.id), own.get("sensitivity"),
-                                  own.get("reaction_delay"))
+        self._fmt = engine.channel_format(self.id)  # topic matching, topic state names and the detector
+        self.detector = _detector(self.id, self._fmt, own.get("sensitivity"), own.get("reaction_delay"))
         self.capture = Capture(self.id, ch["platform"], ch["name"], ch["source_url"] or "", engine.buffers,
                                segment_seconds=cfg.segment_seconds, log=self._log,
                                realtime_file=bool(s.get("realtime_file")), ffmpeg=cfg.ffmpeg_path)
@@ -113,6 +113,12 @@ class Monitor:
         self.official: dict = {}                      # last official live-status answer (official API connected)
         self.media_on = False                         # capture + chat requested
         self.slot_wait = False                        # waiting for a recording slot
+
+    @property
+    def fmt(self):
+        """The channel's effective selection format (the active format for a monitor built without one)."""
+        from .formats import active
+        return self.__dict__.get("_fmt") or active()
 
     def official_active(self) -> bool:
         hub = self.engine.hub
@@ -210,6 +216,7 @@ class Monitor:
     def topic_evidence(self) -> dict:
         """Game evidence for a clip triggered now: {"state", "title", "category"}."""
         from .source_status import topic_state
+        unverified = self.fmt.topic_states.unverified
         if self.gated:
             return {"state": self.watch.get("state"), "title": str(self.watch.get("title") or "")[:160],
                     "category": str(self.watch.get("category") or "")[:80]}
@@ -223,8 +230,8 @@ class Monitor:
                 o = {}
         age = now - float(o["checked_at"]) if o.get("checked_at") else None
         fresh = age is not None and age <= 2.5 * float(o.get("interval") or base)
-        state = topic_state(o, self.engine.settings.topic_category_evidence) if fresh else "unverified"
-        if state != "unverified":
+        state = topic_state(o, self.engine.settings.topic_category_evidence, self.fmt) if fresh else unverified
+        if state != unverified:
             return {"state": state, "title": str(o.get("title") or "")[:160],
                     "category": str(o.get("category") or "")[:80], "observed_at": round(float(o["checked_at"]), 1)}
         if not last:
@@ -239,7 +246,7 @@ class Monitor:
             kind, why = "offline", "the platform's status lookup answered offline while the clip was captured"
         else:
             kind, why = "no_metadata", "the platform answered live but returned no title or category"
-        return {"state": "unverified", "title": "", "category": "", "why": why, "kind": kind,
+        return {"state": unverified, "title": "", "category": "", "why": why, "kind": kind,
                 "capture_epoch": self.capture_epoch()}
 
     def _log(self, msg: str, level: str = "info") -> None:
@@ -277,8 +284,9 @@ class Monitor:
                 st = {"state": "error", "detail": f"{type(e).__name__}: {e}"[:200]}
             if st.get("source") == "official":
                 self.official = st
-            on_topic = st["state"] == "live" and is_gta6(st.get("title"))
-            label = {"live": "live_gta" if on_topic else "live_off_topic"}.get(st["state"], st["state"])
+            on_topic = st["state"] == "live" and is_gta6(st.get("title"), fmt=self.fmt)
+            ts = self.fmt.topic_states
+            label = {"live": ts.title if on_topic else ts.off_topic}.get(st["state"], st["state"])
             now = time.time()
             ok = st["state"] in ("live", "offline")
             backoff = self.watch["poll_seconds"] if ok else min(900, max(backoff * 2, self.watch["poll_seconds"]))
@@ -364,7 +372,8 @@ class Monitor:
                 "buffer_seconds": round(idx.buffered_seconds(), 1), "buffer_target": self.engine.settings.buffer_seconds,
                 "epochs": len(idx.epochs), "detector": self.detector.snapshot(), "recent_chat": list(self.recent_chat)[-15:],
                 "watch": dict(self.watch), "gate_open": self.gate_open, "official": dict(self.official),
-                "status_source": self.status_source(), "slot_wait": self.slot_wait}
+                "status_source": self.status_source(), "slot_wait": self.slot_wait,
+                "off_topic": self.fmt.topic_states.off_topic}
 
 
 def public_state(st: dict | None, armed: bool) -> dict:
@@ -390,7 +399,7 @@ def public_state(st: dict | None, armed: bool) -> dict:
                 "fix": ""}
     if st.get("slot_wait"):
         return {"state": "waiting", "detail": "waiting for a free recording slot", "fix": ""}
-    if watch.get("state") == "live_off_topic":
+    if watch.get("state") == st.get("off_topic", "live_off_topic"):
         return {"state": "waiting", "detail": "live, but the title is not on topic", "fix": ""}
     return {"state": "waiting", "detail": cap.get("detail") or watch.get("detail") or off.get("detail") or "",
             "fix": ""}
@@ -697,7 +706,8 @@ class Engine:
         """A clip triggered while its source had NO answer yet receives the evidence of the SAME source's next live
         answer, within LATE_EVIDENCE_S, with no broadcast boundary in between, never overwriting an answer."""
         ev = m.topic_evidence()
-        if ev.get("state") not in ("live_gta", "live_gta_category", "live_off_topic") or getattr(m, "gated", False):
+        ts = m.fmt.topic_states
+        if ev.get("state") not in (ts.title, ts.category, ts.off_topic) or getattr(m, "gated", False):
             return 0
         at = float(ev.get("observed_at") or time.time())
         floor = max(at - self.LATE_EVIDENCE_S, float(getattr(m, "boundary_at", 0) or 0),
@@ -708,7 +718,7 @@ class Engine:
                               "created_at<=?", m.id, floor, at):
             trig = c["trigger"] or {}
             topic = trig.get("topic") or {}
-            if topic.get("state") != "unverified" or trig.get("input") == "vod_import" or (trig.get("review") or {}):
+            if topic.get("state") != ts.unverified or trig.get("input") == "vod_import" or (trig.get("review") or {}):
                 continue
             if topic.get("kind") not in ("no_lookup_yet", "lookup_failed") or topic.get("capture_epoch") != epoch:
                 continue

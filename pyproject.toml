@@ -69,6 +69,7 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 "live_clipper/chat/*.py" = ["E501", "E741", "E702", "B904"]
 "tests/chat/*.py" = ["E501", "E741", "B904"]
 "tests/parity/*.py" = ["E501"]
+"tests/{e2e_util,e2e_child,test_e2e_pipeline,test_e2e_crash,test_pipeline}.py" = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Body", "fastapi.Query"]

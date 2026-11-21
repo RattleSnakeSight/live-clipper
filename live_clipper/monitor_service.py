@@ -127,12 +127,16 @@ class MonitorService:
     # ---- lifecycle -------------------------------------------------------
     async def start(self, ctx) -> None:
         self.ctx = ctx
-        self.store = Store(ctx.db)
+        svcs = {getattr(s, "name", ""): s for s in ctx.services}
+        edit = getattr(svcs.get("edit"), "engine", None)  # cutting/rendering/selection gate (edit service)
+        self.store = edit.store if edit is not None else Store(ctx.db)
         self.secrets = SourceSecrets(ctx.secrets)
         self.settings = Settings.from_kv(ctx.settings, ctx.paths.media)
         try:
             self.hub = StatusHub(self.secrets, transport=self.transport)
-            self.engine = Engine(self.settings, self.store, self.secrets, hub=self.hub)
+            self.engine = Engine(self.settings, self.store, self.secrets, hub=self.hub, edit=edit)
+            # storage maintenance (ops): its admission check and its disk pause also gate clips and captures
+            self.engine.maintenance.ops = getattr(svcs.get("maintenance"), "m", None)
             self.hub.tokens = self.engine.tokens
             await self.engine.start()
         except Exception as e:  # e.g. the edit subsystem's buffer is not installed

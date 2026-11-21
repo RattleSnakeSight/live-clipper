@@ -560,7 +560,10 @@ class EditService:
         async def render_clip(cid: int, body: dict = Body(default={})):
             """Re-render with a per-clip override: trim [a, b] (seconds from the clip start), layout, srt
             {lang: text}, title {lang: text}, preset_id, overrides (partial preset values), lang (render that
-            language's final on request)."""
+            language's final on request), override (selection values by dotted key, e.g.
+            {"output.title_template": "...", "output.preset_id": "..."}: the per-clip layer of the selection
+            precedence, stored with the clip)."""
+            from . import formats
             from .postprocess import EditError, validate_edit
 
             e = self._e()
@@ -571,6 +574,28 @@ class EditService:
                 body.pop("overrides", None),
                 body.pop("lang", None),
             )
+            sel_override = body.pop("override", None)
+            if sel_override is not None and e.selection is not None:
+                if not isinstance(sel_override, dict):
+                    raise HTTPException(400, "override must be an object of selection values by dotted key")
+                trig = {**(c.get("trigger") or {}), "override": {**(c["trigger"].get("override") or {}),
+                                                                 **sel_override}}
+                try:
+                    res = e.selection.resolve(c["channel_id"], {**c, "trigger": trig})
+                except formats.FormatError as err:
+                    raise HTTPException(400, err.message) from None
+                e.store.merge_json("clips", cid, "trigger", {"override": trig["override"]})
+                c = self._clip(cid)
+                if preset_id is None and "output.preset_id" in sel_override:
+                    preset_id = e.selection.preset_id(res["values"], presets())
+                titles = {}
+                for lg, cap in (c["captions"] or {}).items():
+                    if lg in LANGS and isinstance(cap, dict) and cap.get("title_base"):
+                        t = e.selection.apply_template(res, c, cap["title_base"])
+                        if t != cap.get("title"):
+                            titles[lg] = t
+                if titles and "title" not in body:
+                    body["title"] = titles
             if preset_id is not None and presets().get(preset_id) is None:
                 raise HTTPException(400, f"unknown preset {preset_id!r}")
             if overrides is not None and not isinstance(overrides, dict):
@@ -610,6 +635,35 @@ class EditService:
                 )
             e.spawn(cid, e.rerender(cid, edit, preset_id, overrides, lang))
             return {"ok": True, "status": "rendering"}
+
+        @r.post("/api/clips/{cid}/review")
+        def review_clip(cid: int, body: dict = Body(...)):
+            """The user's gameplay review (approved true/false, note). Ready finals go through selection
+            again, so an approval can still hand the clip to publishing."""
+            from . import gameplay
+
+            e = self._e()
+            self._clip(cid)
+            if not isinstance(body.get("approved"), bool):
+                raise HTTPException(400, "approved must be true or false")
+            ev = gameplay.review(e.store, cid, body["approved"], str(body.get("note") or ""))
+            finals = ((self._clip(cid)["files"] or {}).get("final") or {})
+            sent = [lg for lg in finals if e.publisher.on_language_ready(cid, lg)]
+            sel = self._clip(cid)["trigger"].get("selection")
+            return {"evidence": ev, "published": sent, "selection": sel}
+
+        @r.post("/api/clips/{cid}/publish")
+        def publish_clip(cid: int, body: dict = Body(default={})):
+            """Hand ready finals to publishing whatever selection decided (the user's explicit choice)."""
+            e = self._e()
+            self._clip(cid)
+            lang = (body or {}).get("lang")
+            if lang not in (None, *LANGS):
+                raise HTTPException(400, "lang must be en or es")
+            sent = e.publish(cid, lang)
+            if not sent:
+                raise HTTPException(409, "no ready final to publish")
+            return {"published": sent}
 
         return r
 

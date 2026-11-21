@@ -8,7 +8,8 @@ One store serves the whole pipeline: the engine (monitor), cutting/rendering (ed
   channels, clips, log, clip_ledger, clip_descriptors, vod_imports, recovery_evidence -> monitor_<name>
   clip_channels           -> view over clips + clip_ledger (as in the original)
   destinations, deliveries -> read-only views over the publishing tables (publish_destinations,
-                              publish_deliveries) with the original column names
+                              publish_deliveries) with the original column names; the labelled test
+                              destination appears as the original's local `sandbox` provider
 """
 
 from __future__ import annotations
@@ -89,8 +90,9 @@ CREATE TABLE monitor_recovery_evidence (
 CREATE VIEW monitor_clip_channels AS
   SELECT id, channel_id FROM monitor_clips UNION ALL SELECT clip_id AS id, channel_id FROM monitor_clip_ledger;
 CREATE VIEW monitor_destinations AS
-  SELECT id, provider, label, account, settings, status, status_detail, created_at, created_at AS updated_at,
-         enabled, rights_ack_at FROM publish_destinations;
+  SELECT id, CASE provider WHEN 'test' THEN 'sandbox' ELSE provider END AS provider, label, account, settings,
+         status, status_detail, created_at, created_at AS updated_at, enabled, rights_ack_at
+  FROM publish_destinations;
 CREATE VIEW monitor_deliveries AS
   SELECT id, clip_id, destination_id, language, idempotency_key, status, mode, attempts, provider_ref,
          provider_post_id, provider_url, outcome, last_error, next_attempt_at, history, created_at, updated_at,

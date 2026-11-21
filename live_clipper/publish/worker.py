@@ -231,6 +231,9 @@ class Publisher:
         allowed = (self.settings.get("publish.channel_platforms") or {}).get(str(clip.get("channel_id")))
         if allowed is not None and dest["provider"] not in allowed:
             return f"channel {clip.get('channel_id')} only allows publishing to: {', '.join(allowed) or 'none'}"
+        chosen = clip.get("destinations")  # from selection: format/rule `destinations` and the channel's platforms
+        if chosen is not None and dest["provider"] not in chosen:
+            return f"clip {clip.get('clip_id')} is only for: {', '.join(chosen) or 'no destination'}"
         return None
 
     def eligible(self, dest: dict) -> bool:
