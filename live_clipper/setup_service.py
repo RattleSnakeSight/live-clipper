@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Response
 
 from . import autostart
+from .maintenance import APP_MARKER, APP_SUBDIRS
 from .services import AppContext
 
 log = logging.getLogger(__name__)
@@ -297,10 +298,19 @@ def _check_dir(value: str) -> tuple[str, str | None]:
     if not value or not p.is_absolute():
         return value, "Enter a full folder path."
     try:
+        real = p.resolve()
+        if real == Path(real.anchor) or real == Path.home().resolve():
+            return value, "Choose a dedicated folder, not a drive root or your home folder."
+        if p.is_dir():
+            owned = (p / APP_MARKER).exists()
+            names = {c.name for c in p.iterdir()} - {".write-test"}
+            if names and not owned and not names <= set(APP_SUBDIRS):
+                p = p / "LiveClipper"          # never mix app data (and its cleanup) with the user's own files
         p.mkdir(parents=True, exist_ok=True)
         probe = p / ".write-test"
         probe.write_text("ok")
         probe.unlink()
+        (p / APP_MARKER).touch()
     except OSError:
         return value, "Live Clipper cannot write to that folder."
     return str(p), None

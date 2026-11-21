@@ -217,3 +217,50 @@ def test_http_endpoints_and_bus_bookkeeping(tmp_path):
         assert dry["dry_run"] is True and d.exists()
         done = c.post("/api/storage/cleanup", json={"dry_run": False}).json()
         assert done["done"] == 1 and not d.exists()
+
+
+def _old(p, payload=b"t"):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(payload)
+    os.utime(p, (NOW - 7200, NOW - 7200))
+    return p
+
+
+def test_temp_sweep_only_touches_app_subfolders(tmp_path):
+    e = Env(tmp_path)
+    unrelated = [_old(e.root / "hook_x.txt"), _old(e.root / "a.part.mp4"),
+                 _old(e.root / "Documents" / "hook_notes.txt"), _old(e.root / "other" / "audio_pre.wav")]
+    mine = [_old(e.root / "clips" / "run1" / "b.part.mp4"), _old(e.root / "tmp" / "hook_1.txt")]
+    result = e.m.cleanup(dry_run=False)
+    assert result["done"] == 2
+    assert all(p.exists() for p in unrelated) and not any(p.exists() for p in mine)
+
+
+def test_delete_temp_refuses_paths_outside_sweep_dirs(tmp_path):
+    from live_clipper.maintenance import Action
+    e = Env(tmp_path)
+    victim = _old(e.root / "hook_x.txt")
+    outside = _old(tmp_path / "elsewhere" / "a.part.mp4")
+    not_temp = _old(e.root / "clips" / "precious.docx")
+    e.m.execute([Action("delete_temp", str(p), None, 1, "x") for p in (victim, outside, not_temp)])
+    assert victim.exists() and outside.exists() and not_temp.exists()
+
+
+def test_temp_sweep_skips_links_and_junctions(tmp_path):
+    import subprocess
+    e = Env(tmp_path)
+    target = tmp_path / "outside"
+    survivor = _old(target / "hook_keep.txt")
+    (e.root / "clips").mkdir()
+    link = e.root / "clips" / "linked"
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        if os.name != "nt":
+            raise
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+    e.m.cleanup(dry_run=False)
+    assert survivor.exists()
+    from live_clipper.maintenance import Action
+    e.m.execute([Action("delete_temp", str(link / "hook_keep.txt"), None, 1, "x")])
+    assert survivor.exists()
