@@ -133,17 +133,24 @@ class MonitorService:
         self.store = edit.store if edit is not None else Store(ctx.db)
         self.secrets = SourceSecrets(ctx.secrets)
         self.settings = Settings.from_kv(ctx.settings, ctx.paths.media)
+        engine = None
         try:
             self.hub = StatusHub(self.secrets, transport=self.transport)
-            self.engine = Engine(self.settings, self.store, self.secrets, hub=self.hub, edit=edit)
+            engine = Engine(self.settings, self.store, self.secrets, hub=self.hub, edit=edit)
             # storage maintenance (ops): its admission check and its disk pause also gate clips and captures
-            self.engine.maintenance.ops = getattr(svcs.get("maintenance"), "m", None)
-            self.hub.tokens = self.engine.tokens
-            await self.engine.start()
+            engine.maintenance.ops = getattr(svcs.get("maintenance"), "m", None)
+            self.hub.tokens = engine.tokens
+            await engine.start()
         except Exception as e:  # e.g. the edit subsystem's buffer is not installed
             self.error = f"{type(e).__name__}: {e}"
             log.exception("monitor engine failed to start")
+            if engine is not None:  # release what a partial start began (sweeper, monitors)
+                try:
+                    await engine.stop()
+                except Exception:
+                    log.exception("monitor engine cleanup failed")
             return
+        self.engine = engine
         self._tasks.append(asyncio.create_task(self._publish_states(), name="monitor-states"))
         if self.settings.kick_webhook_url and self.settings.kick_webhook_port:
             self._tasks.append(asyncio.create_task(self._kick_listener(), name="lc-kick-webhook"))
@@ -230,7 +237,11 @@ class MonitorService:
     def channel_view(self, ch: dict) -> dict:
         m = self.engine.monitors.get(ch["id"]) if self.engine else None
         st = m.status() if m else {}
-        pub = public_state(st, bool(ch["armed"]) and m is not None)
+        armed = bool(ch["armed"]) and m is not None
+        if m is None and ch["armed"] and self.engine and (err := self.engine.arm_errors.get(ch["id"])):
+            st, armed = {"capture": {"state": "error", "detail": err, "action_needed": (
+                "Check this channel's URL and settings, then disable and enable it again")}}, True
+        pub = public_state(st, armed)
         gate = (ch["settings"] or {}).get("topic_gate") or {}
         if st.get("status_source"):
             source = st["status_source"]

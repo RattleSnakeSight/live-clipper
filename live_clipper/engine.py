@@ -495,6 +495,7 @@ class Engine:
                                      settings.disk_ceiling_mb * 1024 * 1024,
                                      log=lambda m, lvl="info": store.log(m, lvl))
         self.monitors: dict[int, Monitor] = {}
+        self.arm_errors: dict[int, str] = {}           # armed channels whose monitor could not start
         self.tasks: set[asyncio.Task] = set()
         # cutting, rendering and the hand-off to publishing; standalone (tests) when no edit service runs
         self.edit = edit or EditEngine(None, store.db, store=store, clips_dir=settings.clips_dir,
@@ -527,7 +528,11 @@ class Engine:
                     "retired from tracking: not re-armed"
                 self.store.log(f"{ch['platform']}/{ch['name']} is {kind}", "warn", channel_id=ch["id"])
             elif ch["armed"]:
-                self.arm(ch["id"])
+                try:                                  # one broken channel must not keep the others unmonitored
+                    self.arm(ch["id"])
+                except Exception as e:
+                    self.arm_errors[ch["id"]] = f"monitoring could not start: {type(e).__name__}: {e}"[:300]
+                    self.store.log(self.arm_errors[ch["id"]], "error", channel_id=ch["id"])
 
     async def stop(self) -> None:
         for m in list(self.monitors.values()):
@@ -681,15 +686,21 @@ class Engine:
         if why := refusal(ch):
             self.store.update("channels", channel_id, armed=0)
             raise LiveRefused(why)
-        self.store.update("channels", channel_id, armed=1)
         if channel_id not in self.monitors:
-            m = Monitor(self, ch)
+            m = Monitor(self, ch)                     # built (and started) before "armed" is saved
             self.monitors[channel_id] = m
-            m.start()
+            try:
+                m.start()
+            except Exception:
+                self.monitors.pop(channel_id, None)
+                raise
             self.store.log(f"monitoring {ch['platform']}/{ch['name']}", channel_id=channel_id)
+        self.arm_errors.pop(channel_id, None)
+        self.store.update("channels", channel_id, armed=1)
 
     async def disarm(self, channel_id: int) -> None:
         self.store.update("channels", channel_id, armed=0)
+        self.arm_errors.pop(channel_id, None)
         m = self.monitors.pop(channel_id, None)
         if m:
             await m.stop()

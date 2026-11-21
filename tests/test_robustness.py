@@ -127,3 +127,68 @@ def test_busy_kick_webhook_port_is_reported_not_fatal(tmp_path):
     kw = st["kick_webhook"]
     assert st["state"] == "running" and kw["state"] == "needs_action"
     assert str(port) in kw["detail"] and "kick_webhook_port" in kw["fix"]
+
+
+def test_one_bad_channel_does_not_stop_the_others_from_arming(tmp_path, monkeypatch):
+    from live_clipper.capture import Capture
+    from live_clipper.engine import Monitor
+    from live_clipper.monitor_service import MonitorService
+
+    monkeypatch.setattr(Capture, "start", lambda self: None)
+    real_init = Monitor.__init__
+
+    def init(self, engine, ch):
+        if ch["name"].startswith("bad"):
+            raise ValueError("broken channel settings")
+        real_init(self, engine, ch)
+
+    monkeypatch.setattr(Monitor, "__init__", init)
+    s, store, sec = env(tmp_path, topic_observe_seconds=0)
+    ids = [store.add_channel("custom", n, f"srt://example.invalid:{9000 + i}") for i, n in
+           enumerate(("good1", "bad", "good2"))]
+    for c in ids:
+        store.update("channels", c, armed=1)
+    eng = Engine(s, store, sec)
+    fresh = store.add_channel("custom", "bad2", "srt://example.invalid:9100")
+
+    async def go():
+        await eng.start()
+        try:
+            eng.arm(fresh)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("arming a broken channel must fail")
+        svc = MonitorService()
+        svc.engine, svc.store, svc.hub = eng, store, None
+        views = {c: svc.channel_view(store.channel(c)) for c in ids}
+        await eng.stop()
+        return views
+
+    views = asyncio.run(go())
+    assert set(eng.monitors) == {ids[0], ids[2]}
+    assert store.channel(fresh)["armed"] == 0             # nothing saved for a monitor that was never built
+    bad = views[ids[1]]
+    assert bad["state"] == "needs_action" and "broken channel settings" in bad["detail"] and bad["fix"]
+
+
+def test_failed_engine_start_leaves_no_engine(tmp_path, monkeypatch):
+    from live_clipper.monitor_service import MonitorService
+    from live_clipper.paths import get_paths
+    from live_clipper.services import build_context
+
+    async def boom(self):
+        raise RuntimeError("buffer not installed")
+
+    monkeypatch.setattr(Engine, "start", boom)
+    ctx = build_context(get_paths(), port=8765, token="t" * 40)
+    svc = MonitorService()
+    ctx.services.append(svc)
+
+    async def go():
+        await svc.start(ctx)
+        await svc.stop()
+
+    asyncio.run(go())
+    assert svc.engine is None
+    assert svc.status() == {"state": "error", "detail": "RuntimeError: buffer not installed"}
