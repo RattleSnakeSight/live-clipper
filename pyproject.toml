@@ -44,3 +44,8 @@ select = ["E", "F", "W", "I", "B", "UP"]
 testpaths = ["tests"]
 # starlette nags about its own httpx dependency; not actionable here
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
+
+[tool.ruff.lint.per-file-ignores]
+# the publishing adapters keep the reference's line layout (documented in docs/DEVIATIONS.md)
+"live_clipper/publish/*.py" = ["E501"]
+"tests/*publish*.py" = ["F811", "F401", "E501"]  # shared fixtures are imported from publish_util
