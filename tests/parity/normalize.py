@@ -1,5 +1,7 @@
-"""Machine-independent views of parity results: media properties and ffmpeg argument lists without local paths.
+"""Machine-independent views of parity results: media properties and ffmpeg arguments
+without local paths.
 Used to sanitize the recorded reference results and to compare the public code's results against them."""
+
 from __future__ import annotations
 
 import json
@@ -28,8 +30,11 @@ def props(summary: dict) -> dict:
     for s in summary["streams"]:
         kind = s.get("codec_type")
         if kind in ("video", "audio") and kind not in out:
-            out[kind] = {**{k: s.get(k) for k in (V_KEYS if kind == "video" else A_KEYS)},
-                         "start_time": _f(s.get("start_time")), "duration": _f(s.get("duration"))}
+            out[kind] = {
+                **{k: s.get(k) for k in (V_KEYS if kind == "video" else A_KEYS)},
+                "start_time": _f(s.get("start_time")),
+                "duration": _f(s.get("duration")),
+            }
     if "faststart" in summary:
         out["faststart"] = summary["faststart"]
     if "keyframes_first_12s" in summary:
@@ -62,19 +67,48 @@ def summarize(path: Path, kf: bool = True) -> dict:
     path = Path(path)
     if not path.exists():
         return {"exists": False}
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                        "stream=index,codec_type,codec_name,profile,width,height,pix_fmt,sample_aspect_ratio,"
-                        "avg_frame_rate,r_frame_rate,sample_rate,channels,duration,start_time,nb_frames:"
-                        "format=duration,start_time", "-of", "json", str(path)], capture_output=True, text=True)
+    r = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=index,codec_type,codec_name,profile,width,height,pix_fmt,sample_aspect_ratio,"
+            "avg_frame_rate,r_frame_rate,sample_rate,channels,duration,start_time,nb_frames:"
+            "format=duration,start_time",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
     j = json.loads(r.stdout or "{}")
     d = {"exists": True, "format": j.get("format"), "streams": j.get("streams")}
     if path.suffix == ".mp4":
         atoms = _top_atoms(path)
         d["faststart"] = "moov" in atoms and "mdat" in atoms and atoms.index("moov") < atoms.index("mdat")
     if kf and any(s.get("codec_type") == "video" for s in d["streams"] or []):
-        k = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey",
-                            "-show_entries", "frame=pts_time", "-of", "csv=p=0", "-read_intervals", "%+12",
-                            str(path)], capture_output=True, text=True)
+        k = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-skip_frame",
+                "nokey",
+                "-show_entries",
+                "frame=pts_time",
+                "-of",
+                "csv=p=0",
+                "-read_intervals",
+                "%+12",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+        )
         d["keyframes_first_12s"] = [round(float(x.strip(",")), 3) for x in k.stdout.split() if x.strip(",")]
     return d
 

@@ -466,7 +466,7 @@ def _fake_reads(monkeypatch, have=lambda t: True, delay=0.0, key_shift=0.0):
 
 def test_reads_go_first_last_middle_and_a_deadline_never_leaves_only_early_evidence(monkeypatch):
     assert facecam.coverage_order(8) == [0, 7, 4, 2, 6, 1, 3, 5]
-    calls = _fake_reads(monkeypatch, delay=0.1)
+    _fake_reads(monkeypatch, delay=0.1)
     s = facecam.window_samples("x.mp4", 10.0, 30.0)
     F, times, rd = facecam.frames_timed(s, 1920, 1080, aw=64, deadline_s=0.45, window=(10.0, 40.0))
     assert rd["deadline_hit"] and 3 <= len(times) <= 5 and times == sorted(times)
@@ -489,12 +489,12 @@ def test_missing_late_frames_keep_the_whole_frame_instead_of_deciding_from_the_e
 
 
 def test_a_keyframe_from_the_pre_roll_or_another_slot_is_reread_exactly(monkeypatch):
-    calls = _fake_reads(monkeypatch, key_shift=1.9)                  # keyframes 1.9 s before each moment
+    _fake_reads(monkeypatch, key_shift=1.9)                  # keyframes 1.9 s before each moment
     s = facecam.window_samples("x.mp4", 10.0, 6.0)                   # 0.8 s spacing: slot 0.4 s
     F, times, rd = facecam.frames_timed(s, 1920, 1080, aw=64, window=(10.0, 16.0))
     assert rd["exact_reads"] == 8 and min(times) >= 10.0                 # never a pre-roll frame
     assert len(set(round(t, 2) for t in times)) == 8
-    calls = _fake_reads(monkeypatch, key_shift=1.5)
+    _fake_reads(monkeypatch, key_shift=1.5)
     s = facecam.window_samples("x.mp4", 10.0, 30.0)                  # 4.2 s spacing: keyframes accepted ...
     F, times, rd = facecam.frames_timed(s, 1920, 1080, aw=64, window=(10.0, 40.0))
     assert rd["exact_reads"] == 1 and min(times) >= 10.0                 # ... except the first (before the window)
@@ -502,6 +502,7 @@ def test_a_keyframe_from_the_pre_roll_or_another_slot_is_reread_exactly(monkeypa
 
 def test_the_bundled_face_model_is_the_official_file_and_runs_offline():
     import hashlib
+
     from live_clipper import faces
     assert faces.MODEL.name == "face_detection_yunet_2023mar.onnx"
     assert hashlib.sha256(faces.MODEL.read_bytes()).hexdigest() == \
@@ -526,7 +527,6 @@ def test_edits_accept_the_new_modes_and_keep_explicit_choices_first(tmp_path):
 
 def _validate_layout(fn, eng, clip, layout):
     """validate_edit needs a source file for trims only; give it a tiny one."""
-    import os
     src = Path(eng.clip_dir(1)) / "source.mp4"
     if not src.exists():
         _ff("-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src))

@@ -48,6 +48,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 # media modules ported line-for-line from the original design: keep their layout for reviewable parity
 "live_clipper/{buffer,timeline,clipper,render,postprocess,facecam,faces,loudness}.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
 "live_clipper/captions/*.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
+"tests/{test_timeline,test_captions_text,test_hook_render,test_split_layout,test_edit_postprocess}.py" = ["E501", "E741", "B905"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
