@@ -471,12 +471,11 @@ def _set_titles(engine, clip_id: int, transcript: dict, src_lang: str) -> None:
         except Exception as e:
             engine.store.log(f"title ({lang}) failed: {e}", "warn", clip_id=clip_id)
     if titles:
-        caps = engine.store.clip(clip_id)["captions"]
-        for lang, t in titles.items():
-            caps.setdefault(lang, {})["title"] = t
-            if lang in bases:
-                caps[lang]["title_base"] = bases[lang]
-        engine.store.update("clips", clip_id, title=titles.get("en") or titles.get(src_lang, ""), captions=caps)
+        # atomic merge: the caption thread may mark the other language ready meanwhile (no lost update)
+        engine.store.merge_json("clips", clip_id, "captions", {
+            lang: {"title": t, **({"title_base": bases[lang]} if lang in bases else {})}
+            for lang, t in titles.items()})
+        engine.store.update("clips", clip_id, title=titles.get("en") or titles.get(src_lang, ""))
 
 
 # ---------------------------------------------------------------- operator edits

@@ -594,8 +594,12 @@ class EditService:
                 for lg, cap in (c["captions"] or {}).items():
                     if lg in LANGS and isinstance(cap, dict) and cap.get("title_base"):
                         t = e.selection.apply_template(res, c, cap["title_base"])
-                        if t != cap.get("title"):
+                        if t == cap.get("title"):
+                            continue
+                        if cap.get("status") == "ready":  # an edit (re-renders that language's final)
                             titles[lg] = t
+                        else:  # no captions in this language: nothing to render, keep its title in step
+                            e.store.merge_json("clips", cid, "captions", {lg: {"title": t}})
                 if titles and "title" not in body:
                     body["title"] = titles
             if preset_id is not None and presets().get(preset_id) is None:

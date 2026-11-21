@@ -346,3 +346,30 @@ def test_slow_disk_checks_do_not_block_the_event_loop(tmp_path, monkeypatch):
         return worst
 
     assert asyncio.run(go()) < 0.3
+
+
+def test_titles_do_not_overwrite_captions_finished_meanwhile():
+    import threading
+
+    from edit_util import make_clip, make_engine
+
+    eng = make_engine()
+    cid = make_clip(eng, captions={"en": {"status": "ready"}, "es": {"status": "pending"}})
+    real_update = eng.store.update
+    fired = []
+
+    def update(table, row_id, **fields):          # the translation thread finishes right now
+        if "captions" in fields and not fired:
+            fired.append(1)
+            t = threading.Thread(target=lambda: eng.store.merge_json(
+                "clips", cid, "captions", {"es": {"status": "ready", "srt": "captions/es.srt"}}))
+            t.start()
+            t.join(0.3)
+        real_update(table, row_id, **fields)
+
+    eng.store.update = update
+    postprocess._set_titles(eng, cid, {"segments": [{"start": 0, "end": 2, "text": "what a play"}],
+                                       "language": "en"}, "en")
+    eng.store.update = real_update
+    caps = eng.store.clip(cid)["captions"]
+    assert caps["es"]["status"] == "ready" and caps["es"]["title"] and caps["en"]["title"]

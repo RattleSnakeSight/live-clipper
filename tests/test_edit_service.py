@@ -202,3 +202,17 @@ def test_window_override_recuts_from_the_source_or_is_refused(api):
     assert abs(float(json.loads(out)["format"]["duration"]) - 9.0) < 0.5
     eff = eng.selection.resolve(v["channel_id"], eng.store.clip(cid))
     assert eff["trail"]["window.pre"]["set_by"] == "override" and eff["values"]["window.pre"] == 4
+
+
+@needs_ffmpeg
+def test_title_template_override_skips_languages_without_captions(api):
+    c, eng, _ = api
+    cid, d = source_clip(eng, seconds=4)
+    eng.store.update("clips", cid, captions={
+        "en": {"status": "ready", "title": "Big play", "title_base": "Big play"},
+        "es": {"status": "failed", "title": "Gran jugada", "title_base": "Gran jugada"}})
+    r = c.post(f"/api/clips/{cid}/render", json={"override": {"output.title_template": "[{title}]"}})
+    assert r.status_code == 200, r.text
+    v = wait_idle(c, cid)
+    assert v["captions"]["en"]["title"] == "[Big play]"      # edited (and re-rendered if it has a final)
+    assert v["captions"]["es"]["title"] == "[Gran jugada]"   # no captions: title kept in step
