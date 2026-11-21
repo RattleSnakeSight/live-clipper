@@ -224,12 +224,19 @@ class CaptureWorld:
                     cap._stop.set()
         await REAL_SLEEP(0)
 
+    async def spawn_reader(self, cmd, **kw):
+        # replaces the platform plumbing that ties readers to the worker (Linux wraps the command in a launcher,
+        # Windows binds a Job Object): the fakes see the reader command itself on every platform
+        return await self.spawn(*cmd, **kw)
+
     def __enter__(self):
         capmod.asyncio = _AsyncioShim(create_subprocess_exec=self.spawn, sleep=self.sleep)
+        self.orig_spawn_reader, capmod._spawn_reader = capmod._spawn_reader, self.spawn_reader
         return self
 
     def __exit__(self, *a):
         capmod.asyncio = self.orig
+        capmod._spawn_reader = self.orig_spawn_reader
 
 
 def _run_capture(platform, name, source_url, scripts, root: Path, interrupt_after_segments=None):
