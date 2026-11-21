@@ -251,3 +251,29 @@ def test_housekeeping_survives_errors_even_when_logging_fails(tmp_path, monkeypa
 
     assert asyncio.run(go()) and len(passes) >= 3
     assert "housekeeping" in caplog.text and "disk check failed" in caplog.text
+
+
+def test_disk_resume_only_restarts_monitors_that_want_media(tmp_path, monkeypatch):
+    from live_clipper.capture import Capture
+
+    starts = []
+    monkeypatch.setattr(Capture, "start", lambda self: starts.append(self.name))
+    s, store, sec = env(tmp_path, topic_observe_seconds=0)
+    names = ("recording", "went_offline", "waiting_slot")
+    ids = [store.add_channel("custom", n, f"srt://example.invalid:{9000 + i}", {"chat_adapter": "none"})
+           for i, n in enumerate(names)]
+    eng = Engine(s, store, sec)
+
+    async def go():
+        for c in ids:
+            eng.arm(c)
+        mons = [eng.monitors[c] for c in ids]
+        mons[1].media_on = False                  # official status answered offline while paused
+        mons[2].media_on, mons[2].slot_wait = False, True
+        starts.clear()
+        eng.maintenance.paused = set(ids)
+        await eng.maintenance.enforce_producers()  # disk space is back
+        await eng.stop()
+
+    asyncio.run(go())
+    assert starts == ["recording"]

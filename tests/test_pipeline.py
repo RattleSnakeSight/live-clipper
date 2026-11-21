@@ -165,7 +165,8 @@ def test_ops_maintenance_gates_clips_and_pauses_captures(tmp_path):
     async def go():
         fc = FC()
         fc.start()
-        eng.monitors[1] = types.SimpleNamespace(id=1, capture=fc, gated=False, gate_open=True)
+        eng.monitors[1] = types.SimpleNamespace(id=1, capture=fc, gated=False, gate_open=True,
+                                                   media_on=True, slot_wait=False)
         ops.captures_paused = True
         await eng.maintenance.enforce_producers()
         assert fc.stops == 1 and eng.maintenance.paused == {1}

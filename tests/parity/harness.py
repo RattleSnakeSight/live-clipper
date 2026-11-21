@@ -711,7 +711,8 @@ def f_disk_producers(tmp: Path) -> dict:
         cid = store.add_channel("custom", "a", "rtmp://x")
         fc = FC()
         fc.start()
-        eng.monitors[cid] = types.SimpleNamespace(id=cid, capture=fc, gated=False, gate_open=True)
+        eng.monitors[cid] = types.SimpleNamespace(id=cid, capture=fc, gated=False, gate_open=True,
+                                                 media_on=True, slot_wait=False)
         for mb in (50_000, 900, 2000, 3999, 4000, 900):
             free["v"] = mb * MB
             await eng.maintenance.enforce_producers()

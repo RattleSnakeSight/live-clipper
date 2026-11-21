@@ -477,7 +477,7 @@ class Maintenance:
             for cid in sorted(self.paused):
                 self.paused.discard(cid)
                 m = self.e.monitors.get(cid)
-                if m and (not m.gated or m.gate_open):
+                if m and m.media_on and not m.slot_wait:   # not stopped meanwhile (offline, gate, slot)
                     m.capture.start()
                     self.e.store.log(f"disk: {free // MB} MB free; capture resumed", channel_id=cid)
 
