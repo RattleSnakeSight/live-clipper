@@ -64,7 +64,8 @@ class Guard:
         path = conn.url.path
         # OAuth provider redirects arrive cross-site, so the SameSite=Strict cookie is absent. Those GET
         # callbacks are authenticated by their single-use, server-side `state` instead of the token.
-        oauth_callback = scope.get("method") == "GET" and path.startswith("/api/oauth/") and path.endswith("/callback")
+        oauth_callback = (scope.get("method") == "GET" and path.startswith("/api/oauth/")
+                          and path.endswith("/callback"))
         if path.startswith("/api/") and path != "/api/health" and not oauth_callback:
             header = conn.headers.get("authorization", "")
             cookie = conn.cookies.get(COOKIE, "")
