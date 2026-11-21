@@ -47,6 +47,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = ["asr: real faster-whisper run (downloads a model on first use; opt in with LIVE_CLIPPER_ASR_TEST=1)"]
 # starlette nags about its own httpx dependency; not actionable here
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
