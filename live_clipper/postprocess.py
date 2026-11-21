@@ -371,7 +371,8 @@ def _notify(engine, clip_id: int, langs) -> None:
             try:
                 engine.publisher.on_language_ready(clip_id, lang)
             except Exception as e:
-                engine.store.log(f"publisher hook failed: {e}", "error", clip_id=clip_id)
+                # nothing is lost: the next start hands ready finals without a decision/delivery over again
+                engine.store.log(f"publisher hook failed (retried at the next start): {e}", "error", clip_id=clip_id)
 
 
 # ---------------------------------------------------------------- split transcription

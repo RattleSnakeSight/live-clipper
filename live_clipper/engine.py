@@ -545,6 +545,7 @@ class Engine:
         """After a crash/restart: never duplicate a clip; resume what can be resumed."""
         self.edit.recover()                           # edit reservations of a dead process
         self._reconcile_orphan_renders()
+        self._resume_handoffs()
         queued = 0
         for c in self.store.q("SELECT * FROM clips WHERE status NOT IN ('ready','failed','discarded','expired') "
                               "ORDER BY id"):
@@ -576,6 +577,31 @@ class Engine:
                 self.store.merge_json("clips", c["id"], "captions", {lang: patch})
                 self.store.log(f"clip {c['id']}: {lang} final left rendering by a restart -> {patch['final_status']}",
                                clip_id=c["id"])
+                n += 1
+        return n
+
+    def _resume_handoffs(self) -> int:
+        """Ready finals that never reached publishing (killed between saving "ready" and the hand-off, or a failed
+        hand-off): no selection decision for the language, or a qualified one without a delivery. The hand-off is
+        idempotent (publishing keeps one delivery per clip, destination and language)."""
+        n = 0
+        for c in self.store.q("SELECT id, trigger, captions, files FROM clips WHERE status='ready'"):
+            sel = (c["trigger"] or {}).get("selection") or {}
+            for lang in (c["files"] or {}).get("final") or {}:
+                if ((c["captions"] or {}).get(lang) or {}).get("final_status") != "ready":
+                    continue
+                d = sel.get(lang)
+                if d and (d.get("decision") != "qualified" or self.store.q1(
+                        "SELECT id FROM deliveries WHERE clip_id=? AND language=?", c["id"], lang)):
+                    continue
+                try:
+                    sent = self.edit.publisher.on_language_ready(c["id"], lang)
+                except Exception as e:
+                    self.store.log(f"clip {c['id']}: {lang} hand-off to publishing failed again: {e}", "error",
+                                   clip_id=c["id"])
+                    continue
+                self.store.log(f"clip {c['id']}: {lang} final handed to selection/publishing after a restart"
+                               + ("" if sent else " (not published)"), clip_id=c["id"])
                 n += 1
         return n
 
