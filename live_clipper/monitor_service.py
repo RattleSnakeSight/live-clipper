@@ -118,6 +118,7 @@ class MonitorService:
         self.secrets: SourceSecrets | None = None
         self.hub: StatusHub | None = None
         self.error = ""
+        self.kick_webhook: dict = {}  # set when the Kick webhook listener cannot run
         self.pending = oauth.PendingAuth()
         self.devices: dict[str, dict] = {}
         self.last_state: dict[int, str] = {}
@@ -164,6 +165,7 @@ class MonitorService:
             "armed": len(self.engine.monitors),
             "recording": states.count("recording"),
             "sources": self.hub.status() if self.hub else {},
+            **({"kick_webhook": self.kick_webhook} if self.kick_webhook else {}),
         }
 
     async def _kick_listener(self) -> None:
@@ -178,7 +180,17 @@ class MonitorService:
             log_config=None,
             access_log=False,
         )
-        await uvicorn.Server(cfg).serve()
+        try:
+            await uvicorn.Server(cfg).serve()  # uvicorn calls sys.exit when it cannot bind
+        except (SystemExit, OSError):
+            port = self.settings.kick_webhook_port
+            self.kick_webhook = {
+                "state": "needs_action",
+                "detail": f"the Kick webhook listener could not listen on 127.0.0.1:{port} (port in use or "
+                "not permitted); Kick chat events are not received",
+                "fix": f"Free port {port} or set another monitor.kick_webhook_port, then restart",
+            }
+            self.store.log(f"kick webhook: {self.kick_webhook['detail']}", "error")
 
     async def _publish_states(self) -> None:
         while True:

@@ -90,3 +90,40 @@ def test_disarm_while_capture_stop_is_in_progress_restarts_nothing(tmp_path, mon
         await eng.stop()
 
     asyncio.run(go())
+
+
+def test_busy_kick_webhook_port_is_reported_not_fatal(tmp_path):
+    import socket
+
+    from live_clipper.monitor_service import MonitorService
+    from live_clipper.paths import get_paths
+    from live_clipper.services import build_context
+
+    busy = socket.socket()
+    busy.bind(("127.0.0.1", 0))
+    busy.listen()
+    port = busy.getsockname()[1]
+    try:
+        ctx = build_context(get_paths(), port=8765, token="t" * 40)
+        ctx.settings.set("monitor.min_free_mb", 0)
+        ctx.settings.set("monitor.kick_webhook_url", "https://example.com/kick")
+        ctx.settings.set("monitor.kick_webhook_port", port)
+        svc = MonitorService()
+        ctx.services.append(svc)
+
+        async def go():
+            await svc.start(ctx)
+            for _ in range(100):
+                await asyncio.sleep(0.05)
+                if svc.status().get("kick_webhook"):
+                    break
+            st = svc.status()
+            await svc.stop()
+            return st
+
+        st = asyncio.run(go())
+    finally:
+        busy.close()
+    kw = st["kick_webhook"]
+    assert st["state"] == "running" and kw["state"] == "needs_action"
+    assert str(port) in kw["detail"] and "kick_webhook_port" in kw["fix"]
