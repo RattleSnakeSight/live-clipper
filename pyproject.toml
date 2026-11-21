@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2",
     "cryptography",
     "platformdirs",
+    "numpy",
 ]
 
 [project.optional-dependencies]

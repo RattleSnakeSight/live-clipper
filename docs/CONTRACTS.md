@@ -42,3 +42,40 @@ as files from the UI and `/api/formats*`, `/api/presets*`, `/api/rules*`.
 ## Proposed changes
 
 (Branches append here; the integrator resolves.)
+
+### From `select`
+
+1. **Selection format API** (`live_clipper.formats`). `formats.active()` is the format the core uses by default;
+   `formats.resolve_effective(db, channel, context, clip)` returns `{"format_id", "values" (dotted keys),
+   "effective" (full format), "matched_rules", "skipped_rules", "trail"}`; `formats.effective_format(result)` gives
+   the `SelectionFormat` to pass as `fmt=` to `DetectorConfig.from_format`, `editorial.*`, `gameplay.*`,
+   `language_policy.*`, `titles.make_title`, `candidates.*`. Context keys: `platform, category, title, language,
+   channels (streamers involved), simulcast_group, format_id`; clip keys: `kind|trigger_type, evidence (list),
+   duration_s, language, override {dotted key: value}`.
+   Values other subsystems read: `window.pre`/`window.post` (engine cut window), `scoring.min_score` (auto-post
+   threshold), `output.decision` (skip/hold/force_qualify; apply with `formats.apply_decision(gameplay.evidence(clip),
+   result)`), `output.preset_id`, `output.title_template`, `output.caption_style`, `output.destinations`,
+   `posting.caption_template`, `posting.hashtags`, `labels.*`.
+2. **monitor**: the topic gate and topic evidence use `formats.title_matches`, `formats.category_matches` and
+   `formats.topic_state(st, category_counts, fmt)` instead of a hard-coded GTA regex (`source_status.is_gta6*` can
+   delegate); topic state names come from `fmt.topic_states`. The engine builds detectors with
+   `DetectorConfig.from_format(fmt, sensitivity=channel, reaction_delay=channel)` and applies the live merge/dedupe
+   through `moments.window_for`, `moments.merge_target`, `moments.dedupe_key`, `moments.simulcast_channels` and
+   `moments.moment_id` (ports of `Engine.on_trigger`'s rule).
+3. **events**: `live_clipper/events.py` (`ChatEvent`, `ChatHealth`, `Trigger`, unchanged from the original) ships with
+   the select branch because the detector needs it; chat adapters import it from there.
+4. **publish**: the auto-post threshold check is `candidates.below_threshold(clip, min_score)` with `min_score` from
+   the effective values (`scoring.min_score`, rule action `threshold`).
+5. **Store adapter**: selection's store-backed functions keep the original duck-typed `store` (`q, q1, x, update,
+   merge_json, tx, channel, channels, clip, log`) and table names (`clips, channels, destinations, deliveries,
+   clip_ledger, clip_descriptors, vod_imports, recovery_evidence`, view `clip_channels`): `moments.*`,
+   `candidates.editorial/candidates/started_on`, `freshness.*`, `winners.describe/evaluate/patterns/factor`,
+   `editorial.record/check/sweep`, `gameplay.review`. The integrator provides an adapter over the engine's clip
+   store. Post metrics for winners come from optional `store.post_anchors()`, `store.post_readings(anchors)`,
+   `store.post_proof(kind, ref)` supplied by publish (absent: no pattern preference, factor 1.0).
+6. **Bus**: topic `select.formats_changed` `{what: format|rule|rules|active, id}` after any format/rule change.
+7. **HTTP** (`SelectService`, prefix `/api`): `GET/POST /api/formats`, `GET/PUT/DELETE /api/formats/{id}`,
+   `GET /api/formats/{id}/export`, `POST /api/formats/import[?overwrite=true]` (raw JSON body),
+   `POST /api/formats/{id}/reset|duplicate|activate`, `POST /api/formats/preview-effective`
+   (`{channel, context, clip, format_id?}`), `GET/POST /api/rules`, `GET/PUT/DELETE /api/rules/{id}`,
+   `POST /api/rules/reorder` (`{ids}`). Errors: 422 `{"detail": {"message", "errors": [{"loc", "msg"}]}}`, 404, 409.

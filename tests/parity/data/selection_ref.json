@@ -1,0 +1,3159 @@
+{
+ "schema_version": 1,
+ "generated_by": "selection_ref.py (reference)",
+ "detector_cases": {
+  "D01_no_spike": {
+   "triggers_at_emission": [],
+   "triggers_final_mutated": [],
+   "clips": [],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 300,
+      "duplicates": 0,
+      "triggers": 0,
+      "merged": 0
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D02_single_spike": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D03_spike_during_burst": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.75,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 13.0,
+     "peak_rate": 130.0,
+     "unique_users": 70,
+     "burst_end_rel": 118.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 320,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D04_two_overlapping_spikes": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    },
+    {
+     "channel": "A",
+     "emitted_at_rel": 122.933,
+     "clip_id": 2,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "gg",
+      "pog",
+      "hi",
+      "lol",
+      "nice car"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 122.0,
+     "action_time_rel": 118.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 122.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    },
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 135.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    },
+    {
+     "clip_id": 2,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 118.0,
+     "window_start_rel": 100.0,
+     "window_end_rel": 130.0,
+     "dedupe_key": "A:chat_spike:1800000118",
+     "score_stored": 2.2,
+     "moment_id": "m2",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 320,
+      "duplicates": 0,
+      "triggers": 2,
+      "merged": 2
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D05_overlap_merged_by_engine": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    },
+    {
+     "channel": "A",
+     "emitted_at_rel": 122.933,
+     "clip_id": null,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "gg",
+      "pog",
+      "hi",
+      "lol",
+      "nice car"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 122.0,
+     "action_time_rel": 118.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 122.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    },
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 135.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 126.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": [
+      {
+       "channel": "A",
+       "action_time_rel": 118.0,
+       "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3"
+      }
+     ]
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 320,
+      "duplicates": 0,
+      "triggers": 2,
+      "merged": 3
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D06_sensitivity_low": {
+   "triggers_at_emission": [],
+   "triggers_final_mutated": [],
+   "clips": [],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 169,
+      "duplicates": 0,
+      "triggers": 0,
+      "merged": 0
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 30.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D07_sensitivity_high": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 102.978,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 16 msgs/10s from 16 chatters (1.6× baseline 10.0); top: gg ×2, pog ×2, hi ×2",
+     "score": 1.6,
+     "peak_rate": 16.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "gg",
+      "pog",
+      "hi",
+      "lol",
+      "nice car",
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 16/16",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 1.9,
+     "peak_rate": 19.0,
+     "unique_users": 19,
+     "burst_end_rel": 112.2
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 1.6,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 169,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 16.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D08_single_spammer": {
+   "triggers_at_emission": [],
+   "triggers_final_mutated": [],
+   "clips": [],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 220,
+      "duplicates": 0,
+      "triggers": 0,
+      "merged": 0
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D09_warmup_burst": {
+   "triggers_at_emission": [],
+   "triggers_final_mutated": [],
+   "clips": [],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 105,
+      "duplicates": 0,
+      "triggers": 0,
+      "merged": 0
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D10_duplicates_and_late_delivery": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 103.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "pog",
+      "hi",
+      "lol",
+      "nice car",
+      "gg"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 40,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D11_long_burst": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 101.5,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 22 chatters (2.2× baseline 10.0); top: hype ×14, nice car ×2, gg ×2",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 22,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "hype",
+      "nice car",
+      "gg",
+      "pog",
+      "hi",
+      "lol"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 10.0,
+     "peak_rate": 100.0,
+     "unique_users": 80,
+     "burst_end_rel": 257.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 1600,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D12_spanish_chat_spike": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: xd ×5, jajaja ×3, no manches ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "xd",
+      "jajaja",
+      "no manches",
+      "que locura",
+      "jaja",
+      "gg",
+      "buenas",
+      "hola"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D13_greeting_surge": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: hi ×4, lol ×2, nice car ×2",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "hi",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hello",
+      "hey chat",
+      "first",
+      "late as always",
+      "hola",
+      "yo"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "channel:A",
+     "topic_state": "live_gta",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  },
+  "D14_multi_streamer": {
+   "triggers_at_emission": [
+    {
+     "channel": "A",
+     "emitted_at_rel": 100.933,
+     "clip_id": 1,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    },
+    {
+     "channel": "C",
+     "emitted_at_rel": 100.933,
+     "clip_id": 2,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 100.0,
+     "action_time_rel": 96.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 100.2
+    },
+    {
+     "channel": "B",
+     "emitted_at_rel": 104.08,
+     "clip_id": null,
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 2.2,
+     "peak_rate": 22.0,
+     "unique_users": 16,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "pog",
+      "hi",
+      "lol",
+      "nice car",
+      "gg"
+     ],
+     "chat_time_basis": "platform timestamps (skew-corrected) 22/22",
+     "burst_start_rel": 103.0,
+     "action_time_rel": 99.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": 103.2
+    }
+   ],
+   "triggers_final_mutated": [
+    {
+     "channel": "A",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    },
+    {
+     "channel": "C",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "burst_end_rel": 113.5
+    },
+    {
+     "channel": "B",
+     "score": 6.0,
+     "peak_rate": 60.0,
+     "unique_users": 35,
+     "burst_end_rel": 116.5
+    }
+   ],
+   "clips": [
+    {
+     "clip_id": 1,
+     "channel": "A",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "A:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m1",
+     "moment_creator": "group:grp1",
+     "topic_state": "live_gta",
+     "merged": [
+      {
+       "channel": "B",
+       "action_time_rel": 99.0,
+       "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3"
+      }
+     ]
+    },
+    {
+     "clip_id": 2,
+     "channel": "C",
+     "kind": "chat_spike",
+     "action_time_rel": 96.0,
+     "window_start_rel": 78.0,
+     "window_end_rel": 108.0,
+     "dedupe_key": "C:chat_spike:1800000096",
+     "score_stored": 2.2,
+     "moment_id": "m2",
+     "moment_creator": "channel:C",
+     "topic_state": "live_off_topic",
+     "merged": []
+    }
+   ],
+   "detector": {
+    "A": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    },
+    "B": {
+     "stats": {
+      "messages": 250,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 2
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    },
+    "C": {
+     "stats": {
+      "messages": 260,
+      "duplicates": 0,
+      "triggers": 1,
+      "merged": 1
+     },
+     "final_baseline": 10.0,
+     "final_threshold": 22.0,
+     "final_rate": 0.0,
+     "final_unique": 0,
+     "active_burst": false
+    }
+   }
+  }
+ },
+ "pipeline_cases": {
+  "P01_gta_title_gameplay_reaction": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI title)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: chat reaction over GTA VI gameplay (capture-time GTA VI title) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "hold",
+    "lang": null,
+    "reason": "no coherent speech detected (music, game audio or silence)"
+   },
+   "auto_ineligible": "held for review: no coherent speech detected (music, game audio or silence)",
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "no final render yet (language policy hold: no coherent speech detected (music, game audio or silence))"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P02_gta_title_gameplay_english_speech": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 8,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 1
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI title)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: chat reaction over GTA VI gameplay (capture-time GTA VI title) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 2.2x is below this auto-post rule's threshold (3x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P03_gta_category_only": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI category",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "category watch",
+    "detail": "platform category at trigger time was 'Grand Theft Auto VI' (title: 'chill stream')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI category)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "category watch",
+    "detail": "platform category at trigger time was 'Grand Theft Auto VI' (title: 'chill stream'); content: chat reaction over GTA VI gameplay (capture-time GTA VI category) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 2.2x is below this auto-post rule's threshold (3x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P04_other_category_off_topic": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": null,
+   "gameplay_context": {
+    "state": "off_topic",
+    "source": "title watch",
+    "detail": "the live title at trigger time was not GTA ('Minecraft hardcore')"
+   },
+   "editorial": {
+    "state": "unknown",
+    "kind": "",
+    "reason": "gameplay is visible but GTA VI is not identifiable for this clip (no GTA VI title/category/archive evidence and no GTA VI speech): operator review",
+    "evidence_s": null,
+    "evidence_at_rel": null,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "rejected",
+    "source": "title watch",
+    "detail": "the live title at trigger time was not GTA ('Minecraft hardcore')"
+   },
+   "hold_reason": "not a GTA gameplay moment: the live title at trigger time was not GTA ('Minecraft hardcore')",
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "not GTA gameplay: the live title at trigger time was not GTA ('Minecraft hardcore')"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P05_greeting_surge_camera": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 15,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.4,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 11,
+    "greeting_share": 0.636,
+    "reaction_share": 0.273,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "rejected",
+    "kind": "",
+    "reason": "stream opening (40 s after capture began): camera/just-chatting view with no gameplay on screen; the speech is greetings/logistics",
+    "evidence_s": 2.0,
+    "evidence_at_rel": 80.0,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": 40.0,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "rejected",
+    "source": "editorial",
+    "detail": "stream opening (40 s after capture began): camera/just-chatting view with no gameplay on screen; the speech is greetings/logistics [evidence at 2.0 s]"
+   },
+   "hold_reason": "not a GTA gameplay moment: stream opening (40 s after capture began): camera/just-chatting view with no gameplay on screen; the speech is greetings/logistics [evidence at 2.0 s]",
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "not GTA gameplay: stream opening (40 s after capture began): camera/just-chatting view with no gameplay on screen; the speech is greetings/logistics [evidence at 2.0 s]"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P06_unverified_game_gameplay": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": null,
+   "gameplay_context": {
+    "state": "unknown",
+    "source": "",
+    "detail": "no capture-time GTA evidence (no status lookup had completed yet)"
+   },
+   "editorial": {
+    "state": "unknown",
+    "kind": "",
+    "reason": "gameplay is visible but GTA VI is not identifiable for this clip (no GTA VI title/category/archive evidence and no GTA VI speech): operator review",
+    "evidence_s": null,
+    "evidence_at_rel": null,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "unknown",
+    "source": "editorial",
+    "detail": "gameplay is visible but GTA VI is not identifiable for this clip (no GTA VI title/category/archive evidence and no GTA VI speech): operator review"
+   },
+   "hold_reason": "awaiting gameplay approval: gameplay is visible but GTA VI is not identifiable for this clip (no GTA VI title/category/archive evidence and no GTA VI speech): operator review; it is not sent unattended until it qualifies. An operator can review it under Streamer schedule > Gameplay review (or publish it manually)",
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "needs_review",
+    "reason": "needs review: gameplay is visible but GTA VI is not identifiable for this clip (no GTA VI title/category/archive evidence and no GTA VI speech): operator review"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P07_gta_talk_on_camera": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 28,
+    "gta_mentions": [
+     {
+      "t": 14.36,
+      "term": "gta 6"
+     },
+     {
+      "t": 16.5,
+      "term": "vice city"
+     },
+     {
+      "t": 21.5,
+      "term": "leonida"
+     }
+    ],
+    "statement": {
+     "t": 14.36,
+     "words": 28,
+     "excerpt": "chat, gta 6 just showed the whole vice city map and honestly it is way bigger than i thought, look at leonida from up here, this is insane"
+    },
+    "greeting_share": 0.0,
+    "game_terms": 1
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "GTA VI named in the clip's speech",
+   "gameplay_context": {
+    "state": "unknown",
+    "source": "",
+    "detail": "no capture-time GTA evidence"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "opinion",
+    "reason": "substantive GTA VI talk: \"chat, gta 6 just showed the whole vice city map and honestly it is way bigger than i thoug\"",
+    "evidence_s": 14.36,
+    "evidence_at_rel": 92.36,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "editorial (opinion)",
+    "detail": "substantive GTA VI talk: \"chat, gta 6 just showed the whole vice city map and honestly it is way bigger than i thoug\" [evidence at 14.4 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 2.2x is below this auto-post rule's threshold (3x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P08_missing_audio_and_frames": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "unknown",
+    "kind": "",
+    "reason": "no frames or speech could be analysed for this clip",
+    "evidence_s": null,
+    "evidence_at_rel": null,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "unknown",
+    "source": "editorial",
+    "detail": "no frames or speech could be analysed for this clip"
+   },
+   "hold_reason": "awaiting gameplay approval: no frames or speech could be analysed for this clip; it is not sent unattended until it qualifies. An operator can review it under Streamer schedule > Gameplay review (or publish it manually)",
+   "language_decide": {
+    "status": "hold",
+    "lang": null,
+    "reason": "no coherent speech detected (music, game audio or silence)"
+   },
+   "auto_ineligible": "held for review: no coherent speech detected (music, game audio or silence)",
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "no final render yet (language policy hold: no coherent speech detected (music, game audio or silence))"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P09_missing_audio_gameplay": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI title)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: chat reaction over GTA VI gameplay (capture-time GTA VI title) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "hold",
+    "lang": null,
+    "reason": "no coherent speech detected (music, game audio or silence)"
+   },
+   "auto_ineligible": "held for review: no coherent speech detected (music, game audio or silence)",
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "no final render yet (language policy hold: no coherent speech detected (music, game audio or silence))"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P10_trigger_at_edge": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 95.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "rejected",
+    "kind": "",
+    "reason": "the trigger is 1.0 s into a 30.0 s cut: not enough setup or payoff to understand the moment",
+    "evidence_s": 1.0,
+    "evidence_at_rel": 96.0,
+    "trigger_s": 1.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "rejected",
+    "source": "editorial",
+    "detail": "the trigger is 1.0 s into a 30.0 s cut: not enough setup or payoff to understand the moment [evidence at 1.0 s]"
+   },
+   "hold_reason": "not a GTA gameplay moment: the trigger is 1.0 s into a 30.0 s cut: not enough setup or payoff to understand the moment [evidence at 1.0 s]",
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "not GTA gameplay: the trigger is 1.0 s into a 30.0 s cut: not enough setup or payoff to understand the moment [evidence at 1.0 s]"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:early"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 1.0
+  },
+  "P11_static_screen": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "rejected",
+    "kind": "",
+    "reason": "static or waiting screen: no gameplay on screen",
+    "evidence_s": 18.0,
+    "evidence_at_rel": 96.0,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "rejected",
+    "source": "editorial",
+    "detail": "static or waiting screen: no gameplay on screen [evidence at 18.0 s]"
+   },
+   "hold_reason": "not a GTA gameplay moment: static or waiting screen: no gameplay on screen [evidence at 18.0 s]",
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "not GTA gameplay: static or waiting screen: no gameplay on screen [evidence at 18.0 s]"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P12_below_rule_threshold": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI title)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: chat reaction over GTA VI gameplay (capture-time GTA VI title) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (50x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 2.2x is below this auto-post rule's threshold (50x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P13_language_pref_mismatch": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 8,
+    "greeting_share": 0.25,
+    "reaction_share": 0.75,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "reaction",
+    "reason": "chat reaction over GTA VI gameplay (capture-time GTA VI title)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 81.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: chat reaction over GTA VI gameplay (capture-time GTA VI title) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "hold",
+    "lang": null,
+    "reason": "channel subtitles are set to English but the audio is Spanish (could be game dialogue, radio or a guest; not verified)"
+   },
+   "auto_ineligible": "held for review: channel subtitles are set to English but the audio is Spanish (could be game dialogue, radio or a guest; not verified)",
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "not_eligible",
+    "reason": "no final render yet (language policy hold: channel subtitles are set to English but the audio is Spanish (could be game dialogue, radio or a guest; not verified))"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P14_manual_clip": {
+   "window": {
+    "start_rel": 79.0,
+    "end_rel": 109.0,
+    "action_rel": 97.0,
+    "source_t0_rel": 79.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 0,
+    "greeting_share": 0.0,
+    "reaction_share": 0.0,
+    "greeting_surge": false,
+    "kind": "manual"
+   },
+   "game_context": "capture-time GTA VI title",
+   "gameplay_context": {
+    "state": "gta",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3')"
+   },
+   "editorial": {
+    "state": "qualified",
+    "kind": "gameplay",
+    "reason": "GTA VI gameplay on screen (capture-time GTA VI title; scene change in 7/7 frame pairs)",
+    "evidence_s": 3.8,
+    "evidence_at_rel": 82.8,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "title watch",
+    "detail": "live GTA 6 title at trigger time ('GTA 6 day 3'); content: GTA VI gameplay on screen (capture-time GTA VI title; scene change in 7/7 frame pairs) [evidence at 3.8 s]"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 0.0x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.0,
+   "reaction_why": "no chat measurement (manual clip): neutral",
+   "freshness": 0.945344,
+   "age_h": 0.973056,
+   "base_priority": 0.945344,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 0.0x is below this auto-post rule's threshold (3x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:none",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  },
+  "P15_operator_approved": {
+   "window": {
+    "start_rel": 78.0,
+    "end_rel": 108.0,
+    "action_rel": 96.0,
+    "source_t0_rel": 78.0,
+    "duration": 30.0
+   },
+   "speech_evidence": {
+    "words": 0,
+    "gta_mentions": [],
+    "statement": null,
+    "greeting_share": 0.0,
+    "game_terms": 0
+   },
+   "chat_evidence": {
+    "messages": 9,
+    "greeting_share": 0.111,
+    "reaction_share": 0.778,
+    "greeting_surge": false,
+    "kind": "chat_spike"
+   },
+   "game_context": null,
+   "gameplay_context": {
+    "state": "off_topic",
+    "source": "title watch",
+    "detail": "the live title at trigger time was not GTA ('Minecraft')"
+   },
+   "editorial": {
+    "state": "rejected",
+    "kind": "",
+    "reason": "static or waiting screen: no gameplay on screen",
+    "evidence_s": 18.0,
+    "evidence_at_rel": 96.0,
+    "trigger_s": 18.0,
+    "duration_s": 30.0,
+    "since_capture_start_s": null,
+    "version": 1
+   },
+   "gameplay_evidence": {
+    "state": "approved",
+    "source": "operator",
+    "detail": "GTA heist visible"
+   },
+   "hold_reason": null,
+   "language_decide": {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   "auto_ineligible": null,
+   "below_threshold": "chat spike 2.2x is below this auto-post rule's threshold (3x)",
+   "reaction": 1.678072,
+   "reaction_why": "chat spike 2.2x the channel baseline, 16 chatters",
+   "freshness": 0.945329,
+   "age_h": 0.973333,
+   "base_priority": 1.586331,
+   "harness_derived_eligibility": {
+    "state": "held_rule",
+    "reason": "no account will post it unattended: chat spike 2.2x is below this auto-post rule's threshold (3x)"
+   },
+   "winners_labels": [
+    "duration:medium",
+    "spike:low",
+    "payoff:late"
+   ],
+   "winners_missing": [
+    "subtitles (no original-language subtitle file)"
+   ],
+   "winners_payoff_at_s": 18.0
+  }
+ },
+ "topic_cases": [
+  {
+   "title": "GTA 6 day 3",
+   "category": "Grand Theft Auto VI",
+   "is_gta6_title": true,
+   "is_gta6_category": true,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "gta vi first look",
+   "category": "",
+   "is_gta6_title": true,
+   "is_gta6_category": false,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "GTA-VI heists",
+   "category": "Just Chatting",
+   "is_gta6_title": true,
+   "is_gta6_category": false,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "Grand Theft Auto 6 launch",
+   "category": "",
+   "is_gta6_title": true,
+   "is_gta6_category": false,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "grand theft auto vi",
+   "category": "",
+   "is_gta6_title": true,
+   "is_gta6_category": false,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "gta6 hype",
+   "category": "",
+   "is_gta6_title": true,
+   "is_gta6_category": false,
+   "topic_state": "live_gta",
+   "topic_state_category_off": "live_gta",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI title",
+   "gate_opens_capture": true
+  },
+  {
+   "title": "GTA V roleplay",
+   "category": "Grand Theft Auto V",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "live_off_topic",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "off_topic",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  },
+  {
+   "title": "chill stream",
+   "category": "Grand Theft Auto VI",
+   "is_gta6_title": false,
+   "is_gta6_category": true,
+   "topic_state": "live_gta_category",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI category",
+   "gate_opens_capture": false
+  },
+  {
+   "title": "chill stream",
+   "category": "Grand Theft Auto 6",
+   "is_gta6_title": false,
+   "is_gta6_category": true,
+   "topic_state": "live_gta_category",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "gta",
+   "editorial_game_context": "capture-time GTA VI category",
+   "gate_opens_capture": false
+  },
+  {
+   "title": "GTA 5 RP",
+   "category": "",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "live_off_topic",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "off_topic",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  },
+  {
+   "title": "GTA VII?",
+   "category": "",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "live_off_topic",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "off_topic",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  },
+  {
+   "title": "Minecraft",
+   "category": "Minecraft",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "live_off_topic",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "off_topic",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  },
+  {
+   "title": "",
+   "category": "",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "unverified",
+   "topic_state_category_off": "unverified",
+   "gameplay_context": "unknown",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  },
+  {
+   "title": "vice city gameplay",
+   "category": "",
+   "is_gta6_title": false,
+   "is_gta6_category": false,
+   "topic_state": "live_off_topic",
+   "topic_state_category_off": "live_off_topic",
+   "gameplay_context": "off_topic",
+   "editorial_game_context": null,
+   "gate_opens_capture": false
+  }
+ ],
+ "chat_evidence_cases": {
+  "C01_detector_reason_unicode_times": {
+   "messages": 3,
+   "greeting_share": 0.667,
+   "reaction_share": 0.333,
+   "greeting_surge": false,
+   "kind": "chat_spike"
+  },
+  "C02_ascii_x_reason": {
+   "messages": 13,
+   "greeting_share": 0.923,
+   "reaction_share": 0.077,
+   "greeting_surge": true,
+   "kind": "chat_spike"
+  },
+  "C03_reactions_en_es": {
+   "messages": 6,
+   "greeting_share": 0.167,
+   "reaction_share": 0.833,
+   "greeting_surge": false,
+   "kind": "chat_spike"
+  },
+  "C04_empty": {
+   "messages": 0,
+   "greeting_share": 0.0,
+   "reaction_share": 0.0,
+   "greeting_surge": false,
+   "kind": "manual"
+  }
+ },
+ "speech_evidence_cases": {
+  "S01_none": {
+   "words": 0,
+   "gta_mentions": [],
+   "statement": null,
+   "greeting_share": 0.0,
+   "game_terms": 0
+  },
+  "S02_greetings": {
+   "words": 11,
+   "gta_mentions": [],
+   "statement": null,
+   "greeting_share": 1.0,
+   "game_terms": 0
+  },
+  "S03_gta_passing": {
+   "words": 3,
+   "gta_mentions": [
+    {
+     "t": 2.0,
+     "term": "gta six"
+    }
+   ],
+   "statement": null,
+   "greeting_share": 0.0,
+   "game_terms": 0
+  },
+  "S04_gta_statement": {
+   "words": 28,
+   "gta_mentions": [
+    {
+     "t": 14.36,
+     "term": "gta 6"
+    },
+    {
+     "t": 16.5,
+     "term": "vice city"
+    },
+    {
+     "t": 21.5,
+     "term": "leonida"
+    }
+   ],
+   "statement": {
+    "t": 14.36,
+    "words": 28,
+    "excerpt": "chat, gta 6 just showed the whole vice city map and honestly it is way bigger than i thought, look at leonida from up here, this is insane"
+   },
+   "greeting_share": 0.0,
+   "game_terms": 1
+  },
+  "S05_word_timestamps": {
+   "words": 3,
+   "gta_mentions": [
+    {
+     "t": 1.0,
+     "term": "rockstar"
+    }
+   ],
+   "statement": null,
+   "greeting_share": 0.0,
+   "game_terms": 0
+  },
+  "S06_spanish_game_terms": {
+   "words": 10,
+   "gta_mentions": [],
+   "statement": null,
+   "greeting_share": 0.0,
+   "game_terms": 4
+  }
+ },
+ "language_cases": {
+  "decide": [
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "speech not analysed yet"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "no coherent speech detected (music, game audio or silence)"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "low-confidence or mixed speech: weak en"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "low-confidence or mixed speech: uncertain"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "original language not confirmed: original-language check still running"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "original language not confirmed: no original-language evidence (analysed before this check existed)"
+   },
+   {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   },
+   {
+    "status": "hold",
+    "lang": null,
+    "reason": "channel subtitles are set to English but the audio is Spanish (could be game dialogue, radio or a guest; not verified)"
+   },
+   {
+    "status": "ok",
+    "lang": "es",
+    "reason": "original language Spanish (channel setting)"
+   },
+   {
+    "status": "ok",
+    "lang": "en",
+    "reason": "original language English (auto)"
+   }
+  ],
+  "original_language_check": [
+   {
+    "status": "fail",
+    "reason": "no usable language windows (too little speech per 10 s window)"
+   },
+   {
+    "status": "fail",
+    "reason": "language detection failed for at least one speech window"
+   },
+   {
+    "status": "fail",
+    "reason": "no speech window has a confident language"
+   },
+   {
+    "status": "fail",
+    "reason": "window languages contradict the overall en: es 10-20s (0.70)"
+   },
+   {
+    "status": "pass",
+    "reason": "1 of 2 speech windows confidently es"
+   }
+  ],
+  "classify_speech": [
+   [
+    "no_speech",
+    "no reliable speech (voiced 0.5s of 30s, no-speech probability 0.10); likely music, game audio or silence"
+   ],
+   [
+    "no_speech",
+    "no reliable speech (voiced 1.0s of 30s, no-speech probability 0.10); likely music, game audio or silence"
+   ],
+   [
+    "no_speech",
+    "no reliable speech (voiced 5.0s of 30s, no-speech probability 0.70); likely music, game audio or silence"
+   ],
+   [
+    "uncertain",
+    "most likely language is 'pt' (0.60); es only 0.30"
+   ],
+   [
+    "uncertain",
+    "weak en detection (global probability 0.45)"
+   ],
+   [
+    "speech",
+    "en speech, global probability 0.80"
+   ]
+  ]
+ },
+ "loudness_cases": {
+  "L01_live_loudness": {
+   "segments": [
+    {
+     "seg": [
+      0,
+      2,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      2,
+      4,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      4,
+      6,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      6,
+      8,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      8,
+      10,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      10,
+      12,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      12,
+      14,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      14,
+      16,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      16,
+      18,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      18,
+      20,
+      -30.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      20,
+      22,
+      -30.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      22,
+      24,
+      -30.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      24,
+      26,
+      -10.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": {
+      "kind": "audio_spike",
+      "reason": "Audio loudness spike (audio trigger, not chat): -10.0 dBFS, +20.0 dB over the -30.0 dBFS baseline",
+      "score": 0.0,
+      "peak_rate": 20.0,
+      "unique_users": 0,
+      "baseline": -30.0,
+      "delay": 0.0,
+      "sample_messages": [],
+      "chat_time_basis": "no chat: audio level of the buffered segment (stream timeline)",
+      "burst_start_rel": 24.0,
+      "action_time_rel": 25.0,
+      "burst_end_rel": null,
+      "first_chat_received_at_rel": null
+     }
+    },
+    {
+     "seg": [
+      26,
+      28,
+      -30.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      28,
+      30,
+      null
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      40,
+      42,
+      -12.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      42,
+      44,
+      -30.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      80,
+      82,
+      -11.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": {
+      "kind": "audio_spike",
+      "reason": "Audio loudness spike (audio trigger, not chat): -11.0 dBFS, +19.0 dB over the -30.0 dBFS baseline",
+      "score": 0.0,
+      "peak_rate": 19.0,
+      "unique_users": 0,
+      "baseline": -30.0,
+      "delay": 0.0,
+      "sample_messages": [],
+      "chat_time_basis": "no chat: audio level of the buffered segment (stream timeline)",
+      "burst_start_rel": 80.0,
+      "action_time_rel": 81.0,
+      "burst_end_rel": null,
+      "first_chat_received_at_rel": null
+     }
+    },
+    {
+     "seg": [
+      82,
+      84,
+      -40.0
+     ],
+     "baseline_db": -30.0,
+     "trigger": null
+    }
+   ],
+   "stats": {
+    "segments": 18,
+    "triggers": 2,
+    "suppressed_by_cooldown": 1
+   }
+  },
+  "L02_quiet_floor": {
+   "segments": [
+    {
+     "seg": [
+      0,
+      2,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      2,
+      4,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      4,
+      6,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      6,
+      8,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      8,
+      10,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      10,
+      12,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      12,
+      14,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      14,
+      16,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      16,
+      18,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      18,
+      20,
+      -60.0
+     ],
+     "baseline_db": null,
+     "trigger": null
+    },
+    {
+     "seg": [
+      20,
+      22,
+      -60.0
+     ],
+     "baseline_db": -60.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      22,
+      24,
+      -60.0
+     ],
+     "baseline_db": -60.0,
+     "trigger": null
+    },
+    {
+     "seg": [
+      24,
+      26,
+      -40.0
+     ],
+     "baseline_db": -60.0,
+     "trigger": null
+    }
+   ],
+   "stats": {
+    "segments": 13,
+    "triggers": 0,
+    "suppressed_by_cooldown": 0
+   }
+  }
+ },
+ "vod_cases": {
+  "V01_no_chat_audio_scan": {
+   "coverage_state": "none",
+   "sparse": true,
+   "chat_triggers": [],
+   "scan_candidates": [
+    {
+     "t": 120.0,
+     "rise": 23.0
+    },
+    {
+     "t": 400.0,
+     "rise": 23.0
+    }
+   ],
+   "scan_triggers": [
+    {
+     "kind": "audio_spike",
+     "reason": "VOD scan: audio rises 23 dB above its surroundings",
+     "score": 23.0,
+     "peak_rate": 0.0,
+     "unique_users": 0,
+     "baseline": 0.0,
+     "delay": 0.0,
+     "sample_messages": [],
+     "chat_time_basis": "whole-recording audio scan (no or sparse chat replay)",
+     "burst_start_rel": 120.0,
+     "action_time_rel": 120.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": null
+    },
+    {
+     "kind": "audio_spike",
+     "reason": "VOD scan: audio rises 23 dB above its surroundings",
+     "score": 23.0,
+     "peak_rate": 0.0,
+     "unique_users": 0,
+     "baseline": 0.0,
+     "delay": 0.0,
+     "sample_messages": [],
+     "chat_time_basis": "whole-recording audio scan (no or sparse chat replay)",
+     "burst_start_rel": 400.0,
+     "action_time_rel": 400.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": null
+    }
+   ],
+   "plan": [
+    {
+     "a": 120.0,
+     "s": 102.0,
+     "e": 132.0,
+     "truncated": "",
+     "kind": "audio_spike",
+     "merged": []
+    },
+    {
+     "a": 400.0,
+     "s": 382.0,
+     "e": 412.0,
+     "truncated": "",
+     "kind": "audio_spike",
+     "merged": []
+    }
+   ]
+  },
+  "V02_chat_replay_plus_scan_skip": {
+   "coverage_state": "partial",
+   "sparse": true,
+   "chat_triggers": [
+    {
+     "kind": "chat_spike",
+     "reason": "Chat spike: 22 msgs/10s from 16 chatters (2.2× baseline 10.0); top: lmao ×3, kekw ×3, no way ×3",
+     "score": 7.0,
+     "peak_rate": 70.0,
+     "unique_users": 40,
+     "baseline": 10.0,
+     "delay": 4.0,
+     "sample_messages": [
+      "lmao",
+      "kekw",
+      "no way",
+      "wasted",
+      "lol",
+      "nice car",
+      "gg",
+      "pog",
+      "hi"
+     ],
+     "chat_time_basis": "replay 22/22",
+     "burst_start_rel": 400.0,
+     "action_time_rel": 396.0,
+     "burst_end_rel": 413.5,
+     "first_chat_received_at_rel": 400.0
+    }
+   ],
+   "scan_candidates": [
+    {
+     "t": 120.0,
+     "rise": 23.0
+    },
+    {
+     "t": 400.0,
+     "rise": 23.0
+    }
+   ],
+   "scan_triggers": [
+    {
+     "kind": "audio_spike",
+     "reason": "VOD scan: audio rises 23 dB above its surroundings",
+     "score": 23.0,
+     "peak_rate": 0.0,
+     "unique_users": 0,
+     "baseline": 0.0,
+     "delay": 0.0,
+     "sample_messages": [],
+     "chat_time_basis": "whole-recording audio scan (no or sparse chat replay)",
+     "burst_start_rel": 120.0,
+     "action_time_rel": 120.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": null
+    },
+    {
+     "kind": "audio_spike",
+     "reason": "VOD scan: audio rises 15 dB above its surroundings",
+     "score": 15.0,
+     "peak_rate": 0.0,
+     "unique_users": 0,
+     "baseline": 0.0,
+     "delay": 0.0,
+     "sample_messages": [],
+     "chat_time_basis": "whole-recording audio scan (no or sparse chat replay)",
+     "burst_start_rel": 250.0,
+     "action_time_rel": 250.0,
+     "burst_end_rel": null,
+     "first_chat_received_at_rel": null
+    }
+   ],
+   "plan": [
+    {
+     "a": 120.0,
+     "s": 102.0,
+     "e": 132.0,
+     "truncated": "",
+     "kind": "audio_spike",
+     "merged": []
+    },
+    {
+     "a": 250.0,
+     "s": 232.0,
+     "e": 262.0,
+     "truncated": "",
+     "kind": "audio_spike",
+     "merged": []
+    },
+    {
+     "a": 396.0,
+     "s": 378.0,
+     "e": 408.0,
+     "truncated": "",
+     "kind": "chat_spike",
+     "merged": []
+    }
+   ]
+  }
+ },
+ "moments_cases": {
+  "same": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "creator_earliest": [
+   7200.0,
+   60.0,
+   16200.0
+  ]
+ },
+ "candidate_cases": [
+  {
+   "reaction": 3.169925,
+   "why": "chat spike 8.0x the channel baseline, 40 chatters",
+   "freshness": 0.943874,
+   "age_h": 1.0,
+   "priority": 2.992011
+  },
+  {
+   "reaction": 2.0,
+   "why": "chat spike 3.0x the channel baseline, 40 chatters",
+   "freshness": 0.943874,
+   "age_h": 1.0,
+   "priority": 1.887749
+  },
+  {
+   "reaction": 3.169925,
+   "why": "chat spike 8.0x the channel baseline, 40 chatters",
+   "freshness": 0.31498,
+   "age_h": 20.0,
+   "priority": 0.998464
+  },
+  {
+   "reaction": 1.0,
+   "why": "chat spike 1.0x the channel baseline, 40 chatters",
+   "freshness": 1.0,
+   "age_h": 0.0,
+   "priority": 1.0
+  },
+  {
+   "reaction": 0.0,
+   "why": "chat spike 0.0x the channel baseline, 40 chatters",
+   "freshness": 1.0,
+   "age_h": 0.0,
+   "priority": 0.0
+  },
+  {
+   "reaction": 1.0,
+   "why": "no chat measurement (manual clip): neutral",
+   "freshness": 0.943874,
+   "age_h": 1.0,
+   "priority": 0.943874
+  },
+  {
+   "reaction": 1.0,
+   "why": "no chat measurement (audio_spike clip): neutral",
+   "freshness": 0.890899,
+   "age_h": 2.0,
+   "priority": 0.890899
+  }
+ ],
+ "title_cases": [
+  "Zentorno slams into the gas station — chat loses it",
+  "Atraco épico a el banco con 3 estrellas — el chat enloquece",
+  "Chat spike: 40 msgs/10s moment"
+ ],
+ "camera_face_cases": {
+  "F01_fixed_camera": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "F02_moving_character": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "F03_tiny_ignored": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "explore_hours": {
+  "0": false,
+  "1": false,
+  "2": false,
+  "3": true,
+  "4": false,
+  "7": true,
+  "11": true
+ },
+ "constants": {
+  "detector.SENSITIVITY": {
+   "low": [
+    3.0,
+    8,
+    10.0
+   ],
+   "medium": [
+    2.2,
+    5,
+    6.0
+   ],
+   "high": [
+    1.6,
+    3,
+    4.0
+   ]
+  },
+  "detector.PER_USER_CAP": 2,
+  "detector.DetectorConfig": {
+   "sensitivity": "medium",
+   "window": 10.0,
+   "reaction_delay": 4.0,
+   "baseline_seconds": 300.0,
+   "baseline_floor": 3.0,
+   "merge_gap": 8.0,
+   "distinct_gap": 15.0,
+   "warmup": 20.0,
+   "max_burst": 90.0,
+   "ratio": null,
+   "min_unique": null,
+   "min_abs": null
+  },
+  "detector.MAX_SKEW": 10.0,
+  "candidates": {
+   "FRESH_HALF_LIFE_H": 12.0,
+   "NEUTRAL_REACTION": 1.0
+  },
+  "editorial": {
+   "VERSION": 1,
+   "OPENING_S": 600.0,
+   "MIN_SETUP_S": 5.0,
+   "MIN_PAYOFF_S": 3.0,
+   "GAMEPLAY_RATIO": 0.5,
+   "CAMERA_VIEW_FACE_H": 0.3,
+   "OPINION_WORDS": 14,
+   "OPINION_SPAN_S": 12.0,
+   "SWEEP_LIMIT": 3
+  },
+  "loudness": {
+   "DEFAULTS": {
+    "enabled": false,
+    "rise_db": 12.0,
+    "cooldown_s": 45.0
+   },
+   "FLOOR_DB": -35.0,
+   "WARMUP": 10,
+   "BASELINE": 60
+  },
+  "vod": {
+   "TICK": 0.5,
+   "SCAN_RISE_DB": 8.0,
+   "SCAN_PER_HOUR": 12,
+   "SPARSE_MSGS_PER_MIN": 0.5,
+   "AUTO_CHAT_GRACE_S": 120.0,
+   "GAP_S": 300.0,
+   "PARTIAL_TOL": 60.0
+  },
+  "moments": {
+   "NEAR_S": 15.0,
+   "OVERLAP": 0.5,
+   "SCAN_S": 600.0,
+   "CREATOR_GAP_S": 7200.0
+  },
+  "freshness": {
+   "HARD_MAX_H": 24.0
+  },
+  "winners": {
+   "MIN_PEERS": 4,
+   "MIN_LABEL_MOMENTS": 3,
+   "MIN_DECIDED": 6,
+   "SMOOTH_K": 4.0,
+   "MIN_LIFT": 1.1,
+   "MAX_BOOST": 0.25,
+   "BOOST_WEIGHT": 0.5,
+   "EXPLORE_EVERY": 4
+  },
+  "settings_defaults": {
+   "clip_pre_roll": 18.0,
+   "clip_post_roll": 12.0,
+   "reaction_delay": 4.0,
+   "max_clip_seconds": 60.0,
+   "topic_observe_seconds": 300,
+   "topic_category_evidence": true,
+   "autopost_all": false,
+   "autopost_min_score": 3.0,
+   "freshness_hours": 24.0,
+   "freshness_margin_minutes": 15
+  }
+ }
+}
