@@ -384,6 +384,12 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     def save() -> None:  # atomic, so readers never see a half-written file
         tmp = state_file.with_suffix(".tmp")
         tmp.write_text(json.dumps(store))
+        for _ in range(50):  # Windows refuses the replace while a reader has the file open
+            try:
+                tmp.replace(state_file)
+                return
+            except PermissionError:
+                time.sleep(0.02)
         tmp.replace(state_file)
 
     db: dict = {
