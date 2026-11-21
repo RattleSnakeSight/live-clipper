@@ -10,7 +10,7 @@ const SECTIONS = [
   ['settings-storage', 'Storage', 'Where clips are kept and what is cleaned up.',
     ['storage.dir', 'storage.cap_gb', 'storage.retention_days', 'storage.clean_first', 'storage.cleanup_rules']],
   ['settings-processing', 'Processing', 'How much of this computer the app may use.',
-    ['processing.asr_device', 'processing.asr_model', 'processing.asr_compute_type', 'processing.max_concurrent_recordings', 'processing.render_threads']],
+    ['processing.asr_device', 'processing.asr_model', 'processing.asr_compute_type', 'processing.max_concurrent_recordings']],
   ['settings-notify', 'Notifications and startup', 'How the app tells you about new clips and problems.',
     ['notify.method', 'notify.webhook_url', 'notify.webhook_format', 'service.start_at_login']],
 ];
@@ -128,8 +128,8 @@ async function postingBlock() {
   try {
     const m = await get('/publish/mode');
     const g = choiceGroup({ legend: 'Posting mode', value: m.mode, options: [
-      { value: 'manual', label: 'Manual', hint: 'Every clip waits in the review queue until you press Post.' },
-      { value: 'auto', label: 'Automatic', hint: 'Finished clips go to every connected, turned-on destination.' }] });
+      { value: 'auto', label: 'Automatic', hint: 'Finished clips go to every connected, turned-on destination.' },
+      { value: 'manual', label: 'Manual', hint: 'Every clip waits in the review queue until you press Post.' }] });
     g.inputs.forEach((i) => i.addEventListener('change', async () => {
       try { await put('/publish/mode', { mode: i.value }); toast('Posting mode saved.'); } catch (e) { toast(e.message, true); }
     }));

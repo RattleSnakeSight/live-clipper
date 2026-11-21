@@ -1,22 +1,34 @@
-// Formats and rules: format list and editor, rules with reorder, precedence explainer, effective-settings preview.
+// Formats and rules: format list and editor, rules with reorder, precedence explainer, effective-settings preview
+// (/api/formats*, /api/rules*, POST /api/formats/preview-effective).
 
-import { ApiError, get, list, post, put } from '../api.js';
-import { PLATFORMS } from '../labels.js';
+import { ApiError, del, get, list, post, put } from '../api.js';
+import { PLATFORMS, channelName } from '../labels.js';
 import {
   busy, choiceGroup, clear, confirmDialog, download, h, pickFile, selectField, switchField, textField, titleRow, toast,
 } from '../ui.js';
 import { renderEditor, renderList } from './docs.js';
 
 const LAYERS = {
-  builtin: ['Built-in', 'neutral'], format: ['Your format', 'accent'], preset: ['Your preset', 'accent'],
-  rule: ['Rule', 'warn'], override: ['This clip', 'pos'],
+  builtin: ['Built-in', 'neutral'], format: ['Your format', 'accent'], rule: ['Rule', 'warn'], override: ['This clip', 'pos'],
 };
+const TRIGGERS = { chat_spike: 'Chat spike', audio_spike: 'Loud audio', manual: 'You pressed clip' };
+const EVIDENCE = { chat: 'Chat', topic: 'Stream topic', speech: 'Speech', gameplay: 'Gameplay', statement: 'A statement', reaction: 'A reaction' };
+const DECISIONS = { skip: 'Do not post', hold: 'Hold for review', force_qualify: 'Always post' };
+const DEST_NAMES = { youtube: 'YouTube Shorts', tiktok: 'TikTok', instagram: 'Instagram Reels' };
+// settings the preview always lists; everything else shows when a format, rule or clip changed it
+const KEY_SETTINGS = ['window.pre', 'window.post', 'scoring.min_score', 'detector.sensitivity', 'output.preset_id',
+  'output.decision', 'output.title_template', 'output.destinations'];
+
+// how a rule names a streamer: the platform login, or the display name of a creator feed (pipeline.channel_key)
+const channelKey = (c) => (c.platform in PLATFORMS ? c.login : c.display_name || c.login);
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56) || 'rule';
+const lines = (v) => String(v || '').split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
 
 export async function render(main, params) {
   if (params[0]) return renderEditor(main, 'formats', params[0], 'formats');
   main.append(titleRow('Formats and rules', 'A format decides which moments become clips. Rules change that for some clips only.'));
   await renderList(main, 'formats', { listId: 'format-list',
-    intro: 'Duplicate the built-in format to make your own, or import one from a file.' });
+    intro: 'Duplicate the built-in format to make your own, or import one from a file. The active format applies to channels that do not pick one.' });
   const lower = h('div', { class: 'grid-main', style: 'margin-top: var(--gap)' });
   main.append(lower);
   const left = h('div', { class: 'stack' });
@@ -49,26 +61,43 @@ async function renderRules(container) {
     get('/presets').then((d) => list(d, 'presets')).catch(() => []),
     get('/destinations').then((d) => list(d, 'destinations')).catch(() => [])]);
   let rules = list(await get('/rules'), 'rules');
+  const reload = async () => { rules = list(await get('/rules'), 'rules'); };
 
-  async function saveOrder(next, note) {
+  async function change(fn, note) {
     try {
-      rules = list(await put('/rules', { rules: next }), 'rules');
+      await fn();
       if (note) clear(msg, h('p', { class: 'small muted' }, note));
     } catch (e) { toast(e.message, true); }
+    await reload().catch(() => {});
     draw();
   }
 
   function move(i, delta, focusSel) {
     const j = i + delta;
     if (j < 0 || j >= rules.length) return;
-    const next = [...rules];
+    const next = rules.map((r) => r.id);
     [next[i], next[j]] = [next[j], next[i]];
-    saveOrder(next, `Moved "${next[j].name}" to position ${j + 1}.`).then(() => {
-      const same = panel.querySelector(`[data-key="${focusSel}-${next[j].id}"]`);
-      const other = panel.querySelector(`[data-key="${focusSel === 'up' ? 'down' : 'up'}-${next[j].id}"]`);
+    const moved = rules[i];
+    change(() => post('/rules/reorder', { ids: next }), `Moved "${moved.name}" to position ${j + 1}.`).then(() => {
+      const same = panel.querySelector(`[data-key="${focusSel}-${moved.id}"]`);
+      const other = panel.querySelector(`[data-key="${focusSel === 'up' ? 'down' : 'up'}-${moved.id}"]`);
       const el = same && !same.disabled ? same : other;
       if (el) el.focus();
     });
+  }
+
+  // a rules file replaces the list: existing ids are updated, new ones added, missing ones deleted, then the order
+  async function importRules(next) {
+    const have = new Set(rules.map((r) => r.id));
+    let done = 0;
+    for (const r of next) {
+      if (have.has(r.id)) await put(`/rules/${encodeURIComponent(r.id)}`, r); else await post('/rules', r);
+      done++;
+    }
+    const keep = new Set(next.map((r) => r.id));
+    for (const r of rules) if (!keep.has(r.id)) await del(`/rules/${encodeURIComponent(r.id)}`);
+    await post('/rules/reorder', { ids: next.map((r) => r.id) });
+    return done;
   }
 
   let dragFrom = null;
@@ -79,12 +108,19 @@ async function renderRules(container) {
     imp.addEventListener('click', async () => {
       const text = await pickFile();
       if (text === null) return;
+      let next;
       try {
         const data = JSON.parse(text);
-        const next = Array.isArray(data) ? data : data.rules;
-        if (!await confirmDialog({ title: 'Replace all rules?', body: `The ${rules.length} current rules are replaced by ${(next || []).length} from the file.`, ok: 'Replace rules', danger: true })) return;
-        await saveOrder(next, 'Rules imported.');
-      } catch (e) { clear(msg, h('p', { class: 'note bad' }, `Not imported: ${e.message}`)); }
+        next = Array.isArray(data) ? data : data.rules;
+        if (!Array.isArray(next) || next.some((r) => !r || typeof r !== 'object' || !r.id)) throw new Error('the file needs a list of rules, each with an id');
+      } catch (e) { clear(msg, h('p', { class: 'note bad' }, `Not imported: ${e.message}`)); return; }
+      if (!await confirmDialog({ title: 'Replace all rules?', body: `The ${rules.length} current rules are replaced by ${next.length} from the file.`, ok: 'Replace rules', danger: true })) return;
+      try {
+        await importRules(next);
+        clear(msg, h('p', { class: 'note info' }, 'Rules imported.'));
+      } catch (e) { clear(msg, h('p', { class: 'note bad' }, `Import stopped: ${e.message}`)); }
+      await reload().catch(() => {});
+      draw();
     });
     const exp = h('button', { type: 'button', class: 'btn small', help: 'Download all rules as a .json file.' }, 'Export');
     exp.addEventListener('click', () => download('rules.json', `${JSON.stringify({ rules }, null, 2)}\n`));
@@ -97,13 +133,13 @@ async function renderRules(container) {
       down.addEventListener('click', () => move(i, 1, 'down'));
       const sw = h('input', { type: 'checkbox', role: 'switch', class: 'switch', checked: r.enabled !== false,
         'aria-label': `${r.name} is on`, help: 'Turn this rule on or off without deleting it.',
-        onchange: (e) => saveOrder(rules.map((x) => (x.id === r.id ? { ...x, enabled: e.target.checked } : x))) });
+        onchange: (e) => change(() => put(`/rules/${encodeURIComponent(r.id)}`, { ...r, enabled: e.target.checked })) });
       const edit = h('button', { type: 'button', class: 'btn small', help: 'Change what this rule checks and what it does.' }, 'Edit');
       edit.addEventListener('click', () => openEditor(r));
       const remove = h('button', { type: 'button', class: 'btn small danger', help: 'Delete this rule.' }, 'Delete');
       remove.addEventListener('click', async () => {
         if (!await confirmDialog({ title: `Delete rule "${r.name}"?`, body: 'Clips it matched go back to the format settings.', ok: 'Delete rule', danger: true })) return;
-        await saveOrder(rules.filter((x) => x.id !== r.id), `Deleted "${r.name}".`);
+        await change(() => del(`/rules/${encodeURIComponent(r.id)}`), `Deleted "${r.name}".`);
       });
       const li = h('li', { draggable: 'true', dataset: { index: i } },
         h('span', { class: 'handle muted', 'aria-hidden': 'true', title: 'Drag to reorder' }, '::'),
@@ -117,11 +153,12 @@ async function renderRules(container) {
         e.preventDefault();
         li.classList.remove('drop-target');
         if (dragFrom === null || dragFrom === i) return;
-        const next = [...rules];
+        const next = rules.map((x) => x.id);
         const [m] = next.splice(dragFrom, 1);
         next.splice(i, 0, m);
+        const moved = rules[dragFrom];
         dragFrom = null;
-        saveOrder(next, `Moved "${m.name}" to position ${i + 1}.`);
+        change(() => post('/rules/reorder', { ids: next }), `Moved "${moved.name}" to position ${i + 1}.`);
       });
       return li;
     });
@@ -134,75 +171,89 @@ async function renderRules(container) {
   }
 
   function openEditor(rule) {
-    const r = rule || { name: '', enabled: true, conditions: {}, actions: {} };
+    const r = rule || {};
     const c = r.conditions || {};
+    const sc = r.scenario || {};
+    const du = r.duration || {};
+    const st = r.streamers || {};
     const a = r.actions || {};
-    const name = textField({ label: 'Rule name', value: r.name, help: 'A short name so you recognise the rule in the list.' });
-    const platform = selectField({ label: 'Platform', value: c.platform || '', help: 'Only clips from this platform.',
-      options: [{ value: '', label: 'Any platform' }, ...Object.entries(PLATFORMS).map(([v, l]) => ({ value: v, label: l }))] });
-    const category = textField({ label: 'Category or game contains', value: c.category || '', help: 'Only when the stream category contains this text.' });
-    const title = textField({ label: 'Stream title contains', value: c.title_contains || '', help: 'Only when the stream title contains this text.' });
-    const language = textField({ label: 'Spoken language', value: c.language || '', help: 'Two-letter code such as en or es. Empty means any.' });
-    const trigger = selectField({ label: 'What found the moment', value: c.trigger || '', help: 'Only clips started by this kind of trigger.',
-      options: [{ value: '', label: 'Anything' }, { value: 'chat', label: 'Chat spike' }, { value: 'audio', label: 'Loud audio' }, { value: 'manual', label: 'You pressed clip' }] });
-    const evidence = textField({ label: 'Evidence includes', value: c.evidence || '', help: 'Only when this evidence was found, for example title, category or speech.' });
-    const minD = textField({ label: 'Shortest clip (seconds)', type: 'number', value: c.min_duration_s ?? '', min: 0, help: 'Only clips at least this long.' });
-    const maxD = textField({ label: 'Longest clip (seconds)', type: 'number', value: c.max_duration_s ?? '', min: 0, help: 'Only clips at most this long.' });
-    const streamers = choiceGroup({ type: 'checkbox', legend: 'Streamers involved', value: (c.channels || []).map(String),
-      help: 'Only clips that involve these channels. None ticked means any channel.',
-      options: channels.map((ch) => ({ value: String(ch.id), label: ch.login || ch.url })) });
-    const matchAll = choiceGroup({ legend: 'Match', value: c.channels_match || 'any', help: 'For simulcasts with several streamers.',
+    const name = textField({ label: 'Rule name', value: r.name || '', maxlength: 120, help: 'A short name so you recognise the rule in the list.' });
+    const onlyFmt = selectField({ label: 'Only with format', value: r.format_id || '', help: 'Apply this rule only while this format is in effect.',
+      options: [{ value: '', label: 'Any format' }, ...formats.map((f) => ({ value: f.id, label: f.name || f.id }))] });
+    const platforms = choiceGroup({ type: 'checkbox', legend: 'Platforms', value: c.platforms || [], help: 'Only clips from these platforms. None ticked means any.',
+      options: Object.entries(PLATFORMS).map(([v, l]) => ({ value: v, label: l })) });
+    const category = textField({ label: 'Category or game matches', value: (c.categories || []).join('\n'), type: 'textarea', rows: 2, spellcheck: 'false',
+      help: 'Patterns (regular expressions, any case), one per line. Only when the stream category matches one of them.' });
+    const title = textField({ label: 'Stream title matches', value: c.title_regex || '', spellcheck: 'false',
+      help: 'A pattern (regular expression, any case). Only when the stream title matches it.' });
+    const language = textField({ label: 'Spoken languages', value: (c.languages || []).join(', '), help: 'Two-letter codes such as en, es. Empty means any.' });
+    const trigger = choiceGroup({ type: 'checkbox', legend: 'What found the moment', value: sc.trigger_types || [], help: 'Only clips started this way. None ticked means any.',
+      options: Object.entries(TRIGGERS).map(([v, l]) => ({ value: v, label: l })) });
+    const evidence = choiceGroup({ type: 'checkbox', legend: 'Evidence found', value: sc.evidence || [], help: 'Only clips where all the ticked evidence was found.',
+      options: Object.entries(EVIDENCE).map(([v, l]) => ({ value: v, label: l })) });
+    const minD = textField({ label: 'Shortest clip (seconds)', type: 'number', value: du.min_s ?? '', min: 0, help: 'Only clips at least this long.' });
+    const maxD = textField({ label: 'Longest clip (seconds)', type: 'number', value: du.max_s ?? '', min: 0, help: 'Only clips at most this long.' });
+    const keys = [...new Set([...channels.map(channelKey), ...(st.channels || [])])].filter(Boolean);
+    const streamers = choiceGroup({ type: 'checkbox', legend: 'Streamers involved', value: st.channels || [],
+      help: 'Only clips that involve these streamers (a simulcast can involve several). None ticked means any.',
+      options: keys.map((k) => ({ value: k, label: k })) });
+    const matchAll = choiceGroup({ legend: 'Match', value: st.mode || 'any', help: 'For simulcasts with several streamers.',
       options: [{ value: 'any', label: 'Any of the ticked streamers' }, { value: 'all', label: 'All of the ticked streamers together' }] });
-    const fmt = selectField({ label: 'Use format', value: a.format_id || '', help: 'Switch these clips to another format.',
-      options: [{ value: '', label: 'Keep the channel format' }, ...formats.map((f) => ({ value: f.id, label: f.name || f.id }))] });
+    const decision = selectField({ label: 'Decision', value: a.decision || '', help: 'Post, hold or skip these clips whatever the score says.',
+      options: [{ value: '', label: 'Keep the format decision' }, ...Object.entries(DECISIONS).map(([v, l]) => ({ value: v, label: l }))] });
+    const threshold = textField({ label: 'Minimum score', type: 'number', value: a.threshold ?? '', min: 0, step: 'any', help: 'Clips scoring below this are not posted. Empty keeps the format value.' });
+    const pre = textField({ label: 'Seconds before the moment', type: 'number', value: a.window_pre ?? '', min: 0, max: 120, step: 'any', help: 'Video kept before the moment. Empty keeps the format value.' });
+    const postW = textField({ label: 'Seconds after the moment', type: 'number', value: a.window_post ?? '', min: 0, max: 120, step: 'any', help: 'Video kept after the moment. Empty keeps the format value.' });
     const preset = selectField({ label: 'Use preset', value: a.preset_id || '', help: 'Switch these clips to another look.',
-      options: [{ value: '', label: 'Keep the default preset' }, ...presets.map((p) => ({ value: p.id, label: p.name || p.id }))] });
-    const hold = switchField({ label: 'Hold for review', checked: Boolean(a.hold), help: 'These clips wait in the review queue even in automatic mode.' });
-    const destOpts = [...new Set(dests.map((d) => d.provider))];
+      options: [{ value: '', label: 'Keep the format preset' }, ...presets.map((p) => ({ value: p.id, label: p.name || p.id }))] });
+    const tmpl = textField({ label: 'Title template', value: a.title_template || '', help: 'For example {title} | {channel}. Placeholders: {title} {channel} {game} {platform}. Empty keeps the format value.' });
+    const destOpts = [...new Set(dests.filter((d) => !d.test).map((d) => d.provider))];
     const destGroup = choiceGroup({ type: 'checkbox', legend: 'Only post to', value: a.destinations || [],
       help: 'Limit where these clips go. None ticked keeps the channel setting.',
-      options: destOpts.map((p) => ({ value: p, label: (dests.find((d) => d.provider === p) || {}).label || p })) });
-    const sets = textField({ label: 'Change settings', type: 'textarea', help: 'One per line as path = value, for example window.post = 15. Values are JSON.',
-      value: Object.entries(a.set || {}).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join('\n'), spellcheck: 'false' });
+      options: (destOpts.length ? destOpts : Object.keys(DEST_NAMES)).map((p) => ({ value: p, label: DEST_NAMES[p] || p })) });
     const err = h('p', { class: 'error', role: 'alert' });
     const save = h('button', { type: 'submit', class: 'btn primary', help: 'Save this rule.' }, rule ? 'Save rule' : 'Add rule');
     const cancel = h('button', { type: 'button', class: 'btn ghost', help: 'Close without saving.' }, 'Cancel');
     const form = h('form', { id: 'rule-editor', class: 'panel', style: 'margin-top: 16px', novalidate: true, 'aria-labelledby': 're-title' },
-      h('h3', { id: 're-title' }, rule ? `Edit "${rule.name}"` : 'New rule'), name.el,
+      h('h3', { id: 're-title' }, rule ? `Edit "${rule.name}"` : 'New rule'), name.el, onlyFmt.el,
       h('h3', { style: 'margin-top: 16px' }, 'When'),
-      h('div', { class: 'inline-fields' }, platform.el, category.el, title.el, language.el, trigger.el, evidence.el, minD.el, maxD.el),
-      channels.length ? h('div', { class: 'split', style: 'margin-top: 16px' }, streamers.el, matchAll.el) : null,
+      platforms.el, h('div', { class: 'inline-fields' }, category.el, title.el, language.el, minD.el, maxD.el),
+      h('div', { class: 'split', style: 'margin-top: 16px' }, trigger.el, evidence.el),
+      keys.length ? h('div', { class: 'split', style: 'margin-top: 16px' }, streamers.el, matchAll.el) : null,
       h('h3', { style: 'margin-top: 16px' }, 'Then'),
-      h('div', { class: 'inline-fields' }, fmt.el, preset.el), h('div', { style: 'margin-top: 16px' }, hold.el),
-      destOpts.length ? destGroup.el : null, sets.el, err, h('div', { class: 'row', style: 'margin-top: 16px' }, save, cancel));
+      h('div', { class: 'inline-fields' }, decision.el, threshold.el, pre.el, postW.el, preset.el, tmpl.el),
+      destGroup.el, err, h('div', { class: 'row', style: 'margin-top: 16px' }, save, cancel));
     cancel.addEventListener('click', () => clear(editorSlot));
     form.addEventListener('submit', busy(save, async (e) => {
       e.preventDefault();
       err.textContent = '';
       if (!name.input.value.trim()) { name.el.querySelector('.error').textContent = 'Give the rule a name.'; name.input.focus(); return; }
-      const set = {};
-      for (const line of sets.input.value.split('\n').map((l) => l.trim()).filter(Boolean)) {
-        const m = line.match(/^([\w.]+)\s*=\s*(.+)$/);
-        if (!m) { err.textContent = `This line needs the form path = value: ${line}`; sets.input.focus(); return; }
-        try { set[m[1]] = JSON.parse(m[2]); } catch { set[m[1]] = m[2]; }
-      }
-      const num = (f) => (f.input.value === '' ? undefined : Number(f.input.value));
-      const strip = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v !== undefined && v !== false
-        && !(Array.isArray(v) && !v.length) && !(v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length)));
-      const body = { ...(rule || {}), name: name.input.value.trim(), enabled: r.enabled !== false,
-        conditions: strip({ platform: platform.input.value, category: category.input.value.trim(), title_contains: title.input.value.trim(),
-          language: language.input.value.trim(), trigger: trigger.input.value, evidence: evidence.input.value.trim(),
-          min_duration_s: num(minD), max_duration_s: num(maxD), channels: streamers.values().map(Number),
-          channels_match: streamers.values().length > 1 ? matchAll.value() : undefined }),
-        actions: strip({ format_id: fmt.input.value, preset_id: preset.input.value, hold: hold.input.checked,
-          destinations: destGroup.values(), set }) };
-      const next = rule ? rules.map((x) => (x.id === rule.id ? body : x)) : [...rules, body];
+      const num = (f) => (f.input.value === '' ? null : Number(f.input.value));
+      const body = { ...r, name: name.input.value.trim(), enabled: r.enabled !== false, format_id: onlyFmt.input.value || null,
+        conditions: { platforms: platforms.values(), categories: lines(category.input.value).filter((x) => x), title_regex: title.input.value.trim() || null,
+          languages: lines(language.input.value).map((x) => x.toLowerCase()) },
+        scenario: { trigger_types: trigger.values(), evidence: evidence.values() },
+        duration: { min_s: num(minD), max_s: num(maxD) },
+        streamers: { ...st, channels: streamers.values(), mode: matchAll.value() || 'any' },
+        actions: { ...a, decision: decision.input.value || null, threshold: num(threshold), window_pre: num(pre), window_post: num(postW),
+          preset_id: preset.input.value || null, title_template: tmpl.input.value.trim() || null,
+          destinations: destGroup.values().length ? destGroup.values() : null } };
       try {
-        rules = list(await put('/rules', { rules: next }), 'rules');
+        if (rule) await put(`/rules/${encodeURIComponent(rule.id)}`, body);
+        else {
+          const base = slug(body.name);
+          let id = base;
+          for (let n = 2; rules.some((x) => x.id === id); n++) id = `${base}-${n}`;
+          await post('/rules', { ...body, id });
+        }
+        await reload();
         clear(editorSlot);
         draw();
         toast('Rule saved.');
-      } catch (ex) { err.textContent = ex instanceof ApiError ? ex.message : String(ex); }
+      } catch (ex) {
+        const f = ex instanceof ApiError ? ex.fields : {};
+        err.textContent = Object.keys(f).length ? Object.entries(f).map(([k, m]) => `${k}: ${m}`).join('; ') : ex.message;
+      }
     }));
     clear(editorSlot, form);
     name.input.focus();
@@ -213,22 +264,29 @@ async function renderRules(container) {
 
 function describeRule(r) {
   const c = r.conditions || {};
+  const sc = r.scenario || {};
+  const du = r.duration || {};
+  const st = r.streamers || {};
   const a = r.actions || {};
   const when = [];
-  if (c.platform) when.push(PLATFORMS[c.platform] || c.platform);
-  if (c.category) when.push(`category has "${c.category}"`);
-  if (c.title_contains) when.push(`title has "${c.title_contains}"`);
-  if (c.language) when.push(`language ${c.language}`);
-  if (c.trigger) when.push(`${c.trigger} trigger`);
-  if (c.min_duration_s) when.push(`at least ${c.min_duration_s} s`);
-  if (c.max_duration_s) when.push(`at most ${c.max_duration_s} s`);
-  if (c.channels && c.channels.length) when.push(`${c.channels.length} streamer${c.channels.length > 1 ? 's' : ''}`);
+  if (r.format_id) when.push(`format ${r.format_id}`);
+  if ((c.platforms || []).length) when.push(c.platforms.map((p) => PLATFORMS[p] || p).join(' or '));
+  if ((c.categories || []).length) when.push(`category matches ${c.categories.join(' or ')}`);
+  if (c.title_regex) when.push(`title matches ${c.title_regex}`);
+  if ((c.languages || []).length) when.push(`language ${c.languages.join(' or ')}`);
+  if ((sc.trigger_types || []).length) when.push(sc.trigger_types.map((t) => TRIGGERS[t] || t).join(' or '));
+  if ((sc.evidence || []).length) when.push(`evidence ${sc.evidence.join(' and ')}`);
+  if (du.min_s !== null && du.min_s !== undefined) when.push(`at least ${du.min_s} s`);
+  if (du.max_s !== null && du.max_s !== undefined) when.push(`at most ${du.max_s} s`);
+  if ((st.channels || []).length) when.push(`${st.mode === 'all' ? 'all of' : 'any of'} ${st.channels.join(', ')}`);
   const then = [];
-  if (a.format_id) then.push(`format ${a.format_id}`);
+  if (a.decision) then.push(DECISIONS[a.decision] || a.decision);
+  if (a.threshold !== null && a.threshold !== undefined) then.push(`minimum score ${a.threshold}`);
+  if (a.window_pre !== null && a.window_pre !== undefined) then.push(`${a.window_pre} s before`);
+  if (a.window_post !== null && a.window_post !== undefined) then.push(`${a.window_post} s after`);
   if (a.preset_id) then.push(`preset ${a.preset_id}`);
-  if (a.hold) then.push('hold for review');
-  if (a.destinations && a.destinations.length) then.push(`post only to ${a.destinations.join(', ')}`);
-  for (const [k, v] of Object.entries(a.set || {})) then.push(`${k} = ${JSON.stringify(v)}`);
+  if (a.title_template) then.push(`title "${a.title_template}"`);
+  if ((a.destinations || []).length) then.push(`post only to ${a.destinations.join(', ')}`);
   return `When ${when.join(', ') || 'any clip'}: ${then.join(', ') || 'nothing yet'}`;
 }
 
@@ -238,40 +296,59 @@ async function renderPreview(main) {
   const [channels, formats] = await Promise.all([
     get('/channels').then((d) => list(d, 'channels')).catch(() => []),
     get('/formats').then((d) => list(d, 'formats')).catch(() => [])]);
-  const ch = selectField({ label: 'Channel', value: '', help: 'Use this channel\'s format and settings.',
-    options: [{ value: '', label: 'No channel' }, ...channels.map((c) => ({ value: c.id, label: c.login || c.url }))] });
-  const fmt = selectField({ label: 'Format', value: (formats[0] || {}).id, help: 'The format to start from.',
-    options: formats.map((f) => ({ value: f.id, label: f.name || f.id })) });
+  const ch = selectField({ label: 'Channel', value: '', help: 'Use this channel\'s platform, format and streamer name.',
+    options: [{ value: '', label: 'No channel' }, ...channels.map((c) => ({ value: c.id, label: channelName(c) }))] });
+  const fmt = selectField({ label: 'Format', value: '', help: 'The format to start from.',
+    options: [{ value: '', label: 'The channel\'s format, else the active one' }, ...formats.map((f) => ({ value: f.id, label: f.name || f.id }))] });
   const platform = selectField({ label: 'Platform', value: 'twitch', help: 'Pretend the clip comes from this platform.',
     options: Object.entries(PLATFORMS).map(([v, l]) => ({ value: v, label: l })) });
   const category = textField({ label: 'Category or game', help: 'Pretend the stream has this category.' });
   const title = textField({ label: 'Stream title', help: 'Pretend the stream has this title.' });
-  const trigger = selectField({ label: 'Trigger', value: 'chat', help: 'What found the moment.',
-    options: [{ value: 'chat', label: 'Chat spike' }, { value: 'audio', label: 'Loud audio' }, { value: 'manual', label: 'You pressed clip' }] });
+  const trigger = selectField({ label: 'Trigger', value: 'chat_spike', help: 'What found the moment.',
+    options: Object.entries(TRIGGERS).map(([v, l]) => ({ value: v, label: l })) });
+  const language = textField({ label: 'Spoken language', value: '', help: 'Two-letter code such as en. Empty means unknown.' });
   const duration = textField({ label: 'Clip length (seconds)', type: 'number', value: 30, min: 1, help: 'Pretend the clip is this long.' });
   const clipId = textField({ label: 'Clip number (optional)', type: 'number', min: 1, help: 'Include the changes you made to this clip.' });
+  const all = switchField({ label: 'Show every setting', checked: false, help: 'List every value, not only the main ones and those that changed.' });
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
   const run = h('button', { type: 'submit', class: 'btn primary', help: 'Work out every final setting and which layer set it.' }, 'Show effective settings');
   const form = h('form', { novalidate: true }, h('div', { class: 'inline-fields' },
-    ch.el, fmt.el, platform.el, category.el, title.el, trigger.el, duration.el, clipId.el), h('div', { class: 'row', style: 'margin-top: 16px' }, run));
+    ch.el, fmt.el, platform.el, category.el, title.el, trigger.el, language.el, duration.el, clipId.el),
+  h('div', { style: 'margin-top: 12px' }, all.el), h('div', { class: 'row', style: 'margin-top: 16px' }, run));
+  ch.input.addEventListener('change', () => {
+    const c = channels.find((x) => String(x.id) === ch.input.value);
+    if (c && c.platform in PLATFORMS) platform.input.value = c.platform;
+  });
   form.addEventListener('submit', busy(run, async (e) => {
     e.preventDefault();
     try {
+      const c = channels.find((x) => String(x.id) === ch.input.value);
+      const clip = { kind: trigger.input.value, duration_s: Number(duration.input.value) || null, language: language.input.value.trim() || null };
+      if (clipId.input.value) {
+        const cl = await get(`/clips/${encodeURIComponent(clipId.input.value)}`);
+        clip.override = (cl.trigger && cl.trigger.override) || {};
+      }
       const r = await post('/formats/preview-effective', {
-        channel_id: ch.input.value ? Number(ch.input.value) : null, format_id: fmt.input.value || null,
-        clip_id: clipId.input.value ? Number(clipId.input.value) : null,
-        context: { platform: platform.input.value, category: category.input.value.trim(), title: title.input.value.trim() },
-        scenario: { trigger: trigger.input.value }, duration_s: Number(duration.input.value) || null });
-      const rows = r.settings || [];
-      clear(out, rows.length ? h('div', { class: 'table-wrap', style: 'margin-top: 16px; max-height: 480px; overflow: auto' }, h('table', {},
-        h('caption', { class: 'sr-only' }, 'Effective settings and the layer that set each one'),
-        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Setting'), h('th', { scope: 'col' }, 'Value'), h('th', { scope: 'col' }, 'Set by'))),
-        h('tbody', {}, rows.map((s) => {
-          const [label, tone] = LAYERS[s.layer] || [s.layer, 'neutral'];
-          return h('tr', {}, h('td', {}, h('code', {}, s.path)), h('td', {}, h('code', {}, JSON.stringify(s.value))),
-            h('td', {}, h('span', { class: `pill ${tone}` }, label), s.source ? h('span', { class: 'small muted' }, ` ${s.source}`) : null));
-        }))))
-        : h('p', { class: 'muted' }, 'No settings came back.'));
+        channel: c ? channelKey(c) : null, format_id: fmt.input.value || (c && c.format_id) || null, clip,
+        context: { platform: platform.input.value, category: category.input.value.trim(), title: title.input.value.trim(),
+          channels: c ? [channelKey(c)] : [] } });
+      const rows = Object.entries(r.trail || {})
+        .filter(([path, t]) => all.input.checked || t.set_by !== 'builtin' || KEY_SETTINGS.includes(path))
+        .sort(([a], [b]) => a.localeCompare(b));
+      const matched = (r.matched_rules || []).map((m) => m.name);
+      clear(out,
+        h('p', { class: 'small', style: 'margin-top: 12px' }, `Format: ${r.format_id}. `,
+          matched.length ? `Matching rules: ${matched.join(', ')}.` : 'No rule matches.'),
+        rows.length ? h('div', { class: 'table-wrap', style: 'margin-top: 8px; max-height: 480px; overflow: auto' }, h('table', {},
+          h('caption', { class: 'sr-only' }, 'Effective settings and the layer that set each one'),
+          h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Setting'), h('th', { scope: 'col' }, 'Value'), h('th', { scope: 'col' }, 'Set by'))),
+          h('tbody', {}, rows.map(([path, t]) => {
+            const [label, tone] = LAYERS[t.set_by] || [t.set_by, 'neutral'];
+            const last = (t.layers || []).at(-1) || {};
+            return h('tr', {}, h('td', {}, h('code', {}, path)), h('td', {}, h('code', { style: 'overflow-wrap: anywhere' }, JSON.stringify(t.value))),
+              h('td', {}, h('span', { class: `pill ${tone}` }, label), h('span', { class: 'small muted' }, ` ${last.name || t.source || ''}`)));
+          }))))
+          : h('p', { class: 'muted' }, 'No settings came back.'));
     } catch (ex) { clear(out, h('p', { class: 'error' }, ex.message)); }
   }));
   main.append(h('section', { id: 'preview-tool', class: 'panel', style: 'margin-top: var(--gap)', 'aria-labelledby': 'pv-title' },

@@ -30,7 +30,7 @@ def test_wizard_full_flow_with_conditions_resume_and_review(fresh_server, make_p
     # first question: one plain explanation under the title
     expect(page.get_by_role("heading", name="How will you use Live Clipper?")).to_be_visible()
     expect(page.locator(".question > p.help")).to_have_text(
-        "This decides which reminders you see; it does not change how the app works.")
+        "If you clip other streamers, the next question asks you to confirm their permission.")
     expect(page.get_by_text("Question 1 of")).to_be_visible()
 
     # show_if: the permission question appears only for "permission"
@@ -54,7 +54,7 @@ def test_wizard_full_flow_with_conditions_resume_and_review(fresh_server, make_p
     next_q(page)  # storage.dir
     next_q(page)  # storage.cap_gb
     cap = page.get_by_label("How much disk space may Live Clipper use (GB)?")
-    expect(cap).to_have_value("120")  # default from detected hardware
+    expect(cap).to_have_value("50")  # from the detected hardware: a quarter of the free space, at most 50
     cap.fill("0")
     next_q(page)  # error text changes the page
     expect(page.locator(".question .error")).to_contain_text("from 1 to 4096")

@@ -1,8 +1,13 @@
-"""In-memory fake of the HTTP API contract (docs/CONTRACTS.md) that serves live_clipper/web.
+"""Fake of the app's HTTP API (same routes and shapes as the real services) that serves live_clipper/web.
 
-Used by the Playwright UI tests while the real subsystems are built in parallel. App state and setup answers
-persist to a JSON file, so a test can stop the server and start a new one on the same file to simulate an
-app restart or update. Everything else is rebuilt from fixtures on each start.
+Used by the fast Playwright UI tests with seeded demo data; tests/ui/test_real_app.py drives the real app. To stay
+in step with the real API the fake reuses the real pieces that need no network or media: the setup questions
+(`setup_service.build_questions`), channel URL parsing and source descriptions (monitor), the selection
+formats/rules router (`SelectService` over a throwaway SQLite file), the editing presets (`PresetStore`) and the
+destination requirements (publish). Channels, clips, deliveries and connections are in-memory fixtures.
+
+App state and setup answers persist to a JSON file, so a test can stop the server and start a new one on the same
+file to simulate an app restart or update. Everything else is rebuilt from fixtures on each start.
 
 Run by hand: python -m tests.ui.mock_api --port 8799 --seed
 """
@@ -10,97 +15,40 @@ Run by hand: python -m tests.ui.mock_api --port 8799 --seed
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import re
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
 import live_clipper
+from live_clipper import formats as F
+from live_clipper.db import Database
+from live_clipper.monitor_service import parse_channel_url
+from live_clipper.presets import SHIPPED, PresetStore
+from live_clipper.publish.requirements import requirements_for
+from live_clipper.select_service import SelectService
+from live_clipper.setup_service import build_questions
+from live_clipper.sources import OFFICIAL, PLATFORMS, STREAM_PROBE, describe
+from live_clipper.sources import oauth as source_oauth
 
 WEB_DIR = Path(live_clipper.__file__).parent / "web"
 NOW = time.time()
 
-# --- setup questions (same shape as GET /api/setup/questions) ---------------------------------------------
+# --- setup questions (the real list for this fake computer) -------------------------------------------------
 
-def _opts(*pairs):
-    return [{"value": v, "label": label} for v, label in pairs]
-
-
-def _q(id, title, help, type, default=None, options=None, validation=None, show_if=None):
-    return {"id": id, "title": title, "help": help, "type": type, "default": default,
-            "options": options or [], "validation": validation or {}, "show_if": show_if or []}
-
-
-WEBHOOK_ON = {"id": "notify.method", "in": ["webhook", "both"]}
-QUESTIONS = [
-    _q("setup.usage", "How will you use Live Clipper?",
-       "This decides which reminders you see; it does not change how the app works.", "select", "personal",
-       _opts(("personal", "Clipping my own channel"), ("permission", "Clipping other streamers, with their permission"),
-             ("testing", "Just trying it out")), {"required": True}),
-    _q("setup.permission_confirmed", "Do you have permission to clip and post their streams?",
-       "Only clip and post content from streamers who said yes.", "boolean", False,
-       validation={"required": True, "must_be": True}, show_if=[{"id": "setup.usage", "equals": "permission"}]),
-    _q("platforms.enabled", "Which platforms do you want to watch?",
-       "Pick the sites where the streams you clip are broadcast.", "multiselect", ["twitch"],
-       _opts(("twitch", "Twitch"), ("kick", "Kick"), ("youtube", "YouTube")), {"min_items": 1}),
-    _q("storage.dir", "Where should clips and recordings be stored?",
-       "Pick a folder on a drive with plenty of free space.", "path", "/data/live-clipper/media",
-       validation={"required": True}),
-    _q("storage.cap_gb", "How much disk space may Live Clipper use (GB)?",
-       "When this is reached, the app stops starting new clips and cleans up old posted ones.", "number", 120,
-       validation={"min": 1, "max": 4096, "integer": True}),
-    _q("storage.retention_days", "How many days should posted clips be kept?",
-       "Clips that are already posted are deleted after this long. Unposted clips are never deleted.",
-       "number", 14, validation={"min": 1, "max": 365, "integer": True}),
-    _q("storage.clean_first", "What should be deleted first when the disk is full?",
-       "Original recordings take the most space, and finished clips are small.", "select", "originals",
-       _opts(("originals", "Original recordings of posted clips, then posted clips"),
-             ("posted_clips", "Whole posted clips, oldest first"))),
-    _q("storage.cleanup_rules", "Which automatic cleanups do you want?",
-       "Temporary files are always cleaned. Clips waiting to be posted are always kept.", "multiselect",
-       ["expire_posted", "clean_when_full"],
-       _opts(("expire_posted", "Delete posted clips after the retention period"),
-             ("clean_when_full", "Delete oldest posted clips when the disk cap is reached"))),
-    _q("processing.asr_device", "Where should speech recognition run?",
-       "No supported GPU found, so the processor does the work.", "select", "cpu",
-       _opts(("cpu", "Processor"), ("cuda", "NVIDIA GPU"))),
-    _q("processing.asr_model", "How accurate should speech recognition be?",
-       "Bigger models hear better but need more memory and time.", "select", "small",
-       _opts(("tiny", "Tiny (fastest)"), ("base", "Base"), ("small", "Small"), ("medium", "Medium"),
-             ("large-v3", "Large (needs a strong GPU)"))),
-    _q("processing.max_concurrent_recordings", "How many streams may be recorded at the same time?",
-       "Each recording uses processor, memory and disk.", "number", 2,
-       validation={"min": 1, "max": 16, "integer": True}),
-    _q("processing.render_threads", "How many processor threads may clip rendering use?",
-       "More threads render faster but slow down everything else on this computer.", "number", 4,
-       validation={"min": 1, "max": 32, "integer": True}),
-    _q("posting.destinations", "Where do you want to post clips?",
-       "Pick none to review clips and post them yourself.", "multiselect", ["none"],
-       _opts(("youtube", "YouTube Shorts"), ("tiktok", "TikTok"), ("instagram", "Instagram Reels"),
-             ("none", "Nowhere, I only want the files")), {"min_items": 1}),
-    _q("posting.mode", "Should clips be posted automatically?", "Manual means every clip waits for your approval.",
-       "select", "manual", _opts(("manual", "No, I approve each clip"), ("auto", "Yes, post as soon as a clip is ready")),
-       show_if=[{"id": "posting.destinations", "contains_any": ["youtube", "tiktok", "instagram"]}]),
-    _q("notify.method", "How should Live Clipper tell you about new clips and problems?",
-       "Browser notifications only show while the app is open in a tab.", "select", "browser",
-       _opts(("none", "Do not notify me"), ("browser", "Browser notifications"),
-             ("webhook", "A webhook (ntfy, Discord or other)"), ("both", "Browser and webhook"))),
-    _q("notify.webhook_url", "What is the webhook address?",
-       "Paste an ntfy topic URL, a Discord webhook URL, or any address that accepts a JSON POST.", "url", "",
-       validation={"required": True, "schemes": ["http", "https"]}, show_if=[WEBHOOK_ON]),
-    _q("notify.webhook_format", "Which message format does the webhook expect?",
-       "Auto picks Discord or ntfy from the address and sends JSON otherwise.", "select", "auto",
-       _opts(("auto", "Detect from the address"), ("generic", "JSON"), ("ntfy", "ntfy"), ("discord", "Discord")),
-       show_if=[WEBHOOK_ON]),
-    _q("service.start_at_login", "Start Live Clipper automatically when you log in?",
-       "Runs quietly in the background so recording is not missed after a restart.", "boolean", False),
-]
+HARDWARE = {"cpu": {"model": "Example 8-core processor", "cores": 8}, "ram_bytes": 16 * 1024**3,
+            "disk": {"path": "/data", "free_bytes": 400 * 1024**3}, "gpu": {"kind": "none", "name": None, "vram_mb": None},
+            "ffmpeg": {"found": True, "path": "/usr/bin/ffmpeg", "version": "7.0"},
+            "ffprobe": {"found": True, "path": "/usr/bin/ffprobe", "version": "7.0"},
+            "streamlink": {"found": False, "path": None, "version": None}, "os": "Linux 6.8", "python": "3.13.0"}
+QUESTIONS = build_questions(HARDWARE, "/data/live-clipper/media")
 QIDX = {q["id"]: q for q in QUESTIONS}
 
 
@@ -124,6 +72,7 @@ def _visible(q: dict, a: dict) -> bool:
 
 
 def _validate(q: dict, v: Any) -> str | None:
+    """setup_service.validate_value without touching the file system for paths."""
     t, val = q["type"], q["validation"]
     opts = {o["value"] for o in q["options"]}
     if t == "boolean":
@@ -141,61 +90,19 @@ def _validate(q: dict, v: Any) -> str | None:
     if t == "multiselect":
         if not isinstance(v, list) or any(x not in opts for x in v):
             return "Pick from the listed options."
+        if "none" in v and len(v) > 1:
+            return "'Nowhere' cannot be combined with other choices."
         return "Pick at least one." if len(v) < val.get("min_items", 0) else None
     if t == "url":
         if v and not re.match(r"^https?://[^/\s]+", str(v)):
-            return "Enter an address that starts with http:// or https://."
+            return "Enter a full address starting with http:// or https://."
         return None
     if t == "path":
-        return None if str(v).strip() else "Enter a folder."
+        return None if str(v).strip() else "Enter a full folder path."
     return None
 
 
 # --- fixtures ---------------------------------------------------------------------------------------------
-
-BUILTIN_FORMAT = {
-    "id": "gta-vi", "name": "GTA VI", "version": 1,
-    "description": "Built-in selection format: GTA VI gameplay, opinions and chat reactions.",
-    "labels": {"game": "GTA VI", "game_short": "GTA"},
-    "match": {"platforms": [], "title_regex": "(?i)\\bgta\\s*(6|vi)\\b", "gate_on_title": True},
-    "detector": {"sensitivity": "medium", "window": 10.0, "reaction_delay": 4.0, "per_user_cap": 2},
-    "window": {"pre": 18.0, "post": 12.0},
-    "scoring": {"min_score": 3.0, "fresh_half_life_h": 12.0},
-    "language": {"prefs": ["auto", "en", "es"], "min_window_prob": 0.5},
-    "titles": {"max_len": 70, "languages": ["en", "es"]},
-}
-FORMAT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "id": {"type": "string", "description": "Short unique name used in files and rules."},
-        "name": {"type": "string", "description": "Name shown in the app."},
-        "description": {"type": "string", "description": "One line about what this format clips."},
-        "detector": {"type": "object", "description": "How chat activity turns into a moment.", "properties": {
-            "sensitivity": {"type": "string", "enum": ["low", "medium", "high"],
-                            "description": "High makes more clips from smaller chat spikes."},
-            "reaction_delay": {"type": "number", "description": "Seconds chat usually lags behind the action."},
-        }},
-        "window": {"type": "object", "description": "How much video goes around a moment.", "properties": {
-            "pre": {"type": "number", "description": "Seconds kept before the moment."},
-            "post": {"type": "number", "description": "Seconds kept after the moment."},
-        }},
-    },
-}
-BUILTIN_PRESET = {
-    "id": "vertical-default", "name": "Vertical default", "version": 1,
-    "description": "Built-in editing preset: 1080x1920, facecam above gameplay, burned-in captions.",
-    "output": {"width": 1080, "height": 1920, "fps": 30},
-    "layout": {"mode": "auto", "zoom": 1.0},
-    "captions": {"enabled": True, "font_size": 64, "max_words_per_line": 4},
-    "loudness": {"target_lufs": -14.0},
-}
-PRESET_SCHEMA = {"type": "object", "properties": {
-    "layout": {"type": "object", "description": "How the stream is framed in a vertical clip.", "properties": {
-        "mode": {"type": "string", "enum": ["auto", "split", "fit", "crop"],
-                 "description": "Auto puts a detected facecam above the gameplay."}}},
-    "captions": {"type": "object", "description": "Burned-in subtitles.", "properties": {
-        "enabled": {"type": "boolean", "description": "Burn subtitles into the video."}}},
-}}
 
 GUIDE = {
     "first-run": ("First run", "# First run\n\nThe setup asks a few questions. You can change every answer later "
@@ -207,79 +114,19 @@ GUIDE = {
                    "[Unsafe link](javascript:alert(1)) stays plain text.\n"),
     "updating": ("Updating", "# Updating\n\nYour data folder is kept when you update.\n\n```\npip install --upgrade live-clipper\n```\n"),
 }
-
-def _step(text, verified=True):
-    return {"text": text, "verified": verified}
-
-
-# Trimmed copy of live_clipper/publish/requirements.py (same shape as the real `requirements` field).
-REQUIREMENTS = {
-    "youtube": {
-        "label": "YouTube Shorts", "account": "Any Google account with a YouTube channel (post to your own channel).",
-        "free": True,
-        "developer_app_steps": [_step("Sign in to Google Cloud and create a project."),
-                                _step("Enable \"YouTube Data API v3\" for it."),
-                                _step("Create an OAuth client of type \"Desktop app\"."),
-                                _step("Consent screen wording for Personal mode is not confirmed.", verified=False)],
-        "scopes": ["https://www.googleapis.com/auth/youtube.upload"],
-        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/youtube/callback",
-        "redirect_note": "Desktop clients accept any loopback port; PKCE (S256) is always used.",
-        "verification_audit": [_step("Consent screen in Testing: refresh tokens expire after 7 days.")],
-        "quotas": {"summary": "About 100 uploads per day.", "per_day": 100, "tracked_locally": True},
-        "fails_without": {"client_id": "Connect cannot start: Google rejects the authorization request.",
-                          "scope_youtube.upload": "Upload is refused (403)."},
-        "tos_rights": "Third-party streamer content needs the streamer's permission; you confirm that once per destination.",
-        "notes": ["Shorts: vertical, up to 3 minutes."],
-        "docs": ["https://developers.google.com/youtube/v3/guides/uploading_a_video"], "as_of": "2026-11-20",
-    },
-    "tiktok": {
-        "label": "TikTok", "account": "A TikTok account you own; developer account at developers.tiktok.com.",
-        "free": True,
-        "developer_app_steps": [_step("Create an app and add Login Kit and Content Posting API."),
-                                _step("Register the redirect URI below under Login Kit for desktop.")],
-        "scopes": ["user.info.basic", "video.upload", "video.publish"],
-        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/tiktok/callback",
-        "redirect_note": "Only localhost / 127.0.0.1 hosts.",
-        "verification_audit": [_step("Unaudited apps: every direct post is private (SELF_ONLY).")],
-        "quotas": {"summary": "About 15 posts/day per creator.", "per_day": 15, "tracked_locally": True},
-        "fails_without": {"client_key": "Connect cannot start.", "audit": "Posts are private."},
-        "tos_rights": "Confirm the streamer's permission once per destination.",
-        "notes": [], "docs": ["https://developers.tiktok.com/doc/login-kit-desktop"], "as_of": "2026-11-20",
-    },
-    "instagram": {
-        "label": "Instagram Reels", "account": "An Instagram professional account (Business or Creator).",
-        "free": True,
-        "developer_app_steps": [_step("Create a Meta developer app of type Business and add Instagram."),
-                                _step("Click \"Generate token\" and paste the long-lived token into the token form.")],
-        "scopes": {"instagram_login": ["instagram_business_basic", "instagram_business_content_publish"]},
-        "redirect_uri": "http://127.0.0.1:{port}/api/oauth/instagram/callback",
-        "redirect_note": "Configurable per destination because loopback is unverified for Meta.",
-        "verification_audit": [_step("Own account only: App Review not required.")],
-        "quotas": {"summary": "50 API posts per rolling 24 h.", "per_day": 50, "tracked_locally": False},
-        "fails_without": {"token_refresh": "Long-lived tokens last 60 days."},
-        "tos_rights": "No private mode exists: a published Reel is public.",
-        "notes": [], "docs": [], "as_of": "2026-11-20",
-    },
-    "test": {
-        "label": "Test destination — nothing is posted", "account": "None: a local fake provider on this machine.",
-        "free": True, "developer_app_steps": [], "scopes": [], "redirect_uri": "", "redirect_note": "",
-        "verification_audit": [], "quotas": {"summary": "none", "tracked_locally": False}, "fails_without": {},
-        "tos_rights": "Nothing leaves this machine; no acknowledgement needed.", "notes": ["Never counted as a real post."],
-        "docs": [], "as_of": "2026-11-20",
-    },
-}
+PROVIDERS = ("youtube", "tiktok", "instagram", "test")
+TEST_LABEL = requirements_for("test")["label"]
 
 
 def _destinations(port: int) -> dict:
     out = {}
-    for i, prov in enumerate(("youtube", "tiktok", "instagram", "test"), start=1):
-        req = copy.deepcopy(REQUIREMENTS[prov])
-        req["redirect_uri"] = req["redirect_uri"].replace("{port}", str(port))
+    for i, prov in enumerate(PROVIDERS, start=1):
+        req = requirements_for(prov, port)
+        per_day = (req.get("quotas") or {}).get("per_day")
         out[i] = {"id": i, "provider": prov, "label": req["label"], "test": prov == "test", "account": None,
                   "status": "disconnected", "status_detail": "", "enabled": False, "rights_acknowledged": False,
                   "rights_ack_at": None, "credentials_set": [], "app_credentials_set": [], "settings": {},
-                  "requirements": req, "quota": {"used_today": 0, "limit": req["quotas"]["per_day"]}
-                  if req["quotas"].get("per_day") else None}
+                  "requirements": req, "quota": {"used_today": 0, "limit": per_day} if per_day else None}
     return out
 
 
@@ -298,79 +145,71 @@ def _dest_view(d: dict) -> dict:
 
 
 def _seed_channels() -> dict:
+    """monitor_service.channel_view shapes."""
     rows = [
-        (1, "twitch", "streamer_alpha", "recording", "", None, "official_api", True, True),
-        (2, "kick", "streamer_beta", "needs_action", "Kick sign-in expired. Reconnect Kick to keep watching.",
-         "#/sources", "stream_probe", True, True),
-        (3, "youtube", "streamer_gamma", "waiting", "", None, "official_api", True, True),
-        (4, "twitch", "streamer_delta", "disabled", "", None, "official_api", False, False),
+        (1, "twitch", "streamer_alpha", "recording", "", "", "", OFFICIAL["twitch"], True),
+        (2, "kick", "streamer_beta", "needs_action", "Kick public API livestreams failed: credentials rejected",
+         "Reconnect Kick on the Sources page", "#/sources/kick", STREAM_PROBE, True),
+        (3, "youtube", "@streamer_gamma", "waiting", "waiting for the stream to start", "", "", STREAM_PROBE, True),
+        (4, "twitch", "streamer_delta", "disabled", "not monitoring", "", "", OFFICIAL["twitch"], False),
     ]
     out = {}
-    for id_, p, login, st, detail, fix, src, enabled, armed in rows:
+    for id_, p, login, st, detail, fix, link, src, armed in rows:
         url = {"twitch": f"https://www.twitch.tv/{login}", "kick": f"https://kick.com/{login}",
-               "youtube": f"https://www.youtube.com/@{login}"}[p]
-        out[id_] = {"id": id_, "platform": p, "login": login, "url": url, "watch_mode": "always",
-                    "format_id": "gta-vi", "publish_platforms": ["test"], "enabled": enabled, "armed": armed,
-                    "state": st, "detail": detail, "fix_url": fix, "status_source": src,
-                    "updated_at": NOW - 30}
+               "youtube": f"https://www.youtube.com/{login}"}[p]
+        out[id_] = {"id": id_, "url": url, "platform": p, "login": login, "display_name": login,
+                    "watch_mode": "ungated", "poll_seconds": 120, "format_id": None, "publish_platforms": [],
+                    "enabled": armed, "state": st, "detail": detail, "fix": fix, "fix_link": link,
+                    "status_source": src, "gate_change_pending": False}
     return out
+
+
+SRT = "1\n00:00:00,000 --> 00:00:02,500\nNo way he made that jump\n"
 
 
 def _seed_clips() -> tuple[dict, dict]:
-    statuses = ["held", "queued", "posted", "failed", "rendering", "held"]
+    """edit_service clip views: the shared store row plus `media` and `rendering`."""
+    kinds = [("ready", "held"), ("ready", "qualified"), ("ready", "qualified"), ("failed", None), ("rendering", None),
+             ("ready", "held")]
     clips, deliveries = {}, {}
-    for i, st in enumerate(statuses, start=1):
-        ch = ["streamer_alpha", "streamer_beta", "streamer_gamma"][i % 3]
-        clips[i] = {"id": i, "channel_id": (i % 3) + 1, "channel": ch, "title": f"Chase ends in a harbour crash {i}",
-                    "created_at": NOW - i * 900, "duration_s": 28 + i, "status": st, "format_id": "gta-vi",
-                    "preset_id": "vertical-default", "language": "en", "captions": "No way he made that jump",
-                    "trim_in": 0.0, "trim_out": 28.0 + i, "destinations": ["test", "youtube"],
-                    "reason": "Chat rate jumped to 4 times its usual level."}
-        dstate = {"posted": "published", "failed": "failed", "queued": "queued", "held": "held"}.get(st)
-        for dest_id in ((4, 1) if st == "held" else (4,) if dstate else ()):
+    for i, (status, decision) in enumerate(kinds, start=1):
+        title = f"Chase ends in a harbour crash {i}"
+        sel = {"en": {"decision": decision, "reasons": ["gameplay not confirmed"] if decision == "held" else [],
+                      "format_id": "gta-vi", "matched_rules": [], "at": NOW}} if decision else {}
+        files = {"duration": 28.0 + i, "trim_in": 18.0, "source": "source.ts", "preview": "preview.mp4"}
+        if status == "ready":
+            files["final"] = {"en": "final_en.mp4"}
+        base = f"/api/clips/{i}/media"
+        clips[i] = {"id": i, "channel_id": (i % 3) + 1, "dedupe_key": f"k{i}", "created_at": NOW - i * 900,
+                    "updated_at": NOW - i * 800, "status": status, "kind": "chat_spike",
+                    "trigger": {"reason": "Chat rate jumped to 4 times its usual level.", "format_id": "gta-vi",
+                                "selection": sel},
+                    "title": "", "source_lang": "en",
+                    "captions": {"en": {"status": "ready", "title": title, "title_base": title, "srt": "captions/en.srt",
+                                        "final_status": "ready" if status == "ready" else "pending"}},
+                    "layout": {}, "timings": {}, "files": files, "error": "render failed: ffmpeg exited 1" if status == "failed" else "",
+                    "preset_id": "default", "overrides": {},
+                    "media": {"preview": f"{base}/preview", "thumbnail": f"{base}/thumbnail",
+                              "final": {"en": f"{base}/final?lang=en"} if status == "ready" else {}},
+                    "rendering": status == "rendering"}
+        dstate = {1: "held", 2: "published", 3: "queued", 6: "held"}.get(i)
+        if i == 4:
+            dstate = "failed"
+        for dest_id in ((4, 1) if dstate == "held" else (4,) if dstate else ()):
             n = len(deliveries) + 1
             deliveries[n] = {"id": n, "clip_id": i, "destination_id": dest_id, "language": "en", "status": dstate,
                              "mode": "manual", "attempts": 1 if dstate in ("published", "failed") else 0,
-                             "url": "https://example.com/clip" if dstate == "published" else None,
-                             "last_error": "Upload refused: quota used up for today." if st == "failed" else None,
-                             "created_at": NOW - i * 800, "updated_at": NOW - i * 700}
+                             "outcome": "public" if dstate == "published" else None,
+                             "url": "https://example.com/clip" if dstate == "published" else None, "post_id": None,
+                             "last_error": "Upload refused: quota used up for today." if dstate == "failed" else None,
+                             "next_attempt_at": None, "created_at": NOW - i * 800, "updated_at": NOW - i * 700,
+                             "history": []}
     return clips, deliveries
 
 
-PLATFORM_RE = [
-    ("twitch", re.compile(r"^https?://(?:www\.|m\.)?twitch\.tv/([A-Za-z0-9_]{3,25})/?$")),
-    ("kick", re.compile(r"^https?://(?:www\.)?kick\.com/([A-Za-z0-9_-]{2,40})/?$")),
-    ("youtube", re.compile(r"^https?://(?:www\.|m\.)?youtube\.com/(?:@|channel/|c/)([A-Za-z0-9_.-]+)/?$")),
-]
-
-
-def _flatten(d: dict, prefix: str = "") -> dict:
-    out = {}
-    for k, v in d.items():
-        p = f"{prefix}{k}"
-        if isinstance(v, dict):
-            out.update(_flatten(v, p + "."))
-        else:
-            out[p] = v
-    return out
-
-
-def _check_doc(doc: Any, kind: str) -> list[dict]:
-    errs = []
-    if not isinstance(doc, dict):
-        return [{"loc": ["body"], "msg": "Must be a JSON object."}]
-    for k in ("id", "name"):
-        if not isinstance(doc.get(k), str) or not doc.get(k):
-            errs.append({"loc": ["body", k], "msg": "Field required."})
-    if kind == "formats":
-        sens = doc.get("detector", {}).get("sensitivity")
-        if sens is not None and sens not in ("low", "medium", "high"):
-            errs.append({"loc": ["body", "detector", "sensitivity"], "msg": "Must be low, medium or high."})
-        for k in ("pre", "post"):
-            v = doc.get("window", {}).get(k)
-            if v is not None and (not isinstance(v, int | float) or v < 0):
-                errs.append({"loc": ["body", "window", k], "msg": "Must be a number of seconds, 0 or more."})
-    return errs
+SEED_RULE = {"id": "hold-long-kick", "name": "Hold long Kick clips", "enabled": True,
+             "conditions": {"platforms": ["kick"]}, "duration": {"min_s": 40},
+             "actions": {"decision": "hold", "window_post": 15}}
 
 
 # --- app --------------------------------------------------------------------------------------------------
@@ -392,20 +231,25 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
                 time.sleep(0.02)
         tmp.replace(state_file)
 
+    # formats, rules and presets: the real code over a fresh database for every start
+    sql = Database(state_file.parent / f"mock-{port}-{time.time_ns()}.sqlite3")
+    sql.migrate()
+    F.seed(sql)
+    presets = PresetStore(sql)
+    presets.seed()
+    if seed:
+        F.create_rule(sql, SEED_RULE)
+    select = SelectService()
+    select.ctx = SimpleNamespace(db=sql, bus=SimpleNamespace(publish=lambda *a: None))
+    select._sync_active = lambda: None  # the selection core's active format is process-global; leave it alone
+
     db: dict = {
         "channels": _seed_channels() if seed else {},
-        "formats": {"gta-vi": copy.deepcopy(BUILTIN_FORMAT)},
-        "presets": {"vertical-default": copy.deepcopy(BUILTIN_PRESET)},
-        "rules": [{"id": "r1", "name": "Hold long Kick clips", "enabled": True,
-                   "conditions": {"platform": "kick", "min_duration_s": 40},
-                   "actions": {"hold": True, "set": {"window.post": 15}}}] if seed else [],
         "destinations": _destinations(port),
-        "mode": "manual",
-        "sources": {
-            "twitch": {"connected": seed, "account": "streamer_alpha" if seed else None},
-            "kick": {"connected": False, "account": None},
-            "youtube": {"connected": False, "account": None},
-        },
+        "mode": "manual" if seed else None,
+        "sources": {"twitch": {"client_id": "app-id", "client_secret": "app-secret", "access_token": "tok"} if seed else {},
+                    "kick": {}, "youtube": {}},
+        "pending": {},
         "notifications": [{"id": 1, "ts": NOW - 60, "kind": "notify", "title": "Clip ready",
                            "body": "streamer_alpha: Chase ends in a harbour crash 1"}] if seed else [],
     }
@@ -414,12 +258,12 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         db["destinations"][1].update(status="connected", account="@example_clips", app_credentials_set=["client_id"],
                                      rights_acknowledged=True, rights_ack_at=NOW, enabled=True)
         db["destinations"][4].update(status="connected", account="test", enabled=True)
-    ids = {"channel": 100, "delivery": 100, "rule": 100}
+    ids = {"channel": 100, "delivery": 100}
 
     app = FastAPI()
 
     def nf(what: str):
-        raise HTTPException(404, f"No such {what}")
+        raise HTTPException(404, f"{what} not found")
 
     # core
     @app.get("/api/health")
@@ -428,10 +272,10 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
 
     @app.get("/api/status")
     def status():
-        armed = [c for c in db["channels"].values() if c["armed"]]
+        armed = [c for c in db["channels"].values() if c["enabled"]]
         return {"version": "0.1.0", "uptime": 12.5, "pid": 1, "services": {
-            "monitor": {"channels": len(db["channels"]), "armed": len(armed)},
-            "publish": {"mode": db["mode"], "queued": sum(d["status"] == "queued" for d in db["deliveries"].values())},
+            "monitor": {"state": "running", "channels": len(db["channels"]), "armed": len(armed), "recording": 1},
+            "publish": {"started": True, "mode": mode(), "eligible_destinations": ["youtube"], "deliveries": {}},
             "maintenance": {"state": "healthy", "paused": False}}}
 
     @app.get("/api/app-state/{key}")
@@ -447,17 +291,20 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     # setup (ops)
     @app.get("/api/setup/hardware")
     def hardware():
-        return {"cpu": {"model": "Example 8-core processor", "cores": 8}, "ram_bytes": 16 * 1024**3,
-                "disk": {"path": "/data", "free_bytes": 400 * 1024**3}, "gpu": {"kind": "none", "name": None},
-                "ffmpeg": {"found": True, "version": "7.0"}, "ffprobe": {"found": True, "version": "7.0"},
-                "streamlink": {"found": False}, "os": "Linux 6.8", "python": "3.13.0"}
+        return HARDWARE
 
     @app.get("/api/setup/questions")
     def questions():
         return {"questions": QUESTIONS}
 
+    def answers() -> dict:  # posting.mode is the publish mode, as in setup_service.STORED_AS
+        a = dict(store["answers"])
+        if db["mode"] is not None:
+            a["posting.mode"] = db["mode"]
+        return a
+
     def setup_state():
-        a = store["answers"]
+        a = answers()
         eff = {q["id"]: a.get(q["id"], q["default"]) for q in QUESTIONS}
         shown = dict(a)
         if shown.get("notify.webhook_url"):
@@ -470,26 +317,32 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     def get_setup_state():
         return setup_state()
 
+    def persist(clean: dict) -> None:
+        for k, v in clean.items():
+            if k == "posting.mode":
+                db["mode"] = v
+            store["answers"][k] = v
+        save()
+
     @app.put("/api/setup/answers")
     def put_answers(body: dict = Body(...)):
-        answers = body.get("answers", body)
+        given = body.get("answers", body)
         errors = {}
-        for k, v in answers.items():
+        for k, v in given.items():
             if k not in QIDX:
                 errors[k] = "Unknown question."
             elif err := _validate(QIDX[k], v):
                 errors[k] = err
         if errors:
             raise HTTPException(422, {"errors": errors})
-        store["answers"].update(answers)
-        save()
+        persist(given)
         return setup_state()
 
     @app.post("/api/setup/complete")
     def complete():
-        a = store["answers"]
+        a = answers()
         eff = {q["id"]: a.get(q["id"], q["default"]) for q in QUESTIONS}
-        missing = {}
+        missing, fill = {}, {}
         for q in QUESTIONS:
             if _visible(q, eff):
                 err = _validate(q, eff[q["id"]])
@@ -497,8 +350,11 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
                     err = "Needs an answer."
                 if err:
                     missing[q["id"]] = err
+                elif q["id"] not in a:
+                    fill[q["id"]] = eff[q["id"]]
         if missing:
             raise HTTPException(422, {"errors": missing})
+        persist(fill)
         store["app_state"]["setup.completed"] = True
         store["app_state"]["setup.completed_at"] = time.time()
         save()
@@ -545,284 +401,259 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             nf("guide page")
         return PlainTextResponse(GUIDE[slug][1], media_type="text/markdown")
 
-    # monitor
+    # monitor (monitor_service routes; armed == enabled)
+    def view(c: dict) -> dict:
+        if not c["enabled"]:
+            c.update(state="disabled", detail="not monitoring", fix="", fix_link="")
+        elif c["state"] == "disabled":
+            c.update(state="waiting", detail="waiting for the stream to start")
+        connected = bool(db["sources"].get(c["platform"]))
+        c["status_source"] = ("creator-provided feed" if c["platform"] == "custom"
+                              else OFFICIAL[c["platform"]] if connected else STREAM_PROBE)
+        return c
+
+    def channel(cid: int) -> dict:
+        return db["channels"].get(cid) or nf("channel")
+
     @app.get("/api/channels")
     def channels():
-        return {"channels": list(db["channels"].values())}
+        return [view(c) for c in db["channels"].values()]
 
-    def channel_from(body: dict, existing: dict | None = None) -> dict:
-        url = str(body.get("url", existing["url"] if existing else "")).strip()
-        for p, rx in PLATFORM_RE:  # noqa: B007 (p is used after the loop)
-            if m := rx.match(url):
-                break
-        else:
-            raise HTTPException(422, {"errors": {"url": "Paste a Twitch, Kick or YouTube channel link."}})
-        if body.get("watch_mode", "always") not in ("always", "topic"):
-            raise HTTPException(422, {"errors": {"watch_mode": "Pick always or topic."}})
-        c = dict(existing or {"armed": False, "state": "offline", "detail": "", "fix_url": None,
-                              "status_source": "official_api", "updated_at": time.time()})
-        enabled = bool(body.get("enabled", c.get("enabled", True)))
-        c.update(platform=p, login=m.group(1), url=url, watch_mode=body.get("watch_mode", c.get("watch_mode", "always")),
-                 format_id=body.get("format_id", c.get("format_id")),
-                 publish_platforms=body.get("publish_platforms", c.get("publish_platforms", [])), enabled=enabled)
-        if not enabled:
-            c.update(state="disabled", armed=False)
-        elif c["state"] == "disabled":
-            c["state"] = "offline"
-        return c
+    def gate(body: dict, cur: dict) -> None:
+        if "watch_mode" in body and body["watch_mode"] is not None:
+            if body["watch_mode"] not in ("ungated", "topic_gated"):
+                raise HTTPException(422, "watch_mode must be one of ungated, topic_gated")
+            cur["watch_mode"] = body["watch_mode"]
+        if body.get("poll_seconds") is not None:
+            cur["poll_seconds"] = max(60, min(900, int(body["poll_seconds"])))
 
-    @app.post("/api/channels")
+    @app.post("/api/channels", status_code=201)
     def add_channel(body: dict = Body(...)):
+        try:
+            platform, login, _src = parse_channel_url(str(body.get("url", "")))
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        if any(c["platform"] == platform and c["login"] == login for c in db["channels"].values()):
+            raise HTTPException(409, f"{platform}/{login} is already added")
         ids["channel"] += 1
-        c = channel_from(body)
-        c["id"] = ids["channel"]
-        if c["enabled"]:
-            c.update(armed=True, state="waiting")
+        c = {"id": ids["channel"], "url": body["url"].strip(), "platform": platform, "login": login,
+             "display_name": (body.get("display_name") or "").strip() or login, "watch_mode": "ungated", "poll_seconds": 120,
+             "format_id": body.get("format_id"), "publish_platforms": body.get("publish_platforms") or [],
+             "enabled": bool(body.get("enabled", True)), "state": "waiting", "detail": "", "fix": "", "fix_link": "",
+             "status_source": STREAM_PROBE, "gate_change_pending": False}
+        gate(body, c)
         db["channels"][c["id"]] = c
-        return c
+        return view(c)
 
     @app.get("/api/channels/{cid}")
     def get_channel(cid: int):
-        return db["channels"].get(cid) or nf("channel")
+        return view(channel(cid))
 
     @app.put("/api/channels/{cid}")
     def put_channel(cid: int, body: dict = Body(...)):
-        if cid not in db["channels"]:
-            nf("channel")
-        db["channels"][cid] = channel_from(body, db["channels"][cid])
-        return db["channels"][cid]
+        c = channel(cid)
+        gate(body, c)
+        for k in ("format_id", "publish_platforms"):
+            if k in body:
+                c[k] = body[k]
+        if body.get("display_name") is not None:
+            c["display_name"] = body["display_name"].strip() or c["login"]
+        if body.get("enabled") is not None:
+            c["enabled"] = bool(body["enabled"])
+        return view(c)
 
-    @app.delete("/api/channels/{cid}")
+    @app.delete("/api/channels/{cid}", status_code=204)
     def del_channel(cid: int):
-        db["channels"].pop(cid, None) or nf("channel")
-        return {"ok": True}
+        channel(cid)
+        db["channels"].pop(cid)
+        return Response(status_code=204)
 
     @app.post("/api/channels/{cid}/arm")
     def arm(cid: int):
-        c = db["channels"].get(cid) or nf("channel")
-        c.update(armed=True, state="waiting")
-        return c
+        c = channel(cid)
+        c["enabled"] = True
+        return view(c)
 
     @app.post("/api/channels/{cid}/disarm")
     def disarm(cid: int):
-        c = db["channels"].get(cid) or nf("channel")
-        c.update(armed=False, state="offline")
-        return c
+        c = channel(cid)
+        c["enabled"] = False
+        return view(c)
 
     @app.get("/api/channels/{cid}/events")
     def channel_events(cid: int):
-        return {"events": [{"ts": NOW - 120, "message": "Stream went live"}]}
+        return [{"id": 1, "ts": NOW - 120, "level": "info", "clip_id": None, "message": "state new -> waiting"}]
 
-    SOURCE_META = {
-        "twitch": ("Twitch", "device", [], "Uses the official Twitch API. Sign in with a code shown here."),
-        "kick": ("Kick", "oauth", [{"name": "client_id", "label": "Client ID", "secret": False,
-                                    "help": "From your Kick developer app."},
-                                   {"name": "client_secret", "label": "Client secret", "secret": True,
-                                    "help": "Stored encrypted on this computer."}], "Uses the official Kick API."),
-        "youtube": ("YouTube", "credentials", [{"name": "api_key", "label": "API key", "secret": True,
-                                                "help": "A YouTube Data API v3 key from Google Cloud."}],
-                    "Checks live status with the YouTube Data API. Chat needs a Google sign-in."),
-    }
+    def source(p: str) -> dict:
+        d = describe(p, db["sources"][p], SimpleNamespace(kick_webhook_url=""), None, db["pending"].get(p))
+        if p in source_oauth.PROVIDERS:
+            d["redirect_uri"] = source_oauth.redirect_uri(p, port)
+        return d
 
     @app.get("/api/sources")
     def sources():
-        out = []
-        for p, (name, kind, fields, note) in SOURCE_META.items():
-            s = db["sources"][p]
-            on = s["connected"]
-            out.append({"platform": p, "name": name, "connected": on, "account": s["account"], "note": note,
-                        "connect": {"kind": kind, "fields": fields},
-                        "enables": [
-                            {"key": "live_status", "label": "Live status", "available": True,
-                             "detail": "Official API" if on else "Stream check only, slower and less reliable"},
-                            {"key": "chat", "label": "Chat", "available": on,
-                             "detail": "Reads chat to find moments" if on else "Needs a connection"},
-                            {"key": "capture", "label": "Capture", "available": True,
-                             "detail": "Records the public stream; no connection needed"}]})
-        return {"sources": out}
+        return [source(p) for p in PLATFORMS]
 
     @app.post("/api/sources/{p}/connect")
     def connect_source(p: str, body: dict = Body(default={})):
-        if p not in db["sources"]:
-            nf("source")
-        kind = SOURCE_META[p][1]
-        if kind == "device":
-            db["sources"][p].update(connected=True, account="streamer_alpha")
-            return {"status": "pending", "device": {"user_code": "WDJB-MJHT", "verification_uri": "https://example.com/activate",
-                                                    "expires_in": 600}}
-        if kind == "oauth":
-            db["sources"][p].update(connected=True, account="streamer_beta")
-            return {"status": "pending", "authorize_url": "https://example.com/oauth/authorize"}
-        if not body.get("fields", {}).get("api_key"):
-            raise HTTPException(422, {"errors": {"api_key": "Enter the API key."}})
-        db["sources"][p].update(connected=True, account="API key")
-        return {"status": "connected"}
+        if p not in PLATFORMS:
+            nf("platform")
+        m = body.get("method", "credentials")
+        if m == "device" and p == "twitch":
+            if not body.get("client_id"):
+                raise HTTPException(422, "client_id is required")
+            db["pending"][p] = {"kind": "device", "user_code": "WDJB-MJHT", "verification_uri": "https://example.com/activate",
+                                "expires_at": time.time() + 1800, "state": "waiting"}
+            return db["pending"][p]
+        if m == "oauth" and p in source_oauth.PROVIDERS:
+            if not body.get("client_id"):
+                raise HTTPException(422, "client_id is required")
+            return {"kind": "oauth", "authorize_url": f"https://example.com/oauth/{p}/authorize",
+                    "redirect_uri": source_oauth.redirect_uri(p, port)}
+        if m != "credentials":
+            raise HTTPException(422, f"method {m!r} is not available for {p}")
+        if p == "youtube":
+            if not body.get("api_key"):
+                raise HTTPException(422, "api_key is required")
+            db["sources"][p] = {"api_key": body["api_key"]}
+        else:
+            if not (body.get("client_id") and body.get("client_secret")):
+                raise HTTPException(422, "client_id and client_secret are required")
+            db["sources"][p] = {"client_id": body["client_id"], "client_secret": body["client_secret"],
+                                "access_token": "app-token"}
+        return source(p)
 
-    @app.delete("/api/sources/{p}")
+    @app.delete("/api/sources/{p}", status_code=204)
     def disconnect_source(p: str):
-        db["sources"].get(p) or nf("source")
-        db["sources"][p].update(connected=False, account=None)
-        return {"ok": True}
+        if p not in PLATFORMS:
+            nf("platform")
+        db["sources"][p] = {}
+        db["pending"].pop(p, None)
+        return Response(status_code=204)
 
-    # edit
+    # edit (edit_service routes)
+    def clip(cid: int) -> dict:
+        return db["clips"].get(cid) or nf("clip")
+
     @app.get("/api/clips")
-    def clips(status: str | None = None, channel_id: int | None = None, q: str | None = None):
-        rows = sorted(db["clips"].values(), key=lambda c: -c["created_at"])
-        if status:
-            rows = [c for c in rows if c["status"] == status]
+    def clips(channel_id: int | None = None, limit: int = 50, offset: int = 0):
+        rows = sorted(db["clips"].values(), key=lambda c: -c["id"])
         if channel_id:
             rows = [c for c in rows if c["channel_id"] == channel_id]
-        if q:
-            rows = [c for c in rows if q.lower() in c["title"].lower()]
-        return {"clips": rows}
+        return rows[offset:offset + limit]
 
     @app.get("/api/clips/{cid}")
-    def clip(cid: int):
-        return db["clips"].get(cid) or nf("clip")
+    def get_clip(cid: int):
+        c = clip(cid)
+        return {**c, "srt": {lg: SRT for lg, x in c["captions"].items() if x.get("srt")}, "values": {}}
 
     @app.get("/api/clips/{cid}/media/{kind}")
     def clip_media(cid: int, kind: str):
         return Response(status_code=404)
 
     @app.post("/api/clips/{cid}/render")
-    def render(cid: int, body: dict = Body(...)):
-        c = db["clips"].get(cid) or nf("clip")
-        o = body.get("overrides", body)
-        if "trim_in" in o and "trim_out" in o and o["trim_out"] <= o["trim_in"]:
-            raise HTTPException(422, {"errors": {"trim_out": "End must be after start."}})
-        c.update({k: v for k, v in o.items() if k in ("trim_in", "trim_out", "title", "captions", "preset_id")})
-        c["status"] = "rendering"
-        return c
+    def render(cid: int, body: dict = Body(default={})):
+        c = clip(cid)
+        if body.get("trim") is not None:
+            a, b = body["trim"]
+            if b - a < 2:
+                raise HTTPException(400, "trimmed clip would be shorter than 2 s")
+        if body.get("preset_id") is not None and presets.get(body["preset_id"]) is None:
+            raise HTTPException(400, f"unknown preset {body['preset_id']!r}")
+        if c["status"] not in ("ready", "preview_ready"):
+            raise HTTPException(409, f"clip is {c['status']}; edit it when it is ready")
+        for lg, t in (body.get("title") or {}).items():
+            c["captions"][lg]["title"] = t
+        if body.get("preset_id"):
+            c["preset_id"] = body["preset_id"]
+        c.update(status="rendering", rendering=True)
+        return {"ok": True, "status": "rendering"}
 
-    def doc_routes(kind: str, builtin: dict, schema: dict):
-        coll = db[kind]
+    @app.post("/api/clips/{cid}/review")
+    def review(cid: int, body: dict = Body(...)):
+        c = clip(cid)
+        if not isinstance(body.get("approved"), bool):
+            raise HTTPException(400, "approved must be true or false")
+        for s in c["trigger"]["selection"].values():
+            s["decision"] = "qualified" if body["approved"] else "rejected"
+        return {"evidence": {"state": "approved" if body["approved"] else "rejected"},
+                "published": list(c["files"].get("final", {})) if body["approved"] else [],
+                "selection": c["trigger"]["selection"]}
 
-        @app.get(f"/api/{kind}")
-        def list_docs():
-            return {kind: [{"id": d["id"], "name": d["name"], "description": d.get("description", ""),
-                            "builtin": d["id"] == builtin["id"]} for d in coll.values()]}
+    @app.post("/api/clips/{cid}/publish")
+    def publish(cid: int, body: dict = Body(default={})):
+        finals = list(clip(cid)["files"].get("final", {}))
+        if not finals:
+            raise HTTPException(409, "no ready final to publish")
+        return {"published": finals}
 
-        @app.get(f"/api/{kind}/schema")
-        def get_schema():
-            return schema
+    # presets (edit_service routes over the real PresetStore)
+    def bad(e: ValidationError):
+        return HTTPException(400, {"code": "invalid", "errors": json.loads(e.json(include_url=False))})
 
-        @app.get(f"/api/{kind}/{{did}}")
-        def get_doc(did: str):
-            return coll.get(did) or nf(kind[:-1])
+    @app.get("/api/presets")
+    def list_presets():
+        return presets.list()
 
-        @app.post(f"/api/{kind}")
-        def create_doc(body: Any = Body(...)):
-            if errs := _check_doc(body, kind):
-                raise HTTPException(422, errs)
-            base, n = body["id"], 2
-            while body["id"] in coll:
-                body["id"] = f"{base}-{n}"
-                n += 1
-            coll[body["id"]] = body
-            return body
+    @app.get("/api/presets/{pid}")
+    def get_preset(pid: str):
+        return presets.get(pid) or nf("preset")
 
-        @app.put(f"/api/{kind}/{{did}}")
-        def put_doc(did: str, body: Any = Body(...)):
-            if did not in coll:
-                nf(kind[:-1])
-            if errs := _check_doc(body, kind):
-                raise HTTPException(422, errs)
-            body["id"] = did
-            coll[did] = body
-            return body
+    @app.get("/api/presets/{pid}/export")
+    def export_preset(pid: str):
+        return presets.get(pid) or nf("preset")
 
-        @app.delete(f"/api/{kind}/{{did}}")
-        def del_doc(did: str):
-            if did == builtin["id"]:
-                raise HTTPException(400, "The built-in one cannot be deleted. Use Reset instead.")
-            coll.pop(did, None) or nf(kind[:-1])
-            return {"ok": True}
+    @app.post("/api/presets", status_code=201)
+    def create_preset(body: dict = Body(...)):
+        try:
+            return presets.create(body)
+        except ValidationError as e:
+            raise bad(e) from None
+        except KeyError:
+            raise HTTPException(409, "a preset with this id exists") from None
 
-        @app.post(f"/api/{kind}/{{did}}/duplicate")
-        def dup_doc(did: str):
-            d = copy.deepcopy(coll.get(did) or nf(kind[:-1]))
-            d["name"] = f"{d['name']} copy"
-            return create_doc(d)
+    @app.post("/api/presets/import", status_code=201)
+    def import_preset(body: Any = Body(...), replace: bool = False):
+        try:
+            return [presets.import_(x, replace=replace) for x in (body if isinstance(body, list) else [body])]
+        except ValidationError as e:
+            raise bad(e) from None
 
-        @app.post(f"/api/{kind}/{{did}}/reset")
-        def reset_doc(did: str):
-            if did != builtin["id"]:
-                raise HTTPException(400, "Only the built-in one can be reset.")
-            coll[did] = copy.deepcopy(builtin)
-            return coll[did]
+    @app.put("/api/presets/{pid}")
+    def put_preset(pid: str, body: dict = Body(...)):
+        try:
+            return presets.update(pid, body)
+        except ValidationError as e:
+            raise bad(e) from None
+        except LookupError:
+            nf("preset")
 
-    @app.post("/api/formats/preview-effective")
-    def preview(body: dict = Body(...)):
-        layers: dict[str, tuple[Any, str, str]] = {}
-        for k, v in _flatten(BUILTIN_FORMAT).items():
-            layers[k] = (v, "builtin", "Built-in GTA VI format")
-        fmt = db["formats"].get(body.get("format_id") or "gta-vi")
-        if fmt and fmt["id"] != "gta-vi":
-            for k, v in _flatten(fmt).items():
-                if layers.get(k, (None,))[0] != v:
-                    layers[k] = (v, "format", f"Your format: {fmt['name']}")
-        ctx = body.get("context", {})
-        for r in db["rules"]:
-            cond = r.get("conditions", {})
-            if not r.get("enabled", True):
-                continue
-            if cond.get("platform") and cond["platform"] != ctx.get("platform"):
-                continue
-            if cond.get("min_duration_s") and (body.get("duration_s") or 0) < cond["min_duration_s"]:
-                continue
-            for k, v in r.get("actions", {}).get("set", {}).items():
-                layers[k] = (v, "rule", f"Rule: {r['name']}")
-        clip = db["clips"].get(body.get("clip_id")) if body.get("clip_id") else None
-        if clip:
-            for k in ("title", "trim_in", "trim_out"):
-                layers[f"clip.{k}"] = (clip[k], "override", f"Clip {clip['id']} override")
-        return {"settings": [{"path": k, "value": v, "layer": layer, "source": src}
-                             for k, (v, layer, src) in sorted(layers.items())]}
-
-    @app.get("/api/rules")
-    def rules():
-        return {"rules": db["rules"]}
-
-    @app.put("/api/rules")
-    def put_rules(body: Any = Body(...)):
-        rows = body.get("rules", body) if isinstance(body, dict) else body
-        if not isinstance(rows, list) or any(not isinstance(r, dict) or not r.get("name") for r in rows):
-            raise HTTPException(422, [{"loc": ["body", "rules"], "msg": "Each rule needs a name."}])
-        for r in rows:
-            if not r.get("id"):
-                ids["rule"] += 1
-                r["id"] = f"r{ids['rule']}"
-        db["rules"] = rows
-        return {"rules": rows}
-
-    @app.post("/api/rules")
-    def add_rule(body: dict = Body(...)):
-        if not body.get("name"):
-            raise HTTPException(422, [{"loc": ["body", "name"], "msg": "Field required."}])
-        ids["rule"] += 1
-        body["id"] = f"r{ids['rule']}"
-        db["rules"].append(body)
-        return body
-
-    @app.put("/api/rules/{rid}")
-    def put_rule(rid: str, body: dict = Body(...)):
-        for i, r in enumerate(db["rules"]):
-            if r["id"] == rid:
-                body["id"] = rid
-                db["rules"][i] = body
-                return body
-        nf("rule")
-
-    @app.delete("/api/rules/{rid}")
-    def del_rule(rid: str):
-        db["rules"] = [r for r in db["rules"] if r["id"] != rid]
+    @app.delete("/api/presets/{pid}")
+    def del_preset(pid: str):
+        if pid in SHIPPED:
+            raise HTTPException(400, "built-in presets cannot be deleted")
+        presets.delete(pid)
         return {"ok": True}
 
-    doc_routes("formats", BUILTIN_FORMAT, FORMAT_SCHEMA)
-    doc_routes("presets", BUILTIN_PRESET, PRESET_SCHEMA)
+    @app.post("/api/presets/{pid}/duplicate", status_code=201)
+    def dup_preset(pid: str):
+        return presets.duplicate(pid)
+
+    @app.post("/api/presets/{pid}/reset")
+    def reset_preset(pid: str):
+        try:
+            return presets.reset(pid)
+        except PermissionError as e:
+            raise HTTPException(400, str(e)) from None
+
+    # formats and rules: the real select router
+    app.include_router(select.router)
 
     # publish (same shapes as live_clipper/publish/service.py)
     dests = db["destinations"]
+
+    def mode() -> str:
+        return db["mode"] or "auto"  # the worker's default
 
     def dest(did: int) -> dict:
         return dests.get(did) or nf("destination")
@@ -851,7 +682,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             return {"action": "verified", "ok": True, "account": "test"}
         if not d["app_credentials_set"]:
             raise HTTPException(400, "enter this app's client ID (and secret) first, or use the token form")
-        d.update(status="connected", account="@example_clips")  # the mock skips the browser round trip
+        d.update(status="connected", account="@example_clips")  # the fake skips the browser round trip
         return {"action": "authorize", "authorize_url": f"https://example.com/oauth/{d['provider']}/authorize"}
 
     @app.post("/api/destinations/{did}/disconnect")
@@ -890,7 +721,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
 
     @app.get("/api/publish/mode")
     def get_mode():
-        return {"mode": db["mode"], "modes": ["auto", "manual"],
+        return {"mode": mode(), "modes": ["auto", "manual"],
                 "detail": "auto posts finished clips to every connected, enabled destination; manual holds them "
                           "until you click Post"}
 
@@ -903,12 +734,12 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
 
     @app.get("/api/publish/test-mode")
     def get_test_mode():
-        return {"enabled": dests[4]["enabled"], "label": REQUIREMENTS["test"]["label"]}
+        return {"enabled": dests[4]["enabled"], "label": TEST_LABEL}
 
     @app.put("/api/publish/test-mode")
     def put_test_mode(body: dict = Body(...)):
         dests[4].update(enabled=bool(body.get("enabled")), status="connected", account="test")
-        return {"enabled": dests[4]["enabled"], "label": REQUIREMENTS["test"]["label"]}
+        return {"enabled": dests[4]["enabled"], "label": TEST_LABEL}
 
     def delivery_view(d: dict) -> dict:
         t = dests[d["destination_id"]]
@@ -930,7 +761,6 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             raise HTTPException(403, f"{t['label']} is not connected and enabled")
         d.update(status="published", url="https://example.com/posted", attempts=d.get("attempts", 0) + 1,
                  updated_at=time.time())
-        db["clips"][d["clip_id"]]["status"] = "posted"
         return delivery_view(d)
 
     @app.post("/api/publish/deliveries/{did}/post")
@@ -946,14 +776,21 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         d.update(status="queued", last_error=None)
         return delivery_view(d)
 
+    @app.post("/api/publish/deliveries/{did}/cancel")
+    def cancel(did: int):
+        d = db["deliveries"].get(did) or nf("delivery")
+        d.update(status="cancelled")
+        return delivery_view(d)
+
     @app.post("/api/publish/post")
     def post_clip(body: dict = Body(...)):
-        c = db["clips"].get(int(body.get("clip_id", 0))) or nf("clip")
+        c = clip(int(body.get("clip_id", 0)))
         dest(int(body.get("destination_id", 0)))
         ids["delivery"] += 1
         d = {"id": ids["delivery"], "clip_id": c["id"], "destination_id": int(body["destination_id"]),
              "language": body.get("language", "en"), "status": "queued", "mode": "manual", "attempts": 0,
-             "url": None, "last_error": None, "created_at": time.time(), "updated_at": time.time()}
+             "outcome": None, "url": None, "post_id": None, "last_error": None, "next_attempt_at": None,
+             "created_at": time.time(), "updated_at": time.time(), "history": []}
         db["deliveries"][d["id"]] = d
         return _post(d)
 

@@ -150,9 +150,14 @@ but not used yet (caption styles live in the editing preset).
 - ops (wizard, `GET /api/setup/questions` is authoritative): `setup.usage`, `setup.permission_confirmed`,
   `platforms.enabled`, `storage.dir`, `storage.cap_gb`, `storage.retention_days`, `storage.clean_first`,
   `storage.cleanup_rules`, `processing.asr_device|asr_model|asr_compute_type`,
-  `processing.max_concurrent_recordings`, `processing.render_threads`, `posting.destinations`, `posting.mode`,
-  `notify.method`, `notify.webhook_format`, `service.start_at_login`; `setup.completed` is in `ctx.app_state`;
-  the webhook URL is in the vault under `notifications`.
+  `processing.max_concurrent_recordings`, `posting.destinations`, `posting.mode`, `notify.method`,
+  `notify.webhook_format`, `service.start_at_login`; `setup.completed` is in `ctx.app_state`; the webhook URL is
+  in the vault under `notifications`. Answers are stored under their question id, except where the consumer
+  already has a key (`setup_service.STORED_AS`): `processing.asr_device|asr_model|asr_compute_type` are edit's
+  `asr.device|model|compute_type` and `posting.mode` is publish's `publish.mode` (default `auto`: nothing posts
+  until a destination is connected, acknowledged and enabled). Consumers: `platforms.enabled` and
+  `posting.destinations` order the Sources and Destinations pages; `notify.method` also gates browser
+  notifications in the UI; `setup.usage` decides whether `setup.permission_confirmed` is asked.
 - monitor: `monitor.<config.Settings field>`, `ffmpeg_path` (binary or folder); vault `source.<platform>`; the
   optional Kick chat webhook listener binds `127.0.0.1:<monitor.kick_webhook_port>` (default 8788) only when
   `monitor.kick_webhook_url` is set.
@@ -171,45 +176,10 @@ but not used yet (caption styles live in the editing preset).
 |---|---|
 | core | `GET /health`, `GET /status`, `GET/PUT /app-state/{key}` (`setup.completed`, `tour.state` = `completed`/`skipped`/`null`, `tour.version`) |
 | ops | `GET /setup/hardware`, `GET /setup/questions`, `PUT /setup/answers`, `GET /setup/state`, `POST /setup/complete`, `GET /storage`, `POST /storage/cleanup {dry_run}` (default true), `GET /notifications?since=`, `GET /diagnostics`, `GET /guide` + `GET /guide/{slug}` |
-| monitor | `GET/POST /channels` (body `{url, watch_mode, poll_seconds?, format_id?, publish_platforms?, enabled, display_name?}`), `GET/PUT/DELETE /channels/{id}`, `POST /channels/{id}/arm`, `POST /channels/{id}/disarm`, `GET /channels/{id}/events`; `GET /sources`, `POST /sources/{platform}/connect`, `GET /oauth/source/{platform}/callback`, `DELETE /sources/{platform}` |
+| monitor | `GET/POST /channels` (body `{url, watch_mode: ungated|topic_gated, poll_seconds?, format_id?, publish_platforms?, enabled, display_name?}`), `GET/PUT/DELETE /channels/{id}`, `POST /channels/{id}/arm`, `POST /channels/{id}/disarm`, `GET /channels/{id}/events`; `GET /sources`, `POST /sources/{platform}/connect`, `GET /oauth/source/{platform}/callback`, `DELETE /sources/{platform}` |
 | select | `GET/POST /formats`, `GET/PUT/DELETE /formats/{id}`, `GET /formats/{id}/export`, `POST /formats/import[?overwrite=true]`, `POST /formats/{id}/reset\|duplicate\|activate`, `POST /formats/preview-effective` (`{channel, context, clip, format_id?}`), `GET/POST /rules`, `GET/PUT/DELETE /rules/{id}`, `POST /rules/reorder` (`{ids}`); errors 422 `{"detail": {"message", "errors": [{"loc", "msg"}]}}`, 404, 409 |
 | edit | `/presets*`, `GET /clips`, `GET /clips/{id}`, `GET /clips/{id}/media/{preview\|final\|thumbnail}`, `POST /clips/{id}/render` (`trim, layout, srt, title, preset_id, overrides, override, lang`), `POST /clips/{id}/review` (`{approved, note?}`), `POST /clips/{id}/publish` (`{lang?}`) |
 | publish | `/destinations*`, `/oauth/{dest}/start\|callback`, `/destinations/instagram/token`, `GET/PUT /publish/mode`, `GET/PUT /publish/test-mode`, `GET /publish/channel-platforms`, `PUT /publish/channel-platforms/{channel_id}`, `GET /publish/deliveries`, `GET /publish/deliveries/{id}`, `POST /publish/deliveries/{id}/post\|cancel\|retry\|confirm-posted\|confirm-not-posted\|recheck`, `POST /publish/post` |
 
 Channel status values shown in the UI: `offline`, `waiting`, `recording`, `reconnecting`, `needs_action`
 (plus `disabled`). `needs_action` always carries a human-readable `detail` and a fix link.
-
-## Proposed changes
-
-### ui
-
-The UI (`live_clipper/web/`) reads these shapes; `tests/ui/mock_api.py` implements them. Setup, guide,
-storage, diagnostics, notifications and publish match what ops and publish shipped. For monitor, select and
-edit the UI expects the following (lists may also be bare arrays):
-
-- `GET /api/channels` -> `{"channels": [{id, platform, login, url, watch_mode: "always"|"topic", format_id,
-  publish_platforms: [provider...], enabled, armed, state, detail, fix_url, status_source:
-  "official_api"|"stream_probe"}]}`. `fix_url` is an app hash route such as `#/sources`. POST/PUT return the
-  channel; 422 `{"detail": {"errors": {"url": "..."}}}` is shown next to the field.
-- `GET /api/sources` -> `{"sources": [{platform, name, connected, account, note, connect: {kind:
-  "device"|"oauth"|"credentials", fields: [{name, label, secret, help}]}, enables: [{key: "live_status"|"chat"|
-  "capture", label, available, detail}]}]}`. `POST /api/sources/{p}/connect {fields}` returns
-  `{device: {user_code, verification_uri}}`, `{authorize_url}` or `{status: "connected"}`.
-- `GET /api/clips?status=&channel_id=&q=` -> `{"clips": [{id, channel_id, channel, title, created_at,
-  duration_s, status: "rendering"|"held"|"queued"|"posted"|"failed", preset_id, language, captions, trim_in,
-  trim_out, reason}]}`; `GET /api/clips/{id}/media/final` is the preview video; `POST /api/clips/{id}/render
-  {"overrides": {trim_in, trim_out, title, captions, preset_id}}`.
-- `/api/formats` and `/api/presets`: `GET` -> `{"formats"|"presets": [{id, name, description, builtin}]}`,
-  `GET/PUT/DELETE /{id}`, `POST` (create or import a whole document), `POST /{id}/duplicate`,
-  `POST /{id}/reset` (built-in only), optional `GET /schema` (JSON Schema; `description` becomes field help).
-  Validation errors as pydantic 422 `[{loc, msg}]` are shown at the field whose path matches `loc`.
-- `GET /api/rules` -> `{"rules": [{id, name, enabled, conditions: {platform, category, title_contains,
-  language, trigger, evidence, min_duration_s, max_duration_s, channels: [channel_id], channels_match:
-  "any"|"all"}, actions: {format_id, preset_id, hold, destinations: [provider], set: {"dot.path": value}}}]}`.
-  The UI saves order, edits, imports and deletes with `PUT /api/rules {"rules": [...]}` (whole list, in order).
-- `POST /api/formats/preview-effective {channel_id, format_id, clip_id, context: {platform, category, title},
-  scenario: {trigger}, duration_s}` -> `{"settings": [{path, value, layer: "builtin"|"format"|"preset"|"rule"|
-  "override", source}]}`.
-
-
-

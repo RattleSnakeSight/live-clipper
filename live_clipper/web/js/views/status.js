@@ -1,6 +1,7 @@
 // Status: health of each part of the app, restarts, disk and recent log lines (already redacted by the server).
 
 import { get } from '../api.js';
+import { svcError } from '../labels.js';
 import { clear, fmtBytes, fmtDuration, fmtTime, h, poll, titleRow } from '../ui.js';
 
 export async function render(main) {
@@ -11,7 +12,7 @@ export async function render(main) {
   async function load() {
     const d = await get('/diagnostics');
     const services = Object.entries(d.services || {});
-    const bad = services.filter(([, v]) => v && v.error);
+    const bad = services.filter(([, v]) => svcError(v));
     const tool = (t) => (t && t.found ? `Found${t.version ? ` (${t.version})` : ''}` : 'Not found');
     clear(box,
       h('section', { class: 'panel', 'aria-labelledby': 'st-health' },
@@ -26,8 +27,8 @@ export async function render(main) {
         services.length ? h('div', { class: 'table-wrap' }, h('table', {},
           h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Part'), h('th', { scope: 'col' }, 'State'), h('th', { scope: 'col' }, 'Details'))),
           h('tbody', {}, services.map(([name, v]) => h('tr', {}, h('td', {}, name),
-            h('td', {}, h('span', { class: `pill ${v && v.error ? 'neg' : 'pos'}` }, v && v.error ? 'Failed' : 'Running')),
-            h('td', { class: 'small' }, v && v.error ? v.error : summarize(v)))))))
+            h('td', {}, h('span', { class: `pill ${svcError(v) ? 'neg' : 'pos'}` }, svcError(v) ? 'Failed' : 'Running')),
+            h('td', { class: 'small' }, svcError(v) || summarize(v)))))))
           : h('p', { class: 'muted' }, 'No parts reported yet.')),
       h('section', { class: 'panel', 'aria-labelledby': 'st-rs' }, h('h2', { id: 'st-rs' }, 'Restarts'),
         h('p', {}, d.restarts && d.restarts.count ? `The app restarted itself ${d.restarts.count} time${d.restarts.count > 1 ? 's' : ''} after a problem.` : 'No restarts.'),

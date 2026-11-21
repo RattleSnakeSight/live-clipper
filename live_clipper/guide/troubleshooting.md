@@ -64,7 +64,7 @@ Look at the message on the channel card or the delivery line first. It names the
 | YouTube "Sign in to confirm you're not a bot" when recording | YouTube refuses playback to this computer's network. | Use a feed address from the creator, or run the app from a network YouTube accepts. |
 | Channel stays "waiting" with YouTube | The app searches YouTube rarely to save quota, so it can notice a stream late. | Wait up to 15 minutes, or use a feed address. |
 | Kick chat unavailable | Kick sends chat only to a public https address. | Set one, or leave chat off. |
-| Delivery says needs_confirmation | The app cannot tell whether an upload landed. | Check the account, then press "confirm posted" or "confirm not posted". |
+| Delivery says needs_confirmation | The app cannot tell whether an upload landed. | Check the account, then press "Confirm posted" or "Confirm not posted" on the clip's page. |
 
 ## Webhook notifications do not arrive
 

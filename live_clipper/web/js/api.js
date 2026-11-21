@@ -6,26 +6,33 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
   }
-  // Field errors from either {"detail": {"errors": {id: msg}}} or pydantic [{loc, msg}].
+  // Field errors by dotted path from {"detail": {"errors": {id: msg}}} (setup), {"detail": {"errors": [{loc,
+  // msg}]}} (formats: loc "a.b"; presets: pydantic loc ["a", "b"]) or a bare pydantic list.
   get fields() {
     const d = this.body && this.body.detail;
-    if (d && d.errors) return d.errors;
-    if (Array.isArray(d)) {
+    const list = Array.isArray(d) ? d : d && Array.isArray(d.errors) ? d.errors : null;
+    if (list) {
       const out = {};
-      for (const e of d) out[(e.loc || []).filter((x) => x !== 'body').join('.') || '_'] = e.msg;
+      for (const e of list) out[locPath(e.loc) || '_'] = e.msg;
       return out;
     }
+    if (d && d.errors && typeof d.errors === 'object') return d.errors;
     return {};
   }
 }
+
+const locPath = (loc) => (Array.isArray(loc) ? loc.filter((x) => x !== 'body').join('.') : String(loc ?? ''));
+const listText = (l) => l.map((e) => `${locPath(e.loc)}: ${e.msg}`).join('; ');
 
 function errorText(body) {
   if (!body) return '';
   if (typeof body === 'string') return body;
   const d = body.detail;
   if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return listText(d);
   if (d && typeof d.message === 'string') return d.message;
-  if (Array.isArray(d)) return d.map((e) => `${(e.loc || []).filter((x) => x !== 'body').join('.')}: ${e.msg}`).join('; ');
+  if (d && typeof d.detail === 'string') return d.fix ? `${d.detail}. ${d.fix}.` : d.detail; // source sign-in errors
+  if (d && Array.isArray(d.errors)) return listText(d.errors);
   if (d && d.errors) return Object.values(d.errors).join(' ');
   return '';
 }
