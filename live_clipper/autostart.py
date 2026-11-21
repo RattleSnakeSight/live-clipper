@@ -1,6 +1,6 @@
 """Optional start at login: Windows Task Scheduler, macOS launchd LaunchAgent, Linux systemd --user unit.
 
-shortcut: the autostarted app uses the default data dir; LIVE_CLIPPER_HOME is not carried into the unit.
+If LIVE_CLIPPER_HOME is set when the unit is installed, it is carried into the unit as `--home`.
 """
 
 import getpass
@@ -20,7 +20,8 @@ def launch_command() -> list[str]:
     exe = Path(sys.executable)
     if os.name == "nt" and (exe.parent / "pythonw.exe").exists():
         exe = exe.parent / "pythonw.exe"  # no console window flash at login
-    return [str(exe), "-m", "live_clipper", "start", "--no-browser"]
+    home = os.environ.get("LIVE_CLIPPER_HOME")
+    return [str(exe), "-m", "live_clipper", *(["--home", home] if home else []), "start", "--no-browser"]
 
 
 def render_systemd(cmd: list[str]) -> str:

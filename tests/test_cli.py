@@ -65,10 +65,16 @@ def test_start_status_second_start_logs_stop(home):
     assert not (home / "state" / "supervisor.lock").exists()
 
 
-def test_uninstall_purge_deletes_data_and_prints_removal_command(home):
+def test_uninstall_purge_deletes_data_and_prints_removal_command(home, monkeypatch, capsys):
+    """In-process with a fake task runner, so the real Task Scheduler / launchd / systemd is never touched."""
+    from live_clipper import autostart
+    from live_clipper import cli as cli_mod
+    calls = []
+    monkeypatch.setattr(autostart, "_run", lambda *a: calls.append(a) or 1)  # 1 = "not installed"
+    monkeypatch.setattr(autostart, "uninstall", lambda: calls.append("uninstall"))
     (home / "media").mkdir(parents=True)
     (home / "media" / "clip.mp4").write_bytes(b"x")
-    r = cli("uninstall", "--purge-data", "--yes")
-    assert r.returncode == 0
+    assert cli_mod.main(["uninstall", "--purge-data", "--yes"]) == 0
     assert not home.exists()
-    assert "pip uninstall live-clipper" in r.stdout
+    assert "pip uninstall live-clipper" in capsys.readouterr().out
+    assert "uninstall" not in calls  # nothing was installed, so nothing was removed

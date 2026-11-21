@@ -31,7 +31,7 @@ version = { attr = "live_clipper.__version__" }
 include = ["live_clipper*"]
 
 [tool.setuptools.package-data]
-live_clipper = ["web/**/*", "formats/**/*"]
+live_clipper = ["web/**/*", "formats/**/*", "guide/*.md"]
 
 [tool.ruff]
 line-length = 110
@@ -44,3 +44,8 @@ select = ["E", "F", "W", "I", "B", "UP"]
 testpaths = ["tests"]
 # starlette nags about its own httpx dependency; not actionable here
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
+
+[tool.ruff.lint.per-file-ignores]
+"live_clipper/maintenance.py" = ["E501"]
+"live_clipper/notifications.py" = ["E501"]
+"live_clipper/setup_service.py" = ["E501"]

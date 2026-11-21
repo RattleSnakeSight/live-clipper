@@ -17,6 +17,13 @@ Other commands: `stop`, `status`, `logs [--follow]`, `update`, `service install|
 (start at login), `uninstall [--purge-data]`, `version`. Your data stays in your user data folder
 across updates; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Guide, agents and scripts
+
+- User guide (also shown in the app): [live_clipper/guide](live_clipper/guide/install.md).
+- Let a coding agent do it: install the skill with `python scripts/install-skill.py --agent all`, or read
+  [AGENTS.md](AGENTS.md).
+- One-step installers: `scripts/install.sh` (macOS, Linux) and `scripts/install.ps1` (Windows).
+
 ## Develop
 
 ```

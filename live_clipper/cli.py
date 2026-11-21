@@ -240,6 +240,7 @@ def cmd_service(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="live-clipper", description="Local live-stream clipper.")
+    p.add_argument("--home", help="data folder to use (same as setting LIVE_CLIPPER_HOME)")
     sub = p.add_subparsers(dest="command", required=True)
     s = sub.add_parser("start", help="start in the background and open the browser")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -264,4 +265,6 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(func=cmd_service)
     sub.add_parser("version").set_defaults(func=lambda a: print(__version__) or 0)
     args = p.parse_args(argv)
+    if args.home:
+        os.environ["LIVE_CLIPPER_HOME"] = args.home
     return args.func(args)

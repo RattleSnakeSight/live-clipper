@@ -42,3 +42,27 @@ as files from the UI and `/api/formats*`, `/api/presets*`, `/api/rules*`.
 ## Proposed changes
 
 (Branches append here; the integrator resolves.)
+
+### ops
+
+- Wizard answers are stored in `ctx.settings` under the question id: `setup.usage`, `setup.permission_confirmed`,
+  `platforms.enabled` (list of twitch/kick/youtube), `storage.dir`, `storage.cap_gb`, `storage.retention_days`,
+  `storage.clean_first`, `storage.cleanup_rules`, `processing.asr_device|asr_model|asr_compute_type`,
+  `processing.max_concurrent_recordings`, `processing.render_threads`, `posting.destinations` (list, `none`
+  alone means no posting), `posting.mode` (`auto|manual`), `notify.method` (`none|browser|webhook|both`),
+  `notify.webhook_format`, `service.start_at_login`. `GET /api/setup/questions` is the authoritative list.
+  The webhook URL is in the vault under `notifications` (`{"url": ...}`), never in settings.
+  `setup.completed` is in `ctx.app_state`.
+- `edit` should publish `edit.clip_ready` with `path` inside a folder whose name contains `clip_id`
+  (for example `<storage.dir>/clips/<clip_id>/final_en.mp4`) so cleanup can treat the folder as one clip;
+  put `source.ts` (original) in that same folder. Temporary files named `*.part.mp4`, `hook_*.txt`,
+  `audio_pre.wav`, `audio_tail.wav` are swept after an hour.
+- `publish` should publish `publish.delivery` on every state change. Terminal states are `published`, `failed`,
+  `cancelled`, `skipped`; any other state counts as in flight and protects the clip.
+- `monitor`/`edit` can ask `live_clipper.maintenance.Maintenance(ctx).admit_clip(active_clips)` before starting a
+  clip and should stop recording while `MaintenanceService.status()["paused"]` is true.
+- `GET /api/guide`, `GET /api/guide/{slug}` (SetupService), `GET /api/notifications?since=`, `GET /api/storage`,
+  `POST /api/storage/cleanup {dry_run}` (default true), `GET /api/diagnostics`.
+- The CLI has a global `--home PATH` (same as `LIVE_CLIPPER_HOME`); the autostart unit uses it when the variable
+  is set at install time.
+
