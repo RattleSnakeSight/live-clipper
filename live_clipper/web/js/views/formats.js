@@ -95,7 +95,8 @@ async function renderRules(container) {
         'aria-label': `Move ${r.name} down`, help: 'Move this rule down. Lower rules win over higher ones.' }, 'Down');
       up.addEventListener('click', () => move(i, -1, 'up'));
       down.addEventListener('click', () => move(i, 1, 'down'));
-      const sw = switchField({ label: 'On', checked: r.enabled !== false, help: 'Turn this rule on or off without deleting it.',
+      const sw = h('input', { type: 'checkbox', role: 'switch', class: 'switch', checked: r.enabled !== false,
+        'aria-label': `${r.name} is on`, help: 'Turn this rule on or off without deleting it.',
         onchange: (e) => saveOrder(rules.map((x) => (x.id === r.id ? { ...x, enabled: e.target.checked } : x))) });
       const edit = h('button', { type: 'button', class: 'btn small', help: 'Change what this rule checks and what it does.' }, 'Edit');
       edit.addEventListener('click', () => openEditor(r));
@@ -107,7 +108,7 @@ async function renderRules(container) {
       const li = h('li', { draggable: 'true', dataset: { index: i } },
         h('span', { class: 'handle muted', 'aria-hidden': 'true', title: 'Drag to reorder' }, '::'),
         h('div', { class: 'grow' }, h('div', { style: 'font-weight:600' }, r.name), h('div', { class: 'small muted' }, describeRule(r))),
-        h('div', { style: 'min-width: 90px' }, sw.el), up, down, edit, remove);
+        h('div', { class: 'row' }, sw, up, down, edit, remove));
       li.addEventListener('dragstart', (e) => { dragFrom = i; li.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
       li.addEventListener('dragend', () => li.classList.remove('dragging'));
       li.addEventListener('dragover', (e) => { e.preventDefault(); li.classList.add('drop-target'); });

@@ -297,3 +297,4 @@ body.setup-mode .shell { grid-template-columns: minmax(0, 1fr); }
 body.setup-mode main { max-width: none; }
 .grid-main > *, .split > *, .guide-layout > * { min-width: 0; }
 .panel a, .md a { overflow-wrap: anywhere; }
+.inline-fields + .field, .inline-fields + fieldset { margin-top: 16px; }
