@@ -10,7 +10,7 @@ pytestmark = pytest.mark.ui
 # seeded data
 ROUTES = [
     "dashboard", "channels", "channels/new", "channels/1", "sources", "clips", "clips/1", "formats",
-    "formats/gta-vi", "presets", "presets/vertical-default", "destinations", "settings", "status", "guide",
+    "formats/gta-vi", "presets", "presets/default", "destinations", "settings", "status", "guide",
     "guide/first-run",
 ]
 

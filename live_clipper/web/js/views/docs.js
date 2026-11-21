@@ -166,7 +166,16 @@ export async function renderList(container, kind, { listId, intro }) {
       let doc;
       try { doc = JSON.parse(text); } catch { clear(msg, h('p', { class: 'note bad' }, 'That file is not valid JSON.')); return; }
       try {
-        const saved = await post(`/${kind}`, doc);
+        // formats refuse an existing id (409) unless asked to replace it; presets import under a free id
+        let saved;
+        try {
+          saved = await post(`/${kind}/import`, doc);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 409)) throw e;
+          if (!await confirmDialog({ title: `Replace ${doc.name || doc.id}?`, body: `A ${one} with the id "${doc.id}" exists. Importing replaces it.`, ok: 'Replace', danger: true })) return;
+          saved = await post(`/${kind}/import?overwrite=true`, doc);
+        }
+        saved = Array.isArray(saved) ? saved[0] : saved;
         clear(msg, h('p', { class: 'note info' }, `Imported "${saved.name || saved.id}".`));
         await load();
       } catch (e) { clear(msg, h('p', { class: 'note bad' }, `Not imported: ${e.message}`)); }
@@ -183,13 +192,19 @@ export async function renderList(container, kind, { listId, intro }) {
             await load();
           }),
           actionBtn('Export', 'Download this as a .json file you can share or import later.', async () => {
-            const full = await get(`/${kind}/${encodeURIComponent(d.id)}`);
+            const full = await get(`/${kind}/${encodeURIComponent(d.id)}/export`);
             download(`${d.id}.json`, `${JSON.stringify(full, null, 2)}\n`);
           }),
+          kind === 'formats' && !d.active ? actionBtn('Make active', 'Use this format for channels that do not pick one.', async () => {
+            await post(`/formats/${encodeURIComponent(d.id)}/activate`);
+            clear(msg, h('p', { class: 'note info' }, `"${d.name || d.id}" is now the active format.`));
+            await load();
+          }) : null,
           d.builtin
             ? actionBtn('Reset', 'Put the built-in values back. Your changes to it are lost.', async () => {
               if (!await confirmDialog({ title: `Reset ${d.name}?`, body: 'Every change to the built-in one is undone.', ok: 'Reset', danger: true })) return;
               await post(`/${kind}/${encodeURIComponent(d.id)}/reset`);
+              await load();
               clear(msg, h('p', { class: 'note info' }, `"${d.name}" is back to the built-in values.`));
             })
             : actionBtn('Delete', `Delete ${d.name || d.id}. Channels using it fall back to the built-in one.`, async () => {
@@ -199,7 +214,8 @@ export async function renderList(container, kind, { listId, intro }) {
             }, 'danger'),
         ];
         return h('li', {}, h('div', { class: 'grow' }, h('div', { style: 'font-weight:600' }, d.name || d.id,
-          d.builtin ? h('span', { class: 'pill neutral', style: 'margin-left: 8px' }, 'Built-in') : null),
+          d.builtin ? h('span', { class: 'pill neutral', style: 'margin-left: 8px' }, 'Built-in') : null,
+          d.active ? h('span', { class: 'pill pos', style: 'margin-left: 8px' }, 'Active') : null),
         d.description ? h('div', { class: 'small muted' }, d.description) : null), h('div', { class: 'row' }, actions));
       })));
   }
@@ -220,7 +236,7 @@ function fieldErrors(e) {
 export async function renderEditor(main, kind, id, backLabel) {
   const one = SINGULAR[kind];
   const [doc, schema] = await Promise.all([
-    get(`/${kind}/${encodeURIComponent(id)}`), get(`/${kind}/schema`).catch(() => null)]);
+    get(`/${kind}/${encodeURIComponent(id)}`), Promise.resolve(null)]);
   let form = docForm(doc, schema);
   const formPane = h('div', { id: 'pane-form', role: 'tabpanel', 'aria-labelledby': 'tab-form' }, form.el);
   const json = h('textarea', { id: 'doc-json', class: 'code', spellcheck: 'false', 'aria-describedby': 'doc-json-help doc-json-err',
@@ -289,7 +305,7 @@ export async function renderEditor(main, kind, id, backLabel) {
   }));
   const exportBtn = h('button', { type: 'button', class: 'btn', help: 'Download the saved version as a .json file.' }, 'Export');
   exportBtn.addEventListener('click', async () => {
-    download(`${id}.json`, `${JSON.stringify(await get(`/${kind}/${encodeURIComponent(id)}`), null, 2)}\n`);
+    download(`${id}.json`, `${JSON.stringify(await get(`/${kind}/${encodeURIComponent(id)}/export`), null, 2)}\n`);
   });
   main.append(
     h('div', { class: 'title-row' }, h('div', {}, h('h1', {}, `Edit ${doc.name || id}`),

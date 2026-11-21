@@ -1,34 +1,38 @@
 // Dashboard: which channels need attention right now, what was clipped and what was posted.
 
 import { get, list, post } from '../api.js';
-import { CHANNEL_STATES, CLIP_STATES, PLATFORMS, channelName, pill, statusSource } from '../labels.js';
+import {
+  CHANNEL_STATES, CLIP_STATES, channelName, clipStatus, clipTitle, isTopicMode, pill, platformName, statusSource, svcError,
+} from '../labels.js';
 import { ago, busy, h, patch, poll, titleRow, toast } from '../ui.js';
 
 export function channelCard(c, refresh) {
   const needs = c.state === 'needs_action';
   const name = channelName(c);
-  const arm = c.armed
+  const armed = Boolean(c.enabled); // a channel is watched exactly while it is armed
+  const arm = armed
     ? h('button', { type: 'button', class: 'btn small', dataset: { key: `arm-${c.id}` },
       help: 'Stop watching this channel. Nothing is recorded until you start it again.' }, 'Stop watching')
-    : h('button', { type: 'button', class: 'btn small', dataset: { key: `arm-${c.id}` }, disabled: c.enabled === false,
-      help: c.enabled === false ? 'Turn the channel on in Edit first.' : 'Start watching this channel for its stream.' }, 'Start watching');
+    : h('button', { type: 'button', class: 'btn small', dataset: { key: `arm-${c.id}` },
+      help: 'Start watching this channel for its stream.' }, 'Start watching');
   arm.addEventListener('click', busy(arm, async () => {
     try {
-      await post(`/channels/${c.id}/${c.armed ? 'disarm' : 'arm'}`);
+      await post(`/channels/${c.id}/${armed ? 'disarm' : 'arm'}`);
       await refresh();
     } catch (e) { toast(e.message, true); }
   }));
   return h('article', { class: `card${needs ? ' needs' : ''}`, 'aria-labelledby': `ch-${c.id}`, dataset: { id: c.id } },
     h('header', {},
       h('div', {}, h('div', { class: 'name', id: `ch-${c.id}` }, name),
-        h('div', { class: 'meta' }, PLATFORMS[c.platform] || c.platform)),
+        h('div', { class: 'meta' }, platformName(c.platform))),
       pill(CHANNEL_STATES, c.state)),
     h('p', { class: 'meta' }, statusSource(c)),
     needs ? h('div', { class: 'note', role: 'status' }, h('p', {}, c.detail || 'This channel needs your attention.'),
-      c.fix_url ? h('a', { href: c.fix_url, help: 'Open the screen where this can be fixed.' }, 'Fix this') : null)
-      : c.detail ? h('p', { class: 'small' }, c.detail) : null,
-    h('p', { class: 'meta' }, c.watch_mode === 'topic' ? 'Watches only when the stream topic matches its format'
-      : 'Watches every stream'),
+      c.fix ? h('p', { class: 'small' }, `To fix: ${c.fix}`) : null,
+      c.fix_link ? h('a', { href: c.fix_link, help: 'Open the screen where this can be fixed.' }, 'Fix this') : null)
+      : c.detail && c.state !== 'disabled' ? h('p', { class: 'small' }, c.detail) : null,
+    h('p', { class: 'meta' }, isTopicMode(c) ? 'Records only while the stream title matches its format'
+      : 'Records whenever the channel is live'),
     h('div', { class: 'actions' }, arm,
       h('a', { class: 'btn small ghost', href: `#/channels/${c.id}`, help: `Change ${name}'s link, format, destinations or turn it off.` }, 'Edit')));
 }
@@ -63,8 +67,10 @@ export async function render(main) {
           h('header', {}, h('h2', { id: 'hl-title' }, 'Health'),
             h('a', { class: 'end small', href: '#/status', help: 'Open the Status page for details and logs.' }, 'Details')), healthBox))));
 
+  let names = {};
   async function loadChannels() {
     const channels = list(await get('/channels'), 'channels');
+    names = Object.fromEntries(channels.map((c) => [c.id, channelName(c)]));
     sub.textContent = finding(channels);
     patch(cards, channels.length ? channels.map((c) => channelCard(c, loadChannels))
       : h('div', { class: 'panel empty' }, h('strong', {}, 'No channels yet'),
@@ -75,23 +81,23 @@ export async function render(main) {
   async function loadHealth() {
     const s = await get('/status');
     const rows = Object.entries(s.services || {});
-    const bad = rows.filter(([, v]) => v && v.error);
+    const bad = rows.filter(([, v]) => svcError(v));
     patch(healthBox, [
       h('p', {}, bad.length ? `${bad.length} part${bad.length > 1 ? 's' : ''} of the app failed to start.` : 'All parts of the app are running.'),
       h('p', { class: 'small muted num' }, `Version ${s.version} · running for ${Math.round((s.uptime || 0) / 60)} min`),
-      bad.length ? h('ul', { class: 'small' }, bad.map(([n, v]) => h('li', {}, `${n}: ${v.error}`))) : null]);
+      bad.length ? h('ul', { class: 'small' }, bad.map(([n, v]) => h('li', {}, `${n}: ${svcError(v)}`))) : null]);
   }
 
   async function loadClips() {
     const [clips, dels] = await Promise.all([
-      get('/clips').then((d) => list(d, 'clips')).catch(() => null),
+      get('/clips?limit=5').then((d) => list(d, 'clips')).catch(() => null),
       get('/publish/deliveries').then((d) => list(d, 'deliveries')).catch(() => null)]);
     patch(clipsBox, clips === null ? h('p', { class: 'muted' }, 'Clips are not available yet.')
       : clips.length ? h('ul', { class: 'rows' }, clips.slice(0, 5).map((c) => h('li', {},
         h('div', { class: 'grow' }, h('a', { class: 'truncate', style: 'display:block', href: `#/clips/${c.id}`,
-          help: 'Open this clip to preview, edit or post it.' }, c.title || `Clip ${c.id}`),
-        h('span', { class: 'small muted' }, `${c.channel || ''} · ${ago(c.created_at)}`)),
-        pill(CLIP_STATES, c.status))))
+          help: 'Open this clip to preview, edit or post it.' }, clipTitle(c)),
+        h('span', { class: 'small muted' }, `${names[c.channel_id] || ''} · ${ago(c.created_at)}`)),
+        pill(CLIP_STATES, clipStatus(c)))))
         : h('p', { class: 'muted' }, 'No clips yet. They appear here a minute or two after a moment is found.'));
     if (dels === null) { patch(postBox, h('p', { class: 'muted' }, 'Posting is not available yet.')); return; }
     const day = Date.now() / 1000 - 86400;
@@ -108,7 +114,8 @@ export async function render(main) {
       h('p', { class: 'small muted', style: 'margin-top: 8px' }, 'Test destination posts are not counted.')]);
   }
 
-  await Promise.all([loadChannels(), loadHealth().catch(() => {}), loadClips()]);
+  await loadChannels();
+  await Promise.all([loadHealth().catch(() => {}), loadClips()]);
   const stops = [poll(loadChannels, 4000), poll(loadHealth, 4000), poll(loadClips, 15000)];
   return () => stops.forEach((s) => s());
 }

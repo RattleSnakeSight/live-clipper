@@ -67,7 +67,6 @@ def test_defaults_follow_hardware():
     assert d["processing.max_concurrent_recordings"] == 1 and d["storage.cap_gb"] == 5
     d = hardware_defaults(hw(cores=16, ram=32, free=1000))
     assert d["processing.asr_model"] == "small" and d["storage.cap_gb"] == 50
-    assert d["processing.render_threads"] == 8
 
 
 def test_questions_shape_and_show_if():
@@ -117,8 +116,29 @@ def test_complete_fills_defaults_sets_flag_and_autostart():
         assert c.post("/api/setup/complete").status_code == 200
         st = c.get("/api/setup/state").json()
         assert st["completed"] and ctx.app_state.get("setup.completed") is True
-        assert ctx.settings.get("processing.asr_model") and ctx.settings.get("storage.retention_days") == 14
+        # answers land on the keys their consumers read: edit's speech recognition and the publish worker
+        assert ctx.settings.get("asr.model") and ctx.settings.get("asr.device") == "cpu"
+        assert ctx.settings.get("asr.compute_type") == "int8"
+        assert ctx.settings.get("processing.asr_model") is None
+        assert ctx.settings.get("storage.retention_days") == 14
+        assert ctx.settings.get("publish.mode") is None  # posting.mode is hidden: the worker default applies
         assert auto.calls == []
+
+
+def test_posting_mode_answer_is_the_publish_mode():
+    ctx = make_ctx()
+    c = client(ctx, SetupService(run=fake_run, autostart_mod=FakeAutostart()))
+    with c:
+        qs = {q["id"]: q for q in c.get("/api/setup/questions").json()["questions"]}
+        assert qs["posting.mode"]["default"] == "auto" and "processing.render_threads" not in qs
+        r = c.put("/api/setup/answers", json={"answers": {"posting.destinations": ["youtube"],
+                                                          "posting.mode": "manual"}})
+        assert r.status_code == 200
+        assert ctx.settings.get("publish.mode") == "manual" and ctx.settings.get("posting.mode") is None
+        ctx.settings.set("publish.mode", "auto")  # changed on Destinations: Settings and the wizard follow
+        assert c.get("/api/setup/state").json()["answers"]["posting.mode"] == "auto"
+        c.post("/api/setup/complete")
+        assert ctx.settings.get("publish.mode") == "auto"
 
 
 def test_complete_requires_visible_required_answers():

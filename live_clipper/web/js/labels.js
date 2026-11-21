@@ -7,20 +7,41 @@ export const PLATFORMS = { twitch: 'Twitch', kick: 'Kick', youtube: 'YouTube' };
 export const CHANNEL_STATES = {
   offline: ['Offline', 'neutral', 'The stream is not live.'],
   waiting: ['Waiting', 'accent', 'Watching for the stream to start.'],
-  live: ['Live', 'accent', 'The stream is live; recording starts when a format matches.'],
   recording: ['Recording', 'pos', 'Capturing the stream now.'],
   reconnecting: ['Reconnecting', 'warn', 'The stream dropped. Trying again.'],
   needs_action: ['Needs action', 'warn', 'Something needs you before watching can continue.'],
   disabled: ['Disabled', 'neutral', 'Turned off. Nothing is watched or recorded.'],
 };
 
+// Clip states as the clip list shows them (clipStatus() derives them from the clip row).
 export const CLIP_STATES = {
-  rendering: ['Rendering', 'accent', 'The video is being made.'],
-  held: ['Held', 'warn', 'Waiting for your review before posting.'],
-  queued: ['Queued', 'neutral', 'Waiting its turn to be posted.'],
-  posted: ['Posted', 'pos', 'Posted to at least one destination.'],
+  cutting: ['Cutting', 'accent', 'The moment is being cut from the recording.'],
+  rendering: ['Rendering', 'accent', 'Captions and the finished video are being made.'],
+  ready: ['Ready', 'pos', 'Finished and handed to posting.'],
+  held: ['Held for review', 'warn', 'A rule or the gameplay check held it. Approve it or post it anyway.'],
+  rejected: ['Not selected', 'neutral', 'The format or a rule decided not to post it. You can still post it.'],
   failed: ['Failed', 'neg', 'Something went wrong. Open the clip to see why.'],
+  discarded: ['Discarded', 'neutral', 'Removed before it was finished.'],
+  expired: ['Expired', 'neutral', 'Its files were cleaned up.'],
 };
+
+// Row status (pending, cutting, preview_ready, captioning, rendering, ready, failed, ...) plus the selection
+// decision per language -> one CLIP_STATES key.
+export function clipStatus(c) {
+  const s = c.status;
+  if (s === 'pending' || s === 'cutting') return 'cutting';
+  if (s === 'preview_ready' || s === 'captioning' || s === 'rendering' || c.rendering) return 'rendering';
+  if (s !== 'ready') return CLIP_STATES[s] ? s : 'failed';
+  const d = Object.values((c.trigger && c.trigger.selection) || {}).map((x) => x && x.decision);
+  if (d.includes('qualified') || !d.length) return 'ready';
+  return d.includes('held') ? 'held' : 'rejected';
+}
+
+export function clipTitle(c) {
+  const caps = c.captions || {};
+  const t = c.title || (caps[c.source_lang] || {}).title || Object.values(caps).map((x) => x && x.title).find(Boolean);
+  return t || `Clip ${c.id}`;
+}
 
 export const DELIVERY_STATES = {
   held: ['Waiting for you', 'warn', 'Manual mode: press Post to send it.'],
@@ -46,11 +67,17 @@ export function pill(map, state) {
   return h('span', { class: `pill ${tone}`, title: desc || null }, h('span', { class: 'dot', 'aria-hidden': 'true' }), label);
 }
 
+// status_source is the monitor's own label: an official API name, the stream probe, or a creator feed.
 export function statusSource(c) {
-  const p = PLATFORMS[c.platform] || c.platform;
-  if (c.status_source === 'stream_probe') return 'Status from a stream check (no API connection, slower)';
-  if (c.status_source === 'official_api') return `Status from the official ${p} API`;
+  const src = String(c.status_source || '');
+  if (src.startsWith('stream probe')) return 'Status from the stream probe (no official API connected; slower)';
+  if (src === 'creator-provided feed') return 'Records a creator-provided feed';
+  if (src) return `Status from the official API (${src})`;
   return 'Status source unknown';
 }
 
 export const channelName = (c) => c.display_name || c.login || c.url;
+export const platformName = (p) => PLATFORMS[p] || (p === 'custom' ? 'Creator feed' : p);
+// A service reports a failure as {error} (status() raised) or {state: "error", detail} (monitor engine).
+export const svcError = (v) => (v && (v.error || (v.state === 'error' && (v.detail || 'failed to start')))) || null;
+export const isTopicMode = (c) => c.watch_mode === 'topic_gated';

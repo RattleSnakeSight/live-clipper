@@ -1,7 +1,35 @@
-// Sources: connect Twitch, Kick and YouTube, and show exactly what each connection enables.
+// Sources: connect Twitch, Kick and YouTube, and show exactly what each connection enables (GET /api/sources).
 
 import { ApiError, del, get, list, post } from '../api.js';
+import { PLATFORMS } from '../labels.js';
 import { busy, clear, confirmDialog, h, textField, titleRow, toast } from '../ui.js';
+
+const F = {
+  client_id: ['client_id', 'Client ID', false, 'From your developer app on the platform\'s developer site.'],
+  client_secret: ['client_secret', 'Client secret', true, 'Stored encrypted on this computer and never shown again.'],
+  client_secret_opt: ['client_secret', 'Client secret (if the app has one)', true, 'Stored encrypted on this computer. Leave empty for a public client.'],
+  api_key: ['api_key', 'API key', true, 'A YouTube Data API v3 key from the Google Cloud console. Stored encrypted.'],
+  webhook: ['webhook_public_url', 'Public https address for chat', false, 'An https address that forwards to the local Kick webhook listener. Leave empty to turn Kick chat off.'],
+};
+
+// Ways to connect each platform (POST /api/sources/{platform}/connect {method, ...fields}).
+const METHODS = {
+  twitch: [
+    { method: 'credentials', title: 'App credentials', fields: [F.client_id, F.client_secret], button: 'Save Twitch keys',
+      help: 'The app asks Twitch for an app token. No sign-in page and no redirect address.' },
+    { method: 'device', title: 'Sign in with a code', fields: [F.client_id], button: 'Get a Twitch code',
+      help: 'For a public client: shows a code to enter on Twitch. Also lets the app read chat as you. Nothing is posted.' }],
+  kick: [
+    { method: 'credentials', title: 'App credentials', fields: [F.client_id, F.client_secret], button: 'Save Kick keys',
+      help: 'The app asks Kick for an app token. Nothing to approve.' },
+    { method: 'oauth', title: 'Sign in with Kick', fields: [F.client_id, F.client_secret], button: 'Sign in to Kick', redirect: true,
+      help: 'Opens Kick\'s sign-in page in a new tab. Register the redirect address below in your Kick app first.' }],
+  youtube: [
+    { method: 'credentials', title: 'API key', fields: [F.api_key], button: 'Save YouTube key',
+      help: 'Checks the key with one cheap request, then stores it encrypted on this computer.' },
+    { method: 'oauth', title: 'Sign in with Google', fields: [F.client_id, F.client_secret_opt], button: 'Sign in to Google', redirect: true,
+      help: 'Opens Google\'s sign-in page in a new tab. Use an OAuth client of type Desktop app.' }],
+};
 
 export async function render(main) {
   const box = h('div', { id: 'source-list', class: 'stack' });
@@ -10,72 +38,125 @@ export async function render(main) {
       'Connecting lets Live Clipper see when a stream is live and read its chat. It does not give you the right to record, '
       + 'edit or repost anyone\'s stream. Get the streamer\'s permission before clipping their content.'),
     box);
+  const chosen = await get('/setup/state').then((s) => (s.answers || {})['platforms.enabled'] || []).catch(() => []);
+  let timer = null;
 
   async function load() {
     const rows = list(await get('/sources'), 'sources');
-    clear(box, rows.map((s) => card(s, load)));
+    const mine = rows.filter((s) => chosen.includes(s.platform));
+    const other = rows.filter((s) => !chosen.includes(s.platform));
+    clear(box, mine.map((s) => card(s, load)),
+      mine.length && other.length ? h('h2', { class: 'small muted', style: 'margin-top: 8px' }, 'Other platforms') : null,
+      other.map((s) => card(s, load)));
+    clearTimeout(timer);
+    if (rows.some((s) => s.pending && s.pending.kind === 'device' && s.pending.state === 'waiting')) timer = setTimeout(load, 4000);
   }
   await load();
+  return () => clearTimeout(timer);
+}
+
+function row(label, available, how, detail) {
+  return h('tr', {},
+    h('th', { scope: 'row', style: 'color: var(--text); font-size: inherit' }, label),
+    h('td', {}, h('span', { class: `pill ${available ? 'pos' : 'neutral'}` }, available ? 'Yes' : 'No')),
+    h('td', {}, how || '', detail ? h('div', { class: 'small muted' }, detail) : null));
+}
+
+function connectForm(s, m, out, refresh) {
+  const name = PLATFORMS[s.platform] || s.platform;
+  const inputs = m.fields.map(([field, label, secret, help]) => textField({ label, name: field, help,
+    type: secret ? 'password' : 'text', autocomplete: 'off' }));
+  const go = h('button', { type: 'submit', class: 'btn primary', help: m.help }, m.button);
+  const form = h('form', { class: 'stack', novalidate: true, 'aria-label': `${name}: ${m.title}` },
+    h('h3', {}, m.title), h('p', { class: 'small muted' }, m.help),
+    m.redirect && s.redirect_uri ? h('div', {}, h('p', { class: 'small' }, 'Redirect address to register:'),
+      h('div', { class: 'copy-row' }, h('code', {}, s.redirect_uri))) : null,
+    inputs.map((i) => i.el), h('div', {}, go));
+  form.addEventListener('submit', busy(go, async (e) => {
+    e.preventDefault();
+    const body = { method: m.method };
+    inputs.forEach((i) => { body[i.input.name] = i.input.value.trim(); });
+    inputs.forEach((i) => { i.el.querySelector('.error').textContent = ''; });
+    try {
+      const r = await post(`/sources/${s.platform}/connect`, body);
+      if (r.kind === 'device') {
+        await refresh();
+      } else if (r.authorize_url) {
+        window.open(r.authorize_url, '_blank', 'noopener');
+        clear(out, h('p', { class: 'note info' }, 'Finish signing in in the new tab, then come back here.'));
+        setTimeout(refresh, 4000);
+      } else {
+        toast(`${name} connected.`);
+        await refresh();
+      }
+    } catch (ex) {
+      const msg = ex instanceof ApiError ? ex.message : String(ex);
+      const bad = inputs.find((i) => msg.includes(i.input.name));
+      if (bad) { bad.el.querySelector('.error').textContent = msg; bad.input.focus(); } else clear(out, h('p', { class: 'error' }, msg));
+    }
+  }));
+  return form;
+}
+
+function webhookForm(s, out, refresh) {
+  const [field, label, , help] = F.webhook;
+  const input = textField({ label, name: field, help, type: 'url', autocomplete: 'off', placeholder: 'https://example.com/kick' });
+  const go = h('button', { type: 'submit', class: 'btn', help: 'Save the address. Kick chat starts after the app restarts.' }, 'Save chat address');
+  const form = h('form', { class: 'stack', novalidate: true, 'aria-label': 'Kick chat webhook address' },
+    h('h3', {}, 'Kick chat (optional)'), input.el, h('div', {}, go));
+  form.addEventListener('submit', busy(go, async (e) => {
+    e.preventDefault();
+    input.el.querySelector('.error').textContent = '';
+    try {
+      await post('/sources/kick/connect', { method: 'credentials', webhook_public_url: input.input.value.trim() });
+      toast('Kick chat address saved.');
+      await refresh();
+    } catch (ex) { input.el.querySelector('.error').textContent = ex.message; }
+  }));
+  return form;
 }
 
 function card(s, refresh) {
+  const name = PLATFORMS[s.platform] || s.platform;
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
+  const live = s.live_status || {};
+  const chat = s.chat || {};
+  const cap = s.capture || {};
   const enables = h('table', {},
-    h('caption', { class: 'sr-only' }, `What the ${s.name} connection enables`),
+    h('caption', { class: 'sr-only' }, `What the ${name} connection enables`),
     h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Feature'), h('th', { scope: 'col' }, 'Available'), h('th', { scope: 'col' }, 'How'))),
-    h('tbody', {}, (s.enables || []).map((e) => h('tr', {},
-      h('th', { scope: 'row', style: 'color: var(--text); font-size: inherit' }, e.label),
-      h('td', {}, h('span', { class: `pill ${e.available ? 'pos' : 'neutral'}` }, e.available ? 'Yes' : 'No')),
-      h('td', {}, e.detail || '')))));
-  let action;
-  if (s.connected) {
-    action = h('button', { type: 'button', class: 'btn', help: `Remove the ${s.name} connection. Channels fall back to a slower stream check.` }, 'Disconnect');
-    action.addEventListener('click', async () => {
-      const ok = await confirmDialog({ title: `Disconnect ${s.name}?`, body: 'Live status falls back to a slower stream check and chat stops.', ok: 'Disconnect' });
+    h('tbody', {},
+      row('Live status', true, live.available ? `Official API: ${live.how}` : `Stream probe: ${live.how}`,
+        [live.detail, live.fix].filter(Boolean).join('. ')),
+      row('Chat', chat.available, chat.how, chat.detail),
+      row('Capture', true, cap.tool, cap.note)));
+  const pend = s.pending && s.pending.kind === 'device' ? s.pending : null;
+  const pending = pend ? h('div', { class: 'note info' },
+    pend.state === 'waiting' ? [
+      h('p', {}, 'Open ', h('a', { href: pend.verification_uri, target: '_blank', rel: 'noopener noreferrer',
+        help: 'Opens the site in a new tab to enter the code.' }, pend.verification_uri), ' and enter this code:'),
+      h('p', { style: 'font-size: 22px; font-weight: 700; letter-spacing: 0' }, h('code', {}, pend.user_code)),
+      h('p', { class: 'small' }, 'This page updates when you are done.')]
+      : h('p', {}, pend.detail || 'The sign-in did not finish. Start it again.')) : null;
+  const saved = (s.fields || []).filter((f) => f !== 'scope');
+  let disconnect = null;
+  if (s.connected || saved.length) {
+    disconnect = h('button', { type: 'button', class: 'btn', help: `Remove the saved ${name} keys and sign-in. Channels fall back to the stream probe.` }, 'Disconnect');
+    disconnect.addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: `Disconnect ${name}?`, body: 'Live status falls back to the slower stream probe.', ok: 'Disconnect' });
       if (!ok) return;
-      try { await del(`/sources/${s.platform}`); toast(`${s.name} disconnected.`); await refresh(); } catch (e) { toast(e.message, true); }
+      try { await del(`/sources/${s.platform}`); toast(`${name} disconnected.`); await refresh(); } catch (e) { toast(e.message, true); }
     });
-  } else {
-    const fields = (s.connect && s.connect.fields) || [];
-    const inputs = fields.map((f) => textField({ label: f.label, type: f.secret ? 'password' : 'text', help: f.help || `Enter the ${f.label}.`,
-      autocomplete: 'off', name: f.name }));
-    const kind = (s.connect && s.connect.kind) || 'credentials';
-    const label = kind === 'device' ? `Connect ${s.name} with a code` : kind === 'oauth' ? `Sign in to ${s.name}` : `Save ${s.name} key`;
-    const go = h('button', { type: 'submit', class: 'btn primary',
-      help: kind === 'device' ? 'Shows a code to enter on the site. Nothing is posted.'
-        : kind === 'oauth' ? 'Opens the site\'s sign-in page in a new tab.' : 'Save the key, stored encrypted on this computer.' }, label);
-    action = h('form', { class: 'stack', novalidate: true }, inputs.map((i) => i.el), go);
-    action.addEventListener('submit', busy(go, async (e) => {
-      e.preventDefault();
-      const body = { fields: Object.fromEntries(fields.map((f, i) => [f.name, inputs[i].input.value.trim()])) };
-      try {
-        const r = await post(`/sources/${s.platform}/connect`, body);
-        if (r.device) {
-          clear(out, h('div', { class: 'note info' },
-            h('p', {}, 'Open ', h('a', { href: r.device.verification_uri, target: '_blank', rel: 'noopener noreferrer',
-              help: 'Opens the site in a new tab to enter the code.' }, r.device.verification_uri),
-            ' and enter this code:'),
-            h('p', { style: 'font-size: 22px; font-weight: 700; letter-spacing: 0' }, h('code', {}, r.device.user_code)),
-            h('p', { class: 'small' }, 'This page updates when you are done.')));
-          setTimeout(refresh, 4000);
-        } else if (r.authorize_url) {
-          window.open(r.authorize_url, '_blank', 'noopener');
-          clear(out, h('p', { class: 'note info' }, 'Finish signing in in the new tab, then come back here.'));
-          setTimeout(refresh, 4000);
-        } else {
-          toast(`${s.name} connected.`);
-          await refresh();
-        }
-      } catch (ex) {
-        const f = ex instanceof ApiError ? ex.fields : {};
-        fields.forEach((fd, i) => { inputs[i].el.querySelector('.error').textContent = f[fd.name] || ''; });
-        if (!Object.keys(f).length) clear(out, h('p', { class: 'error' }, ex.message));
-      }
-    }));
   }
+  const forms = (METHODS[s.platform] || []).map((m) => connectForm(s, m, out, refresh));
+  if (s.platform === 'kick') forms.push(webhookForm(s, out, refresh));
   return h('section', { class: 'panel', 'aria-labelledby': `src-${s.platform}`, id: `source-${s.platform}` },
-    h('header', {}, h('h2', { id: `src-${s.platform}` }, s.name),
-      h('span', { class: `pill ${s.connected ? 'pos' : 'neutral'}` }, s.connected ? `Connected${s.account ? ` as ${s.account}` : ''}` : 'Not connected')),
-    s.note ? h('p', { class: 'muted', style: 'margin-bottom: 12px' }, s.note) : null,
-    h('div', { class: 'table-wrap', style: 'margin-bottom: 16px' }, enables), action, out);
+    h('header', {}, h('h2', { id: `src-${s.platform}` }, name),
+      h('span', { class: `pill ${s.connected ? 'pos' : 'neutral'}` }, s.connected ? 'Connected' : 'Not connected')),
+    saved.length ? h('p', { class: 'small muted', style: 'margin-bottom: 8px' }, `Saved: ${saved.join(', ')}.`) : null,
+    h('div', { class: 'table-wrap', style: 'margin-bottom: 16px' }, enables), pending,
+    h('details', { open: !s.connected },
+      h('summary', { help: `Show or hide the ways to connect ${name}.` }, h('strong', {}, s.connected ? 'Connect again or change keys' : 'Connect')),
+      h('div', { class: 'split', style: 'margin-top: 12px' }, forms)),
+    disconnect ? h('div', { class: 'row', style: 'margin-top: 12px' }, disconnect) : null, out);
 }

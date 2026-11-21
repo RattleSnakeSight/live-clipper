@@ -26,8 +26,8 @@ export async function render(main) {
   async function loadMode() {
     const m = await get('/publish/mode');
     const group = choiceGroup({ legend: 'Posting mode', value: m.mode, options: [
-      { value: 'manual', label: 'Manual', hint: 'Every clip waits in the review queue on the Clips page until you press Post.' },
-      { value: 'auto', label: 'Automatic', hint: 'Finished clips go to every connected, turned-on destination the channel allows.' }] });
+      { value: 'auto', label: 'Automatic', hint: 'Finished clips go to every connected, turned-on destination the channel allows. Nothing is posted before a destination is connected, confirmed and turned on.' },
+      { value: 'manual', label: 'Manual', hint: 'Every clip waits in the review queue on the Clips page until you press Post.' }] });
     group.inputs.forEach((i) => i.addEventListener('change', async () => {
       try {
         await put('/publish/mode', { mode: i.value });
@@ -37,11 +37,18 @@ export async function render(main) {
     clear(modeBox, h('h2', { id: 'pm-title', class: 'sr-only' }, 'Posting mode'), group.el);
   }
 
+  // the destinations picked during setup come first
+  const chosen = await get('/setup/state').then((s) => (s.answers || {})['posting.destinations'] || []).catch(() => []);
   async function load() {
     const [rows, test] = await Promise.all([
       get('/destinations').then((d) => list(d, 'destinations')),
       get('/publish/test-mode').catch(() => null)]);
-    clear(list_, testCard(rows.find((d) => d.test), test, load), rows.filter((d) => !d.test).map((d) => card(d, load)));
+    const real = rows.filter((d) => !d.test);
+    const mine = real.filter((d) => chosen.includes(d.provider));
+    const other = real.filter((d) => !chosen.includes(d.provider));
+    clear(list_, testCard(rows.find((d) => d.test), test, load),
+      mine.length ? h('h2', { class: 'small muted' }, 'Picked during setup') : null, mine.map((d) => card(d, load)),
+      mine.length && other.length ? h('h2', { class: 'small muted' }, 'Other destinations') : null, other.map((d) => card(d, load)));
   }
   await Promise.all([loadMode().catch((e) => clear(modeBox, h('p', { class: 'error' }, e.message))), load()]);
 }

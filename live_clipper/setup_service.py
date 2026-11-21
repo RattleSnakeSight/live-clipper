@@ -1,7 +1,9 @@
 """First-run wizard backend: hardware detection, the question list (single source of truth), answers, state.
 
 Answers are stored in `ctx.settings` under the question id (for example `storage.cap_gb`), so any subsystem
-can read them directly. The webhook URL is a secret and goes to the vault instead (`notifications`).
+can read them directly. A few answers are stored under the key their consumer already reads (`STORED_AS`; for
+example `posting.mode` is the publish worker's `publish.mode`), so the wizard, Settings and the service share one
+value. The webhook URL is a secret and goes to the vault instead (`notifications`).
 """
 
 import ctypes
@@ -27,6 +29,13 @@ from .services import AppContext
 log = logging.getLogger(__name__)
 GB = 1024**3
 WEBHOOK_SECRET = "notifications"
+# question id -> the settings key its consumer reads (edit's speech recognition, the publish worker's mode)
+STORED_AS = {
+    "processing.asr_device": "asr.device",
+    "processing.asr_model": "asr.model",
+    "processing.asr_compute_type": "asr.compute_type",
+    "posting.mode": "publish.mode",
+}
 
 
 # --- hardware -------------------------------------------------------------------------------------------
@@ -140,7 +149,6 @@ def hardware_defaults(hw: dict) -> dict:
     return {
         "processing.asr_device": device, "processing.asr_compute_type": compute,
         "processing.asr_model": model, "processing.max_concurrent_recordings": recordings,
-        "processing.render_threads": max(1, min(8, cores // 2)),
         "storage.cap_gb": int(min(50, max(5, free_gb * 0.25))),
     }
 
@@ -167,7 +175,8 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
 
     return [
         q("setup.usage", "How will you use Live Clipper?",
-          "This decides which reminders you see; it does not change how the app works.", "select", "personal",
+          "If you clip other streamers, the next question asks you to confirm their permission.", "select",
+          "personal",
           _opts(("personal", "Clipping my own channel"),
                 ("permission", "Clipping other streamers, with their permission"),
                 ("testing", "Just trying it out")), {"required": True}),
@@ -176,7 +185,8 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
           validation={"required": True, "must_be": True},
           show_if=[{"id": "setup.usage", "equals": "permission"}]),
         q("platforms.enabled", "Which platforms do you want to watch?",
-          "Pick the sites where the streams you clip are broadcast.", "multiselect", ["twitch"],
+          "Pick the sites where the streams you clip are broadcast. Sources shows these first.", "multiselect",
+          ["twitch"],
           _opts(("twitch", "Twitch"), ("kick", "Kick"), ("youtube", "YouTube")), {"min_items": 1}),
         q("storage.dir", "Where should clips and recordings be stored?",
           "Pick a folder on a drive with plenty of free space.", "path", default_dir, validation={"required": True}),
@@ -210,16 +220,15 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
         q("processing.max_concurrent_recordings", "How many streams may be recorded at the same time?",
           "Each recording uses processor, memory and disk.", "number", d["processing.max_concurrent_recordings"],
           validation={"min": 1, "max": 16, "integer": True}),
-        q("processing.render_threads", "How many processor threads may clip rendering use?",
-          "More threads render faster but slow down everything else on this computer.", "number",
-          d["processing.render_threads"], validation={"min": 1, "max": 32, "integer": True}),
         q("posting.destinations", "Where do you want to post clips?",
-          "Pick none to review clips and post them yourself.", "multiselect", ["none"],
+          "Destinations shows these first. Nothing is posted until you connect and turn on an account there.",
+          "multiselect", ["none"],
           _opts(("youtube", "YouTube Shorts"), ("tiktok", "TikTok"), ("instagram", "Instagram Reels"),
                 ("none", "Nowhere, I only want the files")), {"min_items": 1}),
         q("posting.mode", "Should clips be posted automatically?",
-          "Manual means every clip waits for your approval.", "select", "manual",
-          _opts(("manual", "No, I approve each clip"), ("auto", "Yes, post as soon as a clip is ready")),
+          "Automatic posts each finished clip to every account you connected and turned on. Manual means every "
+          "clip waits for your approval.", "select", "auto",
+          _opts(("auto", "Yes, post as soon as a clip is ready"), ("manual", "No, I approve each clip")),
           show_if=[{"id": "posting.destinations", "contains_any": POST_DESTS}]),
         q("notify.method", "How should Live Clipper tell you about new clips and problems?",
           "Browser notifications only show while the app is open in a tab.", "select", "browser",
@@ -384,7 +393,7 @@ class SetupService:
     def _answers(self) -> dict:
         out = {}
         for q in self._questions():
-            val = self.ctx.settings.get(q["id"])
+            val = self.ctx.settings.get(STORED_AS.get(q["id"], q["id"]))
             if val is not None:
                 out[q["id"]] = val
         if self.ctx.secrets.get(WEBHOOK_SECRET):
@@ -418,7 +427,7 @@ class SetupService:
             if key == "notify.webhook_url":
                 self.ctx.secrets.set(WEBHOOK_SECRET, {"url": value})
             else:
-                self.ctx.settings.set(key, value)
+                self.ctx.settings.set(STORED_AS.get(key, key), value)
 
     def state(self) -> dict:
         answers, qs = self._answers(), self._questions()

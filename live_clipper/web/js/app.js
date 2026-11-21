@@ -2,6 +2,7 @@
 
 import { appState, get, setUnauthorizedHandler } from './api.js';
 import { clear, h, initHelp } from './ui.js';
+import { svcError } from './labels.js';
 import { maybeStartTour } from './tour.js';
 import * as dashboard from './views/dashboard.js';
 import * as channels from './views/channels.js';
@@ -81,7 +82,7 @@ async function updateHealth() {
   const badge = document.getElementById('health-badge');
   try {
     const s = await get('/status');
-    const errors = Object.entries(s.services || {}).filter(([, v]) => v && v.error);
+    const errors = Object.entries(s.services || {}).filter(([, v]) => svcError(v));
     badge.className = `pill ${errors.length ? 'warn' : 'pos'}`;
     badge.textContent = errors.length ? `${errors.length} service${errors.length > 1 ? 's' : ''} with problems` : 'Running';
     badge.dataset.help = errors.length ? 'Open Status to see which part failed.' : 'All parts of the app are running.';
@@ -127,7 +128,10 @@ async function watchNotifications() {
     if (signedOut) return;
     try {
       const r = await get(`/notifications?since=${since ?? 0}`);
-      if (since !== null && 'Notification' in window && Notification.permission === 'granted') {
+      // only when the notification setting includes the browser
+      const method = since === null || !(r.items || []).length ? null
+        : ((await get('/setup/state')).answers || {})['notify.method'] || 'browser';
+      if (['browser', 'both'].includes(method) && 'Notification' in window && Notification.permission === 'granted') {
         for (const n of r.items || []) new Notification(n.title, { body: n.body, tag: `lc-${n.id}` });
       }
       since = r.latest ?? since ?? 0;
