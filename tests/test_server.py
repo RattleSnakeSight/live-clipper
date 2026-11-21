@@ -4,6 +4,7 @@ import sys
 import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from live_clipper.paths import get_paths
 from live_clipper.server import create_app, ensure_token
@@ -23,6 +24,13 @@ class DemoService:
     def __init__(self):
         self.router = APIRouter(prefix="/api/demo")
         self.router.get("/ping")(lambda: {"pong": True})
+
+        @self.router.websocket("/ws")
+        async def ws(websocket: WebSocket):
+            await websocket.accept()
+            await websocket.send_json({"hello": True})
+            await websocket.close()
+
         self.events = []
 
     async def start(self, ctx):
@@ -156,3 +164,16 @@ def test_notify_publishes_on_bus(ctx):
     ctx.bus.subscribe("app.notify", lambda t, p: got.append(p))
     ctx.notify("Clip ready", "3 new clips")
     assert got == [{"title": "Clip ready", "body": "3 new clips"}]
+
+
+def test_websockets_are_guarded_too(ctx):
+    ctx.services.append(DemoService())
+    c = TestClient(create_app(ctx), base_url=BASE)
+    good = {**auth(ctx), "Host": "127.0.0.1:8765"}  # the websocket test client ignores base_url's host
+    with c.websocket_connect("/api/demo/ws", headers=good) as ws:
+        assert ws.receive_json() == {"hello": True}
+    no_token = {"Host": "127.0.0.1:8765"}
+    for headers in (no_token, {**good, "Origin": "http://evil.example"}, {**good, "Host": "evil.example"}):
+        with pytest.raises(WebSocketDisconnect):
+            with c.websocket_connect("/api/demo/ws", headers=headers) as ws:
+                ws.receive_json()

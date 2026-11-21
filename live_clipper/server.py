@@ -10,10 +10,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.requests import HTTPConnection
+from starlette.websockets import WebSocketClose
 
 from .logging_setup import register_secret
 from .paths import Paths
@@ -44,6 +46,39 @@ def _same(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
+class Guard:
+    """ASGI middleware for HTTP and WebSocket: Host check, same-origin check, token check on /api/*."""
+
+    def __init__(self, app, ctx: AppContext):
+        self.app, self.ctx = app, ctx
+        self.hosts = {f"127.0.0.1:{ctx.port}", f"localhost:{ctx.port}"}
+
+    def refuse(self, conn: HTTPConnection, scope) -> tuple[int, str] | None:
+        host = conn.headers.get("host", "")
+        if host not in self.hosts and not allow_remote():
+            return 400, "invalid host"  # DNS-rebinding protection
+        origin = conn.headers.get("origin")
+        changes_state = scope["type"] == "websocket" or scope["method"] not in SAFE_METHODS
+        if changes_state and origin is not None and origin != f"http://{host}":
+            return 403, "cross-origin request refused"
+        path = conn.url.path
+        if path.startswith("/api/") and path != "/api/health":
+            header = conn.headers.get("authorization", "")
+            cookie = conn.cookies.get(COOKIE, "")
+            if not (_same(header, f"Bearer {self.ctx.token}") or (cookie and _same(cookie, self.ctx.token))):
+                return 401, "missing or invalid token"
+        return None
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            refused = self.refuse(HTTPConnection(scope), scope)
+            if refused and scope["type"] == "websocket":
+                return await WebSocketClose(code=1008, reason=refused[1])(scope, receive, send)
+            if refused:
+                return await JSONResponse({"detail": refused[1]}, refused[0])(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
 class StateValue(BaseModel):
     value: Any = None
 
@@ -68,25 +103,7 @@ def create_app(ctx: AppContext) -> FastAPI:
 
     app = FastAPI(title="Live Clipper", version=ctx.version, lifespan=lifespan,
                   docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
-    hosts = {f"127.0.0.1:{ctx.port}", f"localhost:{ctx.port}"}
-
-    def authed(request: Request) -> bool:
-        header = request.headers.get("authorization", "")
-        cookie = request.cookies.get(COOKIE, "")
-        return _same(header, f"Bearer {ctx.token}") or (bool(cookie) and _same(cookie, ctx.token))
-
-    @app.middleware("http")
-    async def guard(request: Request, call_next):
-        host = request.headers.get("host", "")
-        if host not in hosts and not allow_remote():
-            return JSONResponse({"detail": "invalid host"}, 400)  # DNS-rebinding protection
-        origin = request.headers.get("origin")
-        if request.method not in SAFE_METHODS and origin is not None and origin != f"http://{host}":
-            return JSONResponse({"detail": "cross-origin request refused"}, 403)
-        path = request.url.path
-        if path.startswith("/api/") and path != "/api/health" and not authed(request):
-            return JSONResponse({"detail": "missing or invalid token"}, 401)
-        return await call_next(request)
+    app.add_middleware(Guard, ctx=ctx)
 
     def uptime() -> float:
         return round(time.time() - ctx.started_at, 1)

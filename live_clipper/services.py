@@ -8,7 +8,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
 from fastapi import APIRouter
 
@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 Handler = Callable[[str, Any], Any]
 
 
-@runtime_checkable
+
 class Service(Protocol):
     name: str
     router: APIRouter | None
