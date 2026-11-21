@@ -352,7 +352,9 @@ class Monitor:
         for t in tasks:
             t.cancel()
         if tasks:                                     # a watch must not restart capture after this point
-            await asyncio.gather(*tasks, return_exceptions=True)
+            _, pending = await asyncio.wait(tasks, timeout=10)
+            if pending:                               # never let a stuck task hang shutdown
+                self._log(f"{len(pending)} monitor task(s) did not stop within 10 s", "warn")
         if self.engine.hub is not None:
             self.engine.hub.unwatch(self.ch["platform"], self.ch["name"])
         self.media_on = self.slot_wait = False

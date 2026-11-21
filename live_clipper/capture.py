@@ -130,14 +130,10 @@ class Capture:
         await self._kill()
         if self._task:
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                cur = asyncio.current_task()
-                if cur is not None and cur.cancelling():  # our caller is being cancelled, not just the capture
-                    raise
-            except Exception:
-                pass
+            # bounded: a cancelled caller still gets its CancelledError from wait(); a stuck task can't hang stop
+            done, _ = await asyncio.wait([self._task], timeout=10)
+            if self._task in done and not self._task.cancelled():
+                self._task.exception()                # retrieve it so asyncio doesn't warn; already logged by run
         self.health.state = "stopped"
 
     async def interrupt(self) -> None:

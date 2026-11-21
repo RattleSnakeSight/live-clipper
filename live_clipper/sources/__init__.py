@@ -164,7 +164,7 @@ class StatusHub:
     async def close(self) -> None:
         if self._task:
             self._task.cancel()
-            await asyncio.gather(self._task, return_exceptions=True)
+            await asyncio.wait([self._task], timeout=10)
             self._task = None
 
     def status(self) -> dict:
