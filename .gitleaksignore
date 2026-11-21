@@ -1,3 +1,4 @@
 # Synthetic test credentials in an early commit (later marked inline with gitleaks:allow).
 6407bf2625f768fbf85976499d358e2447034695:tests/test_publish_adapters.py:generic-api-key:17
 6407bf2625f768fbf85976499d358e2447034695:tests/test_publish_api.py:generic-api-key:20
+d4c3f28b2fbfc4118cb5f4978fa7d9efded71202:tests/chat/test_chat_twitch.py:generic-api-key:11

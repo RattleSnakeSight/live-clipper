@@ -8,7 +8,7 @@ import websockets
 from live_clipper.chat._util import parse_rfc3339
 from live_clipper.chat.twitch import TwitchChat, irc_emote_names, parse_irc
 
-CREDS = {"client_id": "cid", "access_token": "tok-secret-123456", "user_id": "1", "broadcaster_id": "2"}
+CREDS = {"client_id": "cid", "access_token": "tok-secret-123456", "user_id": "1", "broadcaster_id": "2"}  # gitleaks:allow (synthetic test value)
 
 
 def welcome(sid="S1", ka=1):
