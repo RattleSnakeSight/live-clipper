@@ -5,9 +5,9 @@ Importing the module is also where it should call db.register_migrations(...).
 """
 
 SERVICES: list[str] = [
-    # "live_clipper.monitor:MonitorService",
     "live_clipper.setup_service:SetupService",
     "live_clipper.maintenance:MaintenanceService",
     "live_clipper.notifications:NotificationService",
     "live_clipper.diagnostics:DiagnosticsService",
+    "live_clipper.publish.service:PublishService",
 ]

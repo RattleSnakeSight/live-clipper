@@ -81,3 +81,28 @@ Channel status values shown in the UI: `offline`, `waiting`, `recording`, `recon
 - The CLI has a global `--home PATH` (same as `LIVE_CLIPPER_HOME`); the autostart unit uses it when the variable
   is set at install time.
 
+
+
+
+
+
+
+
+
+
+
+
+### publish
+
+- **OAuth callback must bypass the token check.** The browser reaches `GET /api/oauth/{provider}/callback` from the
+  provider's site, and the `SameSite=Strict` cookie is not sent on cross-site navigations, so `Guard` answers 401.
+  Please exempt `GET /api/oauth/*/callback` in `live_clipper/server.py` (`Guard.refuse`). The route is protected by a
+  single-use, provider-bound, 15-minute `state` plus a server-side PKCE verifier. Tests send the bearer header.
+- Router prefix is `/api` (not `/api/publish`): it serves `/api/destinations*`, `/api/oauth/*` and `/api/publish/*`.
+- Settings keys used: `publish.mode` (`auto`|`manual`), `publish.test_mode`, `publish.notifications` (default true),
+  `publish.channel_platforms`. The monitor/UI may write `publish.channel_platforms` or call
+  `PUT /api/publish/channel-platforms/{channel_id}`.
+- `publish.delivery` payload additionally carries `destination_id` and `test` (true for the test destination).
+- Storage cleanup should call `Publisher.holds_provider_bytes(clip_id)` before deleting a clip file; an upload session
+  may still need it.
+- `edit.clip_ready.path` must stay readable until every delivery for the clip is finished.

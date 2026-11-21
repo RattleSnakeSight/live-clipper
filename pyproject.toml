@@ -49,3 +49,6 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 "live_clipper/maintenance.py" = ["E501"]
 "live_clipper/notifications.py" = ["E501"]
 "live_clipper/setup_service.py" = ["E501"]
+# the publishing adapters keep the reference's line layout (documented in docs/DEVIATIONS.md)
+"live_clipper/publish/*.py" = ["E501"]
+"tests/*publish*.py" = ["F811", "F401", "E501"]  # shared fixtures are imported from publish_util
