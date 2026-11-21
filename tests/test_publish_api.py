@@ -385,3 +385,27 @@ def test_facebook_exchange_failure_never_leaks_short_token(app):
         h.flush()
     log_text = (ctx.paths.logs / "live-clipper.log").read_text(encoding="utf-8")
     assert short not in json.dumps(d) + r.text + log_text
+
+
+def test_sandbox_rejects_foreign_host_and_redirect(app):
+    ctx, svc, c = app
+    c.put("/api/publish/test-mode", json={"enabled": True})
+    url, _ = start_oauth(c, "test")
+    base = url.split("/oauth/authorize")[0]
+    sbx_port = urlparse(base).port
+    q = parse_qs(urlparse(url).query)
+    q = {k: v[0] for k, v in q.items()}
+
+    def go(redirect, host=None):
+        qq = {**q, "redirect_uri": redirect}
+        h = {"Host": host} if host else {}
+        return httpx.get(base + "/oauth/authorize", params=qq, headers=h, follow_redirects=False)
+
+    ok = f"http://127.0.0.1:{ctx.port}/api/oauth/test/callback"
+    assert go(ok).status_code == 302
+    assert go(ok, host=f"localhost:{sbx_port}").status_code == 302
+    assert go(ok, host="evil.example.com").status_code == 403
+    assert go(ok, host=f"evil.example.com:{sbx_port}").status_code == 403
+    for bad in ("https://evil.example.com/cb", f"http://127.0.0.1:{ctx.port + 1}/api/oauth/test/callback",
+                f"http://127.0.0.1:{ctx.port}/other", f"http://127.0.0.1:{ctx.port}@evil.example.com/api/oauth/"):
+        assert go(bad).status_code == 400
