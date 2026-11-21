@@ -192,3 +192,35 @@ def test_failed_engine_start_leaves_no_engine(tmp_path, monkeypatch):
     asyncio.run(go())
     assert svc.engine is None
     assert svc.status() == {"state": "error", "detail": "RuntimeError: buffer not installed"}
+
+
+def test_housekeeping_is_cancelled_before_monitors_stop(tmp_path, monkeypatch):
+    from live_clipper.capture import Capture
+
+    s, store, sec = env(tmp_path, topic_observe_seconds=0)
+    cid = store.add_channel("custom", "feed", "srt://example.invalid:9000", {"chat_adapter": "none"})
+    passes = []
+
+    monkeypatch.setattr(Capture, "start", lambda self: None)
+
+    async def slow_stop(self):                   # processes take a while to exit
+        await asyncio.sleep(1.2)
+
+    monkeypatch.setattr(Capture, "stop", slow_stop)
+    eng = Engine(s, store, sec)
+
+    async def enforce():
+        passes.append(stopping["on"])
+
+    stopping = {"on": False}
+    monkeypatch.setattr(eng.maintenance, "enforce_producers", enforce)
+
+    async def go():
+        eng.arm(cid)
+        await eng.start()
+        await asyncio.sleep(0.1)
+        stopping["on"] = True
+        await eng.stop()
+
+    asyncio.run(go())
+    assert passes and True not in passes          # no housekeeping pass (restarts, triggers) while stopping

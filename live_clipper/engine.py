@@ -535,6 +535,10 @@ class Engine:
                     self.store.log(self.arm_errors[ch["id"]], "error", channel_id=ch["id"])
 
     async def stop(self) -> None:
+        for t in self._bg:                            # no restarts or new clips while monitors stop
+            t.cancel()
+        if self._bg:
+            await asyncio.wait(self._bg, timeout=10)
         for m in list(self.monitors.values()):
             await m.stop()
         if self.twitch_hub is not None:
