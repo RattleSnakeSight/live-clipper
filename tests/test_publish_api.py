@@ -409,3 +409,41 @@ def test_sandbox_rejects_foreign_host_and_redirect(app):
     for bad in ("https://evil.example.com/cb", f"http://127.0.0.1:{ctx.port + 1}/api/oauth/test/callback",
                 f"http://127.0.0.1:{ctx.port}/other", f"http://127.0.0.1:{ctx.port}@evil.example.com/api/oauth/"):
         assert go(bad).status_code == 400
+
+
+def test_settings_are_validated_per_field_and_empty_clears(app):
+    ctx, svc, c = app
+    ig = dest_id(c, "instagram")
+    r = c.put(f"/api/destinations/{ig}/settings", json={"login": "carrier-pigeon", "video_base_url": "http://example.com/x"})
+    assert r.status_code == 400
+    errs = r.json()["detail"]["errors"]
+    assert set(errs) == {"login", "video_base_url"} and "https" in errs["video_base_url"]
+    assert c.get(f"/api/destinations/{ig}").json()["settings"] == {}          # nothing half-saved
+    ok = c.put(f"/api/destinations/{ig}/settings",
+               json={"login": "facebook", "video_base_url": "https://example.com/clips", "share_to_feed": False})
+    assert ok.json()["settings"] == {"login": "facebook", "video_base_url": "https://example.com/clips",
+                                      "share_to_feed": False}
+    cleared = c.put(f"/api/destinations/{ig}/settings", json={"video_base_url": ""}).json()["settings"]
+    assert "video_base_url" not in cleared and cleared["login"] == "facebook"
+    yt = dest_id(c, "youtube")
+    assert c.put(f"/api/destinations/{yt}/settings", json={"privacy": "secret"}).status_code == 400
+    assert c.put(f"/api/destinations/{yt}/settings", json={"daily_limit": -1}).status_code == 400
+    tt = dest_id(c, "tiktok")
+    assert c.put(f"/api/destinations/{tt}/settings", json={"mode": "direct", "disable_duet": "yes"}).status_code == 400
+
+
+def test_confirm_posted_stores_the_post_url_and_rejects_a_bad_one(app):
+    ctx, svc, c = app
+    c.put("/api/publish/test-mode", json={"enabled": True})
+    clip = make_clip(ctx)
+    svc.store.save_clip(clip)
+    t = next(d["id"] for d in c.get("/api/destinations").json()["destinations"] if d["test"])
+    did = c.post("/api/publish/post", json={"clip_id": clip["clip_id"], "destination_id": t}).json()["id"]
+    wait_status(c, did, "published")
+    svc.store.update("deliveries", did, status="needs_confirmation", provider_url="")
+    bad = c.post(f"/api/publish/deliveries/{did}/confirm-posted", json={"url": "not a link"})
+    assert bad.status_code == 400 and "url" in bad.json()["detail"]["errors"]
+    assert c.get(f"/api/publish/deliveries/{did}").json()["status"] == "needs_confirmation"
+    r = c.post(f"/api/publish/deliveries/{did}/confirm-posted", json={"url": "https://example.com/p/1"})
+    assert r.status_code == 200 and r.json()["url"] == "https://example.com/p/1" and r.json()["status"] == "published"
+    assert c.get(f"/api/publish/deliveries/{did}").json()["url"] == "https://example.com/p/1"

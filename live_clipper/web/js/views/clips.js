@@ -3,7 +3,8 @@
 
 import { ApiError, get, list, post } from '../api.js';
 import { CLIP_STATES, DELIVERY_STATES, channelName, clipStatus, clipTitle, pill } from '../labels.js';
-import { ago, busy, confirmDialog, fmtDuration, fmtTime, h, poll, patch, selectField, textField, titleRow, toast } from '../ui.js';
+import { ago, busy, confirmDialog, fmtDuration, fmtTime, h, inputDialog, poll, patch, selectField, switchField, textField, titleRow, toast } from '../ui.js';
+import { schemaHelp } from './docs.js';
 
 const LANG_NAMES = { en: 'English', es: 'Spanish' };
 const LAYOUTS = [['', 'Keep the current framing'], ['auto', 'Auto (facecam above gameplay when found)'], ['fit', 'Fit the whole frame'],
@@ -110,7 +111,14 @@ function deliveryActions(d, refresh) {
   if (['failed', 'cancelled', 'paused'].includes(d.status)) out.push(act('Retry', 'Try posting this clip to this destination again.', 'retry', {}, 'Queued again.'));
   if (d.status === 'uncertain') out.push(act('Check again', 'Ask the site again whether the upload landed.', 'recheck', {}, 'Checked.'));
   if (d.status === 'needs_confirmation') {
-    out.push(act('Confirm posted', 'You checked the account and the clip is there. Nothing is uploaded again.', 'confirm-posted', {}, 'Marked as posted.'));
+    out.push(actionButton('Confirm posted', 'You checked the account and the clip is there. Nothing is uploaded again. You can add the post address.',
+      `confirm-posted-${d.id}`, async () => {
+        const done = await inputDialog({ title: 'Mark as posted?', ok: 'Mark as posted',
+          body: 'Only confirm after checking the account: the clip is there. Nothing is uploaded again.',
+          label: 'Post address (optional)', help: 'Paste the link to the post so you can open it from this page later. Leave it empty if you do not have it.',
+          submit: (url) => post(`/publish/deliveries/${d.id}/confirm-posted`, url ? { url } : {}) });
+        if (done) { toast('Marked as posted.'); await refresh(); }
+      }));
     out.push(actionButton('Confirm not posted', 'You checked the account and the clip is not there. The app uploads it again.',
       `confirm-not-posted-${d.id}`, async () => {
         if (!await confirmDialog({ title: 'Upload it again?', body: 'Only confirm after checking the account: the clip is uploaded again.', ok: 'Upload again' })) return;
@@ -127,11 +135,12 @@ function deliveryActions(d, refresh) {
 
 async function renderClip(main, id) {
   const enc = encodeURIComponent(id);
-  const [clip, presets, dests, channels] = await Promise.all([
+  const [clip, presets, dests, channels, presetSchema] = await Promise.all([
     get(`/clips/${enc}`),
     get('/presets').then((d) => list(d, 'presets')).catch(() => []),
     get('/destinations').then((d) => list(d, 'destinations')).catch(() => []),
-    get('/channels').then((d) => list(d, 'channels')).catch(() => [])]);
+    get('/channels').then((d) => list(d, 'channels')).catch(() => []),
+    get('/presets/schema').catch(() => null)]);
   const chName = (channels.find((c) => c.id === clip.channel_id) && channelName(channels.find((c) => c.id === clip.channel_id))) || '';
   const status = clipStatus(clip);
   const history = h('div');
@@ -161,13 +170,41 @@ async function renderClip(main, id) {
     options: LAYOUTS.map(([value, label]) => ({ value, label })) });
   const preset = selectField({ label: 'Preset', value: clip.preset_id, help: 'How the clip looks: size, captions style and loudness.',
     options: presets.length ? presets.map((p) => ({ value: p.id, label: p.name || p.id })) : [{ value: clip.preset_id || 'default', label: clip.preset_id || 'Default' }] });
+  // partial preset values for this clip only (sent as `overrides`); the form starts from the clip's effective values
+  const H = schemaHelp(presetSchema);
+  const v = clip.values || {};
+  const at = (a, b, dflt) => ((v[a] || {})[b] ?? dflt);
+  const ovr = {
+    crf: textField({ label: 'Video quality (CRF)', type: 'number', min: 0, max: 51, step: 1, value: at('encode', 'render_crf', 21), help: H('encode.render_crf') }),
+    height: textField({ label: 'Video height (pixels)', type: 'number', min: 240, max: 4320, step: 1, value: at('encode', 'final_height', 1920), help: H('encode.final_height') }),
+    capSize: textField({ label: 'Caption size', type: 'number', min: 0.01, max: 0.3, step: 0.001, value: at('captions', 'size_frac', 0.068), help: H('captions.size_frac') }),
+    capPos: selectField({ label: 'Caption position', value: String(at('captions', 'alignment', 2)), help: H('captions.alignment'),
+      options: [['2', 'Bottom'], ['5', 'Middle'], ['8', 'Top']].map(([value, label]) => ({ value, label })) }),
+  };
+  const titleOn = switchField({ label: 'Show the title over the start of the clip', checked: at('title', 'duration_s', 2.8) > 0, help: H('title.duration_s') });
+  const overrides = () => {
+    const out = {};
+    const put_ = (a, b, val) => { out[a] = { ...(out[a] || {}), [b]: val }; };
+    const num = (f, a, b, dflt) => { if (f.input.value !== '' && Number(f.input.value) !== Number(at(a, b, dflt))) put_(a, b, Number(f.input.value)); };
+    num(ovr.crf, 'encode', 'render_crf', 21);
+    num(ovr.height, 'encode', 'final_height', 1920);
+    num(ovr.capSize, 'captions', 'size_frac', 0.068);
+    if (Number(ovr.capPos.input.value) !== Number(at('captions', 'alignment', 2))) put_('captions', 'alignment', Number(ovr.capPos.input.value));
+    const was = at('title', 'duration_s', 2.8) > 0;
+    if (titleOn.input.checked !== was) put_('title', 'duration_s', titleOn.input.checked ? (at('title', 'duration_s', 0) || 2.8) : 0);
+    return out;
+  };
+  const lookBox = h('fieldset', { class: 'panel', id: 'clip-look', style: 'margin-top: 16px' },
+    h('legend', { class: 'label' }, 'Look of this clip only'),
+    h('p', { class: 'help', style: 'margin-bottom: 8px' }, 'These values replace the preset for this clip. Leave them as they are to keep the preset.'),
+    h('div', { class: 'inline-fields' }, ovr.crf.el, ovr.height.el, ovr.capSize.el, ovr.capPos.el), titleOn.el);
   const err = h('p', { class: 'error', id: 'render-err', role: 'alert' });
   const renderBtn = h('button', { type: 'submit', class: 'btn primary', help: 'Make the video again with these changes. Your changes win over every format, rule and preset.' }, 'Render again');
   const editor = h('form', { class: 'panel', novalidate: true, 'aria-labelledby': 'ov-title' },
     h('h2', { id: 'ov-title' }, 'Change this clip'),
     h('p', { class: 'help', style: 'margin-bottom: 12px' }, 'Changes here apply to this clip only and override everything else.'),
     h('div', { class: 'inline-fields' }, tin.el, tout.el), titles.map(([, f]) => f.el), srts.map(([, f]) => f.el),
-    layout.el, preset.el, err, h('div', { class: 'row', style: 'margin-top: 16px' }, renderBtn));
+    layout.el, preset.el, lookBox, err, h('div', { class: 'row', style: 'margin-top: 16px' }, renderBtn));
   editor.addEventListener('submit', busy(renderBtn, async (e) => {
     e.preventDefault();
     err.textContent = '';
@@ -185,6 +222,8 @@ async function renderClip(main, id) {
     if (Object.keys(s).length) body.srt = s;
     if (layout.input.value) body.layout = { mode: layout.input.value };
     if (preset.input.value && preset.input.value !== clip.preset_id) body.preset_id = preset.input.value;
+    const ov = overrides();
+    if (Object.keys(ov).length) body.overrides = ov;
     if (!Object.keys(body).length) { err.textContent = 'Nothing changed yet.'; return; }
     try {
       const r = await post(`/clips/${enc}/render`, body);

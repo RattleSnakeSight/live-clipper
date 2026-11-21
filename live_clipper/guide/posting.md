@@ -192,6 +192,23 @@ Terms: the Meta Platform Terms say you need the necessary consents for content y
 streamer's permission once per destination. Instagram has no private or draft mode. A published Reel is
 public.
 
+## Destination settings
+
+Each destination card on the Destinations screen has a Settings form. Every field explains itself, and a value
+the app cannot use is refused with a message under that field. An empty field (or Default) removes the setting
+and brings back the built-in behaviour.
+
+| Destination | Settings |
+|---|---|
+| YouTube Shorts | Who can watch uploads (public, link only or private), category number, extra tags, uploads per day. |
+| TikTok | Inbox drafts or direct posting, who can watch direct posts, whether your app passed TikTok's audit, comments, duets and stitches off, uploads per day. |
+| Instagram Reels | Login type (Instagram Login or Facebook Login for Business), public video folder address, show in the profile feed, account number to pin, redirect address override. |
+| All three | Redirect address override: only for providers that refuse the default loopback address. |
+
+The public video folder address is only needed for Instagram Login. Instagram downloads each video from a
+publicly reachable https address, so the folder that serves your clip files must be reachable from the
+internet. Facebook Login uploads the file itself and does not use it.
+
 ## Test destination
 
 Turn on test mode to try everything without posting anywhere. The app creates a destination labelled "Test
@@ -229,6 +246,7 @@ Each clip going to each destination has its own line under "Where it was posted"
   marker on YouTube) before it goes on. If it cannot tell whether an earlier attempt landed, it asks the
   platform first. If that is still unclear, the delivery goes to needs_confirmation and shows two buttons:
   "Confirm posted" and "Confirm not posted", which lets the app upload again.
-  Check the account yourself before you press either.
+  Check the account yourself before you press either. Confirm posted asks for the post address. It is
+  optional: if you paste one, it is saved on the delivery and shown as the Open post link.
 - Manual Retry on a failed delivery also checks the platform before it uploads.
 - You get a notification when a clip is published, if notifications are on.

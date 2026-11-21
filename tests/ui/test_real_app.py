@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 from playwright.sync_api import expect
+from test_help_coverage import assert_editors_show_schema_descriptions
 
 pytestmark = pytest.mark.ui
 
@@ -349,6 +350,19 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
         expect(sec).to_contain_text(f"http://127.0.0.1:{app.port}/api/oauth/{provider}/callback")
         expect(sec).to_contain_text("What fails without each step")
     expect(page.get_by_label("Automatic")).to_be_checked()
+    # destination settings go through the real publish API, with its per-field errors shown inline
+    ig = page.locator("#dest-instagram form[data-settings=instagram]")
+    ig.get_by_label("Public video folder address (https)").fill("http://example.com/clips")
+    ig.get_by_role("button", name="Save settings").click()
+    expect(ig.locator(".field").filter(has_text="Public video folder address").locator(".error")).to_contain_text("https://")
+    ig.get_by_label("Public video folder address (https)").fill("https://example.com/clips")
+    ig.get_by_label("Login type").select_option("facebook")
+    ig.get_by_role("button", name="Save settings").click()
+    expect(page.locator("#toasts")).to_contain_text("Settings saved")
+    ig_dest = next(d for d in app.api("/destinations")["destinations"] if d["provider"] == "instagram")
+    assert ig_dest["settings"] == {"login": "facebook", "video_base_url": "https://example.com/clips"}
+    # formats, rules and presets show the schema's description for every field
+    assert_editors_show_schema_descriptions(page, app.url)
 
     # rules and the effective-settings preview against the real selection API
     page.goto(f"{app.url}/#/formats")

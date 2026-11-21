@@ -202,3 +202,10 @@ def test_window_override_recuts_from_the_source_or_is_refused(api):
     assert abs(float(json.loads(out)["format"]["duration"]) - 9.0) < 0.5
     eff = eng.selection.resolve(v["channel_id"], eng.store.clip(cid))
     assert eff["trail"]["window.pre"]["set_by"] == "override" and eff["values"]["window.pre"] == 4
+
+
+def test_preset_schema_endpoint_describes_every_field(api):
+    c, _, _ = api
+    schema = c.get("/api/presets/schema").json()
+    assert schema["$defs"]["Encode"]["properties"]["render_crf"]["description"]
+    assert all(p.get("description") for d in schema["$defs"].values() for p in d["properties"].values())

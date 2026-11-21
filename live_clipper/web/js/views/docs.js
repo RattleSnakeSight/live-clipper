@@ -4,63 +4,52 @@
 import { ApiError, del, get, list, post, put } from '../api.js';
 import { busy, clear, confirmDialog, download, h, nextId, pickFile, switchField, toast } from '../ui.js';
 
-const FIELD_HELP = {
-  id: 'Short unique name used in files and rules. Letters, digits and dashes.',
-  name: 'The name shown in the app.',
-  version: 'Version number of this file format. Leave as it is.',
-  description: 'One line about what this is for.',
-  labels: 'Names used in titles and messages.',
-  match: 'When this format applies to a stream.',
-  platforms: 'Limit to these platforms, one per line. Empty means all.',
-  title_regex: 'Pattern the stream title must match (regular expression).',
-  category_regex: 'Pattern the stream category or game must match (regular expression).',
-  gate_on_title: 'Only record while the title or category matches.',
-  detector: 'How chat activity turns into a moment.',
-  sensitivity: 'High makes more clips from smaller chat spikes; low makes fewer, bigger ones.',
-  reaction_delay: 'Seconds chat usually lags behind what happened on stream.',
-  per_user_cap: 'How many messages from one person count toward a spike.',
-  window: 'How much video goes around a moment.',
-  pre: 'Seconds of video kept before the moment.',
-  post: 'Seconds of video kept after the moment.',
-  scoring: 'How moments are ranked against each other.',
-  min_score: 'Moments below this score are not clipped.',
-  fresh_half_life_h: 'Hours after which a moment counts half as much when ranking.',
-  language: 'Which spoken languages are expected.',
-  prefs: 'Caption languages to try, in order, one per line.',
-  min_window_prob: 'How sure speech detection must be (0 to 1) before trusting a language.',
-  titles: 'How clip titles are written.',
-  max_len: 'Longest title allowed, in characters.',
-  languages: 'Languages to write titles in, one per line.',
-  output: 'Size and frame rate of the finished video.',
-  width: 'Video width in pixels.',
-  height: 'Video height in pixels.',
-  fps: 'Frames per second.',
-  layout: 'How the stream is framed in a vertical clip.',
-  mode: 'Auto puts a detected facecam above the gameplay; fit shows the whole frame; crop cuts the centre.',
-  zoom: 'Zoom into the gameplay. 1 is no zoom.',
-  captions: 'Burned-in subtitles.',
-  enabled: 'Turn this part on or off.',
-  font_size: 'Caption text size in pixels.',
-  max_words_per_line: 'Most words shown on one caption line.',
-  loudness: 'How loud the finished clip is.',
-  target_lufs: 'Target loudness. -14 matches most short-video sites.',
-};
-
 const human = (k) => String(k).replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
-const schemaAt = (schema, key) => (schema && schema.properties && schema.properties[key]) || null;
 
-function helpFor(path, key, node) {
-  return (node && node.description) || FIELD_HELP[path] || FIELD_HELP[key]
-    || `Sets ${path}. The Formats and presets guide page explains every field.`;
+// --- JSON Schema (GET /api/formats|presets|rules/schema) -------------------------------------------------
+// Pydantic schemas nest models through $ref and optional values through anyOf. `resolve` returns the real node
+// with the description of the field that referenced it.
+export function resolve(root, raw) {
+  let n = raw || {};
+  let desc = n.description;
+  for (let i = 0; i < 6; i++) {
+    if (n.$ref) n = (root.$defs || {})[n.$ref.split('/').pop()] || {};
+    else if (n.allOf && n.allOf.length === 1) n = n.allOf[0];
+    else if (n.anyOf) n = n.anyOf.find((x) => x.type !== 'null') || {};
+    else break;
+    desc = desc || n.description;
+  }
+  return { ...n, description: desc };
+}
+
+// The raw schema node of `key` inside `info` (an object, a dict of values, or a list).
+export function child(root, info, key) {
+  const props = info.properties || {};
+  if (key in props) return props[key];
+  const extra = info.additionalProperties;
+  if (extra && typeof extra === 'object') return { ...extra, description: extra.description || info.description };
+  return { description: info.description };
+}
+
+// Description of the field at a dotted path, or '' when the schema has none.
+export function schemaHelp(schema) {
+  return (path) => {
+    if (!schema) return '';
+    let node = schema;
+    for (const k of path.split('.')) node = child(schema, resolve(schema, node), k);
+    return resolve(schema, node).description || '';
+  };
 }
 
 // Builds a form for `doc`. Returns {el, read(): doc, showErrors({path: msg})}.
 export function docForm(doc, schema) {
+  const root = schema || {};
   const readers = [];
   const errorSlots = {};
 
-  function field(path, key, value, node) {
-    const help = helpFor(path, key, node);
+  function field(path, key, value, raw) {
+    const node = resolve(root, raw);
+    const help = node.description || `Sets ${path}.`;
     const id = nextId('d');
     const err = h('p', { class: 'error', id: `${id}-err`, role: 'alert' });
     errorSlots[path] = err;
@@ -70,7 +59,7 @@ export function docForm(doc, schema) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       return h('fieldset', { class: 'panel', style: 'margin-top: 16px', dataset: { path } },
         h('legend', { class: 'label' }, human(key)), h('p', { class: 'help', style: 'margin-bottom: 8px' }, help),
-        Object.entries(value).map(([k, v]) => field(`${path}.${k}`, k, v, schemaAt(node, k))), err);
+        Object.entries(value).map(([k, v]) => field(`${path}.${k}`, k, v, child(root, node, k))), err);
     }
     if (typeof value === 'boolean') {
       const sw = switchField({ id, label: human(key), help, checked: value });
@@ -116,7 +105,8 @@ export function docForm(doc, schema) {
     return wrap(input, `${human(key)} (JSON)`);
   }
 
-  const el = h('div', {}, Object.entries(doc).map(([k, v]) => field(k, k, v, schemaAt(schema, k))));
+  const top = resolve(root, root);
+  const el = h('div', {}, Object.entries(doc).map(([k, v]) => field(k, k, v, child(root, top, k))));
   return {
     el,
     read() {
@@ -236,7 +226,7 @@ function fieldErrors(e) {
 export async function renderEditor(main, kind, id, backLabel) {
   const one = SINGULAR[kind];
   const [doc, schema] = await Promise.all([
-    get(`/${kind}/${encodeURIComponent(id)}`), Promise.resolve(null)]);
+    get(`/${kind}/${encodeURIComponent(id)}`), get(`/${kind}/schema`).catch(() => null)]);
   let form = docForm(doc, schema);
   const formPane = h('div', { id: 'pane-form', role: 'tabpanel', 'aria-labelledby': 'tab-form' }, form.el);
   const json = h('textarea', { id: 'doc-json', class: 'code', spellcheck: 'false', 'aria-describedby': 'doc-json-help doc-json-err',

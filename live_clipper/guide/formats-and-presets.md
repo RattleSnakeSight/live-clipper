@@ -81,6 +81,13 @@ start. Previews are 720x1280.
 | Title | How long the title shows (2.8 seconds) and how many characters per line (20). |
 | Languages | Render the original language only, or English and Spanish both. |
 
+## What each field means
+
+Every field in the format, rule and preset editors carries its own one-line explanation under its name. The
+text is the same one the app serves at `/api/formats/schema`, `/api/rules/schema` and `/api/presets/schema`
+(a JSON Schema), so it never drifts from what the app checks. Fields that hold lists or nested tables
+(for example title templates) are edited as JSON and show the explanation of the whole table.
+
 ## Import, export, replace
 
 You never need to write code.
