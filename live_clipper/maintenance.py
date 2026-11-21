@@ -163,6 +163,19 @@ class Maintenance:
         pub = [r[1] for r in rows if r[0] == "published"]
         return max(pub) if pub else None
 
+    def publisher_holds(self, clip_id) -> bool:
+        """Ask publishing (Publisher.holds_provider_bytes) whether an upload may still need this clip's file."""
+        for svc in self.ctx.services:
+            pub = getattr(svc, "pub", None) if getattr(svc, "name", "") == "publish" else None
+            if pub is not None:
+                cid = int(clip_id) if str(clip_id).isdigit() else clip_id
+                try:
+                    return bool(pub.holds_provider_bytes(cid))
+                except Exception:
+                    log.exception("could not ask publishing about clip %s; keeping it", clip_id)
+                    return True
+        return False
+
     # --- scan and plan ---
     def scan(self) -> dict:
         cfg = self.config()
@@ -328,6 +341,8 @@ class Maintenance:
                 else:
                     if a.clip_id is not None and self.posted_at(a.clip_id) is None:
                         continue  # not (or no longer) fully posted: protected
+                    if a.clip_id is not None and self.publisher_holds(a.clip_id):
+                        continue  # a provider may still read or resume an upload of this file
                     if not self._inside(p, root):
                         continue
                     if a.action == "delete_original":

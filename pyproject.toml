@@ -21,6 +21,8 @@ dependencies = [
     "faster-whisper>=1.1",
     "ctranslate2>=4.4",
     "sentencepiece>=0.2",
+    "streamlink",  # media capture (third-party; see docs/DEVIATIONS.md)
+    "websockets",  # Twitch chat (EventSub / IRC over WebSocket)
 ]
 
 [project.optional-dependencies]
@@ -69,6 +71,12 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 "live_clipper/{buffer,timeline,clipper,render,postprocess,facecam,faces,loudness}.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
 "live_clipper/captions/*.py" = ["E501", "E741", "B905", "B023", "B007", "B904", "UP045", "UP035", "UP041", "UP037"]
 "tests/{test_timeline,test_captions_text,test_hook_render,test_split_layout,test_edit_postprocess}.py" = ["E501", "E741", "B905"]
+# ported reference modules keep their original line layout (parity with the original design)
+"live_clipper/{capture,_capture_exec,source_status,engine,chat_tokens,kick_webhook,events,store,pipeline}.py" = ["E501", "E741", "E702", "B904"]
+"live_clipper/chat/*.py" = ["E501", "E741", "E702", "B904"]
+"tests/chat/*.py" = ["E501", "E741", "B904"]
+"tests/parity/*.py" = ["E501"]
+"tests/{e2e_util,e2e_child,test_e2e_pipeline,test_e2e_crash,test_pipeline}.py" = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Body", "fastapi.Query"]

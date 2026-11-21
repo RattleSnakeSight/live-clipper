@@ -20,9 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .config import RING_MARKER  # ownership marker inside an operator-placed transient ring (never swept)
 from .timeline import Segment, SegmentIndex
-
-RING_MARKER = ".live-clipper-ring"   # ownership marker inside an operator-placed transient ring (never swept)
 
 
 @dataclass

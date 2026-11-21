@@ -76,7 +76,7 @@ evidence, visual evidence (numpy), language decisions and the detector against t
 | `moments.window_for`, `merge_target`, `dedupe_key`, `simulcast_channels` | The live same-moment/dedupe rule of `Engine.on_trigger` / `window_for` / `simulcast_channels` as pure functions. | The engine belongs to the monitor subsystem; selection owns the decision. |
 | `candidates.below_threshold` | Port of `Publisher.below_threshold`. | The rule threshold is a selection decision (format `scoring.min_score`, rule action `threshold`). |
 | `events.py` | `ChatEvent`/`Trigger` shipped with the detector. | The detector needs them; unchanged copy. |
-| `editorial.assess`, `editorial.sweep` | Unchanged, but their frame sampling (`facecam`, `faces`) and final render (`postprocess.render_final`) come from the edit subsystem. | Ownership; not runnable until edit lands. |
+| `editorial.assess`, `editorial.sweep` | Unchanged, but their frame sampling (`facecam`, `faces`) and final render (`postprocess.render_final`) come from the edit subsystem. `editorial.check` takes the moment's effective format (`fmt=`). | Ownership; formats. |
 
 ### Fixed reference defect
 
@@ -190,3 +190,47 @@ shipped preset, every output is unchanged.
 - The auto-layout decision in the recorded reference fell back to `fit` because numpy was missing on that host.
   Here numpy and onnxruntime are installed and the real detector decides; for the synthetic source it also picks
   `fit`. The parity comparison ignores the fallback text and detector details.
+
+## Monitoring and recording (`monitor` branch)
+
+Parity evidence: `tests/parity/test_monitoring_parity.py` replays the original characterization sequences (capture
+state machine and backoffs, gated watch, passive observation, topic evidence, stream-probe parsing, chat
+normalization, three-channel engine, crash restart, disk producers) and compares every value with
+`tests/parity/data/monitoring_ref.json`. Everything not listed below is unchanged.
+
+| Area / file | Change | Reason |
+|---|---|---|
+| `sources/`, `engine.py` (`Monitor._official`), `source_status.py` (`hub=`) | When the user connects an official API for Twitch (Helix Get Streams), Kick (`/public/v1/livestreams`) or YouTube (Data API `search.list` + `videos.list`), live status comes from that API. Offline: capture is not started (no stream-probe retries); live: the original capture loop runs unchanged. Topic-gated channels read the same official answer. Without an official API the original stream probe is used and labelled "stream probe (no official API connected)". Rejected credentials are `needs_action` with the exact fix; capture is not started on a guess. | Public product requirement: official status where the user has credentials. |
+| `sources/kick.py` | Uses the documented v1 livestreams endpoint (marked deprecated); the v2 cursor endpoint's parameters could not be verified. Broadcast id = `started_at`. | Only verifiable endpoint with multi-broadcaster lookup. |
+| `sources/youtube.py` | `search.list` limited to 100 calls per 24 h and spaced `86400 * channels / 100` s per channel; quota exhaustion is shown as unavailable for an hour. | YouTube search quota bucket. |
+| `engine.py` | Recording-slot limit `processing.max_concurrent_recordings` (wizard): extra channels wait (`waiting`, "waiting for a free recording slot") and start when a slot frees. In ungated mode without an official API the original loop runs continuously, so each such channel holds a slot. | Wizard limit. |
+| `engine.py` `public_state()` | Internal states kept; mapped to UI states offline / waiting / recording / reconnecting / needs_action / disabled. | UI contract. |
+| `engine.py` | Not ported: tab share, VOD import, cold tier, publisher/routine/editorial/winners/freshness/reach sweeps, prune, readiness heartbeat/outage file, `discard`/`reserve_edit`/`request_render`/failed-final backfill. Clip-storage ceiling admission and storage cleanup belong to the ops maintenance service. | Owned by other subsystems or not in the public product. The core supervisor records worker restarts in `events`. |
+| `engine.py` | Cutting and post-cut work go through the edit engine (`EditEngine.process` / `resume`, a port of `Engine._process`); the merge/dedupe rule through `moments.*`; topic matching, topic state names, the detector and the cut window through the channel's effective selection format (built-in format = original values). | One implementation per step; formats. |
+| `chat/kick.py` `ACT_URL`, `chat/twitch.py` `ACT_401_SIGNIN`, `chat_tokens.py` `ACT_REVOKED` | Fix texts point at the public app's Sources page instead of environment variables / the original settings page. | Public UI. Excluded from the parity comparison by path. |
+| `chat_tokens.py` | Google refresh endpoint added (YouTube sign-in). | YouTube OAuth sign-in. |
+| `capture.py` | FFmpeg binary from setting `ffmpeg_path` (default `ffmpeg` on PATH); Streamlink found as `streamlink.exe` next to the interpreter on Windows. | Cross-platform. |
+| `config.py`, task names | Ring marker `.live-clipper-ring`, asyncio task names `lc-*`, status User-Agent `live-clipper (status check)`. | Public naming. |
+| `store.py` | Original `Store` API over the app database, shared by monitor, edit and select; logical tables live in `monitor_*` tables (SQL table names are rewritten); `destinations`/`deliveries` are read-only views over the publishing tables. See "Integration" below. | Namespaced tables; one clip store. |
+| `monitor_service.py` | Only `ungated` and `topic_gated` watch modes are offered; Rumble is not offered (no official status API; it still works as a creator-provided feed URL). VOD-only / retired channels stay refused. | Public scope. |
+
+Recording note shown in the API and UI: monitoring permission (live status or chat) does not grant the right to
+record or redistribute a stream; Streamlink and FFmpeg are third-party tools.
+
+## Integration (one pipeline from the subsystems)
+
+Evidence: `tests/test_e2e_pipeline.py` and `tests/test_e2e_crash.py` (real FFmpeg on a synthetic local HLS stream
+and chat: cut window, sizes, publication, manual hold, two channels, custom format/rule/per-clip override in the
+rendered files, worker kill and restart), `tests/test_pipeline.py`; the selection, monitoring and cutting parity
+harnesses give the same results as on their branches.
+
+| Where | What | Why |
+|---|---|---|
+| `store.py` | One clip store for the engine, edit and the selection functions (the original single `clips` table). Clip rows gain `preset_id` and `overrides`; the trigger JSON gains `format_id`, `override` and `selection`. `deliveries`/`destinations` are read-only views over publish's tables (`account_key` empty; the test destination reads as the original's `sandbox`), so selection code that excludes the sandbox excludes it. Clip ids are never reused while a delivery references them. | The branches had three clip stores; publishing owns its tables. |
+| `config.py` | `Settings` keeps capture, ring, disk and topic values only. The clip window, reaction delay and detector values come from the selection format; preview/final height, x264 preset, fps and CRF from the editing preset (defaults = the original constants). `RING_MARKER` lives here (`buffer` imports it, as in the original). | Formats and presets are data. |
+| `engine.py` | A channel's own `pre_roll` / `post_roll` settings are not read any more; the window is `window.pre/post` of the effective format (a rule with a streamer condition sets it per channel). A channel's `sensitivity` / `reaction_delay` still override the format's detector. | One precedence chain (format < rules < per-clip override). |
+| `pipeline.py`, `edit_service.py` | The original publisher's auto-post checks (rule threshold `below_threshold`, gameplay `hold_reason`, language `auto_ineligible`) run once per finished final, before publishing, for every destination including the test destination (the original skipped the gameplay check for its sandbox). Only a qualified final becomes `edit.clip_ready`; a held one waits for the user's review (`POST /clips/{id}/review`) or explicit publish (`POST /clips/{id}/publish`), as the original's "publish manually". A rule `decision` overrides the gameplay evidence. | Publishing posts every clip it receives; selection decides which clips it receives. |
+| `pipeline.py` | Titles get the effective `output.title_template`; the description comes from `posting.caption_template` and hashtags already in it are not repeated. Rules about duration, evidence or language cannot change the window or preset (they are decided at the trigger, before those facts exist); they apply to the title and the gate. | Facts known at each step. |
+| `source_status.py` | `is_gta6`, `is_gta6_category`, `topic_state` delegate to the format (`match.title_regex`, `match.category_regex`, `topic_states`); with the built-in format the patterns and state names are the original ones. | Formats. |
+| `maintenance.py` | Cleanup also keeps a clip whose file a provider may still need (`Publisher.holds_provider_bytes`). The engine also honours the storage service's admission check and disk pause. | Contract between ops, monitor and publish. |
+| `presets.py` | The `edit` namespace only holds presets (clips moved to the shared store). | One clip store. |

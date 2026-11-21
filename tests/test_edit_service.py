@@ -118,6 +118,7 @@ def test_thumbnail_is_made_once_from_the_preview(api):
 @needs_ffmpeg
 def test_rerender_with_trim_title_and_preset(api):
     c, eng, topics = api
+    eng.selection = None  # edit on its own; the selection gate has its own tests (test_pipeline.py)
     from live_clipper.captions.pipeline import regenerate_from_srt
 
     cid, d = source_clip(eng, seconds=6)

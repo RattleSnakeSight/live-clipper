@@ -305,8 +305,10 @@ async def post_cut(engine, clip_id: int) -> None:
         if ev == CHECKED:
             checked = True
             asr = (store.clip(clip_id)["captions"] or {}).get("asr")
-            pref = channel_pref((store.channel(clip["channel_id"]) or {}).get("settings"))
-            dec = decide(asr, pref)
+            sel = getattr(engine, "selection", None)
+            fmt = sel.fmt(store.clip(clip_id)) if sel is not None else None
+            pref = channel_pref((store.channel(clip["channel_id"]) or {}).get("settings"), fmt)
+            dec = decide(asr, pref, fmt)
             target = dec["lang"] if dec["status"] == "ok" else None
             store.merge_json("clips", clip_id, "captions", {
                 "policy": {"render_default": target, "pref_at_render": pref, "reason": dec["reason"]},
@@ -346,9 +348,10 @@ async def editorial_gate(engine, clip_id: int, transcript: Optional[dict], lang:
     if ((clip.get("trigger") or {}).get("review") or {}).get("gameplay"):
         return True                                   # an operator already decided about this clip
     v = editorial.current(clip)
+    sel = getattr(engine, "selection", None)
     if v is None:
         try:
-            v = await editorial.check(engine, clip_id, transcript)
+            v = await editorial.check(engine, clip_id, transcript, fmt=sel.fmt(clip) if sel is not None else None)
         except Exception as e:                        # noqa: BLE001 - the sweep retries; nothing is lost
             engine.store.log(f"clip {clip_id}: editorial check failed: {type(e).__name__}: {e}", "warn",
                              clip_id=clip_id)
@@ -356,6 +359,8 @@ async def editorial_gate(engine, clip_id: int, transcript: Optional[dict], lang:
     if v and v.get("state") == "rejected":
         engine.store.merge_json("clips", clip_id, "captions", {lang: {
             "final_status": "held_editorial", "note": f"final not rendered: {v['reason']}"[:300]}})
+        if sel is not None:
+            sel.rejected(clip_id, v)
         return False
     return True
 
@@ -454,15 +459,22 @@ def _set_titles(engine, clip_id: int, transcript: dict, src_lang: str) -> None:
     trig = clip["trigger"]
     msgs = trig.get("sample_messages") or []
     titles = {}
+    sel = getattr(engine, "selection", None)  # effective selection format + title template (live_clipper.pipeline)
+    bases = {}
     for lang in LANGS:
         try:
-            titles[lang] = make_title(transcript, msgs, trig.get("reason", ""), lang=lang)
+            if sel is not None:
+                bases[lang], titles[lang] = sel.title(clip, transcript, msgs, trig.get("reason", ""), lang)
+            else:
+                titles[lang] = make_title(transcript, msgs, trig.get("reason", ""), lang=lang)
         except Exception as e:
             engine.store.log(f"title ({lang}) failed: {e}", "warn", clip_id=clip_id)
     if titles:
         caps = engine.store.clip(clip_id)["captions"]
         for lang, t in titles.items():
             caps.setdefault(lang, {})["title"] = t
+            if lang in bases:
+                caps[lang]["title_base"] = bases[lang]
         engine.store.update("clips", clip_id, title=titles.get("en") or titles.get(src_lang, ""), captions=caps)
 
 

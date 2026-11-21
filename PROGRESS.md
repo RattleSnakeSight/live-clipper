@@ -16,12 +16,13 @@ Sanitized build log for Live Clipper. Updated by the maintainers' integration se
 | Area | Branch | State |
 |---|---|---|
 | Foundation | `foundation` | merged |
-| Selection + formats/rules | `select` | in progress |
-| Cutting/editing + presets | `edit` | in progress |
-| Posting | `publish` | in progress |
-| Monitoring/recording | `monitor` | in progress |
+| Selection + formats/rules | `select` | merged |
+| Cutting/editing + presets | `edit` | merged |
+| Posting | `publish` | merged |
+| Monitoring/recording | `monitor` | merged (squashed) |
 | Web UI, wizard, tour, guide | `ui` | in progress |
-| Setup, storage, notifications, skill, docs | `ops` | in progress |
+| Setup, storage, notifications, skill, docs | `ops` | merged |
+| Pipeline integration (one store, selection gate, end-to-end tests) | `integrate` | done |
 
 ## Decisions
 

@@ -1,9 +1,11 @@
-"""Edit subsystem: clip store (namespace `edit`), the engine object the media code expects, and the HTTP
-API for presets, clips, clip media and operator re-renders.
+"""Edit subsystem: the engine object the media code expects, and the HTTP API for presets, clips, clip media
+and operator re-renders.
 
 The media modules (clipper, postprocess, render, captions) keep the original design's `engine` duck type:
 `store`, `settings`, `clip_dir`, `render_lock`, `emit`, `publisher`, ... `EditEngine` provides it on top of
 the app context; `for_clip()` gives a view whose `settings` come from that clip's effective preset values.
+Clips live in the shared pipeline store (`live_clipper.store.Store`); `selection` (live_clipper.pipeline)
+decides which finished clips are handed to publishing.
 """
 
 from __future__ import annotations
@@ -17,116 +19,22 @@ import os
 import shutil
 import subprocess
 import threading
-import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from . import presets as P
+from .pipeline import Selection
 from .presets import EditSettings, PresetStore
+from .store import Store
 
 log = logging.getLogger(__name__)
-JSON_COLS = {"trigger", "captions", "layout", "timings", "files", "overrides"}
 LANGS = ("en", "es")
-
-
-class ClipStore:
-    """The original store's clip API (clip, update("clips", ...), merge_json, mark, log) over edit_clips."""
-
-    def __init__(self, db):
-        self.db = db
-        self._lock = threading.RLock()
-        self.channel_lookup = None  # monitor side may plug in: channel_id -> {"settings": {...}}
-
-    @staticmethod
-    def _table(table: str) -> str:
-        if table != "clips":
-            raise ValueError(f"the edit store has no table {table!r}")
-        return "edit_clips"
-
-    @staticmethod
-    def _row(r) -> dict | None:
-        if r is None:
-            return None
-        d = dict(r)
-        for k in JSON_COLS & d.keys():
-            d[k] = json.loads(d[k]) if d[k] else {}
-        return d
-
-    def clip(self, cid: int) -> dict | None:
-        return self._row(self.db.execute("SELECT * FROM edit_clips WHERE id=?", (cid,)).fetchone())
-
-    def clips(self, channel_id: int | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-        if channel_id is None:
-            rows = self.db.execute(
-                "SELECT * FROM edit_clips ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
-            )
-        else:
-            rows = self.db.execute(
-                "SELECT * FROM edit_clips WHERE channel_id=? ORDER BY id DESC LIMIT ? OFFSET ?",
-                (channel_id, limit, offset),
-            )
-        return [self._row(r) for r in rows]
-
-    def create_clip(
-        self, channel_id: int, kind: str = "chat_spike", trigger: dict | None = None, **fields
-    ) -> int:
-        now = time.time()
-        cur = self.db.execute(
-            "INSERT INTO edit_clips(channel_id, created_at, updated_at, status, kind, trigger) "
-            "VALUES (?, ?, ?, 'pending', ?, ?)",
-            (channel_id, now, now, kind, json.dumps(trigger or {})),
-        )
-        self.update("clips", cur.lastrowid, **fields)
-        return cur.lastrowid
-
-    def update(self, table: str, row_id: int, **fields: Any) -> None:
-        t = self._table(table)
-        if not fields:
-            return
-        fields["updated_at"] = time.time()
-        cols = ", ".join(f"{k}=?" for k in fields)
-        vals = [json.dumps(v) if k in JSON_COLS else v for k, v in fields.items()]
-        with self._lock:
-            self.db.execute(f"UPDATE {t} SET {cols} WHERE id=?", (*vals, row_id))
-
-    def merge_json(self, table: str, row_id: int, col: str, patch: dict) -> dict:
-        """Atomic read-modify-write of a JSON column, one level deep (e.g. captions[lang] fields)."""
-        with self._lock:
-            cur = (self.clip(row_id) or {}).get(col) or {}
-            for k, v in patch.items():
-                cur[k] = {**cur[k], **v} if isinstance(v, dict) and isinstance(cur.get(k), dict) else v
-            self.update(table, row_id, **{col: cur})
-            return cur
-
-    def mark(self, clip_id: int, key: str, ts: float | None = None) -> None:
-        """Record a latency milestone (first write wins)."""
-        with self._lock:
-            t = (self.clip(clip_id) or {}).get("timings") or {}
-            if key not in t:
-                t[key] = ts if ts is not None else time.time()
-                self.update("clips", clip_id, timings=t)
-
-    def log(
-        self, message: str, level: str = "info", channel_id: int | None = None, clip_id: int | None = None
-    ):
-        self.db.execute(
-            "INSERT INTO edit_log(ts, level, channel_id, clip_id, message) VALUES (?, ?, ?, ?, ?)",
-            (time.time(), level, channel_id, clip_id, message[:500]),
-        )
-        log.log(
-            logging.ERROR if level == "error" else logging.WARNING if level == "warn" else logging.INFO,
-            "%s",
-            message[:500],
-        )
-
-    def channel(self, cid: int) -> dict | None:
-        return self.channel_lookup(cid) if self.channel_lookup else None
 
 
 class _Publisher:
@@ -135,13 +43,23 @@ class _Publisher:
     def __init__(self, engine: EditEngine):
         self.e = engine
 
-    def on_language_ready(self, clip_id: int, lang: str) -> None:
+    def on_language_ready(self, clip_id: int, lang: str, force: bool = False) -> bool:
+        """Hand a ready final to publishing when selection qualifies it (force: an explicit user publish)."""
         c = self.e.store.clip(clip_id)
         name = ((c or {}).get("files", {}).get("final") or {}).get(lang)
-        if not c or not name:
-            return
+        if not c or not name or self.e.bus is None:
+            return False
         from .render import size_for
 
+        sel, extra = self.e.selection, {}
+        if sel is not None:
+            res = None
+            if not force:
+                d = sel.gate(clip_id, lang)
+                if d["decision"] != "qualified":
+                    return False
+                res = d["result"]
+            extra = sel.publish_fields(c, lang, res)
         w, h = size_for(self.e.for_clip(c).settings.final_height)
         trig = c.get("trigger") or {}
         title = ((c["captions"] or {}).get(lang) or {}).get("title") or c.get("title") or ""
@@ -160,8 +78,10 @@ class _Publisher:
                 "height": h,
                 "format_id": trig.get("format_id"),
                 "preset_id": c.get("preset_id"),
+                **extra,
             },
         )
+        return True
 
 
 class _ClipEngine:
@@ -178,13 +98,21 @@ class _ClipEngine:
         setattr(self._base, k, v)
 
 
+class _NoKV:
+    def get(self, key, default=None):
+        return default
+
+
 class EditEngine:
-    def __init__(self, paths, db, settings_kv, bus, max_media_jobs: int = 2):
-        self.paths, self.kv, self.bus = paths, settings_kv, bus
-        self.store = ClipStore(db)
-        self.presets = PresetStore(db)
-        self.clips_dir = Path(paths.media) / "clips"
-        self.models_dir = Path(paths.root) / "models"
+    def __init__(self, paths, db, settings_kv=None, bus=None, max_media_jobs: int = 2, *, store=None,
+                 clips_dir=None, models_dir=None):
+        self.paths, self.kv, self.bus = paths, settings_kv or _NoKV(), bus
+        self.store = store or Store(db)
+        self.presets = PresetStore(self.store.db)
+        media = self.kv.get("storage.dir") or (paths.media if paths else None)
+        self.clips_dir = Path(clips_dir or Path(media) / "clips")
+        self.models_dir = Path(models_dir or Path(paths.root) / "models")
+        self.selection = Selection(self.store.db, self.store, bus)
         self.captioner = None
         self._captioner_lock = threading.Lock()
         self.early_asr: dict = {}
@@ -207,7 +135,8 @@ class EditEngine:
         return self._locks.setdefault(clip_id, asyncio.Lock())
 
     def emit(self, kind: str, payload: dict) -> None:
-        self.bus.publish(f"edit.{kind}", payload)
+        if self.bus is not None:
+            self.bus.publish(f"edit.{kind}", payload)
 
     def asr_settings(self) -> dict:
         return {
@@ -260,13 +189,18 @@ class EditEngine:
         layout: dict | None = None,
         preset_id: str = P.DEFAULT_ID,
         overrides: dict | None = None,
-    ) -> int:
-        """A new clip row; layout = the channel's own layout, else the preset's (see new_clip_layout)."""
+        dedupe_key: str | None = None,
+        delay: float | None = None,
+    ) -> int | None:
+        """A new clip row (None: the dedupe key exists); layout = the channel's own layout, else the preset's
+        (see new_clip_layout). The dedupe key defaults to the original `<channel>:<kind>:<action second>`."""
         s = self.settings_for(self.values_for(None, preset_id, overrides))
         return self.store.create_clip(
             channel_id,
+            dedupe_key or f"{channel_id}:{kind}:{int(action_time)}",
             kind,
-            trigger,
+            trigger or {},
+            delay=delay,
             window_start=window_start,
             window_end=window_end,
             action_time=action_time,
@@ -350,6 +284,26 @@ class EditEngine:
                 f"clip {clip_id} failed: {traceback.format_exc()[-600:]}", "error", clip_id=clip_id
             )
             self._fail(clip_id, f"{type(e).__name__}: {e}")
+
+    async def resume(self, clip_id: int) -> None:
+        """Post-cut work of a clip whose cut finished before a restart (captions, title, finals)."""
+        from .postprocess import post_cut
+
+        try:
+            await post_cut(self.for_clip(clip_id), clip_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.store.log(
+                f"clip {clip_id} failed: {traceback.format_exc()[-600:]}", "error", clip_id=clip_id
+            )
+            self._fail(clip_id, f"{type(e).__name__}: {e}")
+
+    def publish(self, clip_id: int, lang: str | None = None) -> list[str]:
+        """The user's explicit publish of ready finals, whatever the selection decided."""
+        c = self.store.clip(clip_id) or {}
+        langs = [lang] if lang else list((c.get("files") or {}).get("final") or {})
+        return [lg for lg in langs if self.publisher.on_language_ready(clip_id, lg, force=True)]
 
     async def _early_asr(self, eng, clip_id: int, d: Path, prog: dict) -> None:
         from .postprocess import early_transcribe
@@ -606,7 +560,10 @@ class EditService:
         async def render_clip(cid: int, body: dict = Body(default={})):
             """Re-render with a per-clip override: trim [a, b] (seconds from the clip start), layout, srt
             {lang: text}, title {lang: text}, preset_id, overrides (partial preset values), lang (render that
-            language's final on request)."""
+            language's final on request), override (selection values by dotted key, e.g.
+            {"output.title_template": "...", "output.preset_id": "..."}: the per-clip layer of the selection
+            precedence, stored with the clip)."""
+            from . import formats
             from .postprocess import EditError, validate_edit
 
             e = self._e()
@@ -617,6 +574,28 @@ class EditService:
                 body.pop("overrides", None),
                 body.pop("lang", None),
             )
+            sel_override = body.pop("override", None)
+            if sel_override is not None and e.selection is not None:
+                if not isinstance(sel_override, dict):
+                    raise HTTPException(400, "override must be an object of selection values by dotted key")
+                trig = {**(c.get("trigger") or {}), "override": {**(c["trigger"].get("override") or {}),
+                                                                 **sel_override}}
+                try:
+                    res = e.selection.resolve(c["channel_id"], {**c, "trigger": trig})
+                except formats.FormatError as err:
+                    raise HTTPException(400, err.message) from None
+                e.store.merge_json("clips", cid, "trigger", {"override": trig["override"]})
+                c = self._clip(cid)
+                if preset_id is None and "output.preset_id" in sel_override:
+                    preset_id = e.selection.preset_id(res["values"], presets())
+                titles = {}
+                for lg, cap in (c["captions"] or {}).items():
+                    if lg in LANGS and isinstance(cap, dict) and cap.get("title_base"):
+                        t = e.selection.apply_template(res, c, cap["title_base"])
+                        if t != cap.get("title"):
+                            titles[lg] = t
+                if titles and "title" not in body:
+                    body["title"] = titles
             if preset_id is not None and presets().get(preset_id) is None:
                 raise HTTPException(400, f"unknown preset {preset_id!r}")
             if overrides is not None and not isinstance(overrides, dict):
@@ -656,6 +635,35 @@ class EditService:
                 )
             e.spawn(cid, e.rerender(cid, edit, preset_id, overrides, lang))
             return {"ok": True, "status": "rendering"}
+
+        @r.post("/api/clips/{cid}/review")
+        def review_clip(cid: int, body: dict = Body(...)):
+            """The user's gameplay review (approved true/false, note). Ready finals go through selection
+            again, so an approval can still hand the clip to publishing."""
+            from . import gameplay
+
+            e = self._e()
+            self._clip(cid)
+            if not isinstance(body.get("approved"), bool):
+                raise HTTPException(400, "approved must be true or false")
+            ev = gameplay.review(e.store, cid, body["approved"], str(body.get("note") or ""))
+            finals = ((self._clip(cid)["files"] or {}).get("final") or {})
+            sent = [lg for lg in finals if e.publisher.on_language_ready(cid, lg)]
+            sel = self._clip(cid)["trigger"].get("selection")
+            return {"evidence": ev, "published": sent, "selection": sel}
+
+        @r.post("/api/clips/{cid}/publish")
+        def publish_clip(cid: int, body: dict = Body(default={})):
+            """Hand ready finals to publishing whatever selection decided (the user's explicit choice)."""
+            e = self._e()
+            self._clip(cid)
+            lang = (body or {}).get("lang")
+            if lang not in (None, *LANGS):
+                raise HTTPException(400, "lang must be en or es")
+            sent = e.publish(cid, lang)
+            if not sent:
+                raise HTTPException(409, "no ready final to publish")
+            return {"published": sent}
 
         return r
 
