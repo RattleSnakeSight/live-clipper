@@ -183,6 +183,7 @@ def cmd_doctor(args) -> int:
         ("Python >= 3.11", sys.version_info >= (3, 11), platform.python_version()),
         ("ffmpeg on PATH", bool(shutil.which("ffmpeg")), shutil.which("ffmpeg") or missing),
         ("ffprobe on PATH", bool(shutil.which("ffprobe")), shutil.which("ffprobe") or missing),
+        _ffmpeg_filters_check(),
         ("Data dir writable", writable, str(paths.root)),
         ("Disk space (>= 2 GB free)", free_gb >= 2, f"{free_gb:.1f} GB free"),
         (f"Port {DEFAULT_PORT}", port_ok, "free" if port_ok else "in use; another free port will be used"),
@@ -190,6 +191,28 @@ def cmd_doctor(args) -> int:
     for name, ok, detail in checks:
         print(f"[{'ok' if ok else 'FAIL'}] {name}: {detail}")
     return 0 if all(ok for _, ok, _ in checks) else 1
+
+
+REQUIRED_FILTERS = ("ass", "drawtext")
+
+
+def _ffmpeg_filters_check() -> tuple[str, bool, str]:
+    """Captions and titles need ffmpeg built with libass and libfreetype (Homebrew: ffmpeg-full)."""
+    name = "ffmpeg caption filters (ass, drawtext)"
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        return name, False, "ffmpeg not found"
+    try:
+        cmd = [exe, "-hide_banner", "-filters"]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        return name, False, f"could not run ffmpeg: {exc}"
+    have = {line.split()[1] for line in out.splitlines() if len(line.split()) > 2}
+    lacking = [f for f in REQUIRED_FILTERS if f not in have]
+    if lacking:
+        hint = "install a full ffmpeg build (macOS: brew install ffmpeg-full)"
+        return name, False, f"missing {', '.join(lacking)}: {hint}"
+    return name, True, "present"
 
 
 def install_source(direct_url: dict | None) -> str | None:
