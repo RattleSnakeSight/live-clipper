@@ -234,3 +234,22 @@ harnesses give the same results as on their branches.
 | `source_status.py` | `is_gta6`, `is_gta6_category`, `topic_state` delegate to the format (`match.title_regex`, `match.category_regex`, `topic_states`); with the built-in format the patterns and state names are the original ones. | Formats. |
 | `maintenance.py` | Cleanup also keeps a clip whose file a provider may still need (`Publisher.holds_provider_bytes`). The engine also honours the storage service's admission check and disk pause. | Contract between ops, monitor and publish. |
 | `presets.py` | The `edit` namespace only holds presets (clips moved to the shared store). | One clip store. |
+
+### Robustness fixes (behaviour changes against the original)
+
+Evidence: `tests/test_robustness.py`, `tests/test_capture_exec.py`, `tests/test_e2e_crash.py` (kills between
+"ready" and the hand-off, and during the upload to the test destination), `tests/test_edit_service.py`,
+`tests/test_pipeline.py`.
+
+| Where | What | Why |
+|---|---|---|
+| `engine.py` (`_recover`) | At startup, ready finals without a selection decision for their language, or with a qualified one and no delivery, are handed to selection/publishing again (idempotent: publishing keeps one delivery per clip, destination and language). A failed hand-off is logged and retried this way at the next start. | A kill between saving "ready" and the hand-off lost the post. |
+| `capture.py`, `engine.py` | `Capture.stop` re-raises the caller's cancellation; `Monitor.stop` waits for the watch/observe/official tasks it cancels. | A disarm during a watch's capture stop could restart capture. |
+| `monitor_service.py` | A Kick webhook port that cannot be bound no longer exits the app; the monitor status carries `kick_webhook: {state: needs_action, detail, fix}`. The engine is kept only after a successful start (a partial start is stopped). | uvicorn calls `sys.exit` on a busy port. |
+| `engine.py` (`arm`, `start`) | The monitor is built and started before `armed=1` is saved. At startup a channel whose monitor cannot start stays armed and shows `needs_action` with the error; the other channels arm. | One broken channel kept every later channel unmonitored. |
+| `edit_service.py` | A per-clip `window.pre/window.post` override is applied as a re-cut from `source.ts` around the trigger moment (through the trim edit); a window outside the captured source is a 400 and is not stored. | The override was stored (and shown in the trail) but not rendered. |
+| `pipeline.py` | Rule evidence (`scenario.evidence`) is named with the channel's format, not the active one. | Custom topic state names never matched. |
+| `engine.py` | `Engine.stop` cancels housekeeping before stopping monitors; housekeeping logs failures with a traceback and keeps running even when the store log write fails; after a disk pause, capture resumes only for monitors that still want media (`media_on`, no slot wait) instead of every ungated or open-gated one. | Shutdown races; a dead housekeeping loop; offline channels restarting capture. |
+| `engine.py` | Merging a repeated trigger into its clip reads and writes the trigger JSON under the store lock. | A concurrent trigger write was lost. |
+| `engine.py` (`Maintenance`) | Housekeeping measures free disk space in a worker thread; admission and recovery reuse a measurement under 1 s old. The event-loop database connection keeps its busy timeout: a short one would turn brief write contention into failed clips. | `disk_usage` on a slow disk blocked the event loop. |
+| `capture.py`, `_capture_exec.py` | Capture readers die with the worker on every platform: Linux as before (parent-death signal), Windows through a kill-on-close Job Object (readers start suspended, join it, resume), macOS and other POSIX systems through a watchdog launcher that kills the reader when its parent is gone. | A killed worker left streamlink/FFmpeg running outside Linux. |
