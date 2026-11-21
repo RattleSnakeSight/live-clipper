@@ -42,3 +42,17 @@ as files from the UI and `/api/formats*`, `/api/presets*`, `/api/rules*`.
 ## Proposed changes
 
 (Branches append here; the integrator resolves.)
+
+## HTTP API surface (all under `/api`, token-protected)
+
+| Owner | Endpoints |
+|---|---|
+| core | `GET /health`, `GET /status`, `GET/PUT /app-state/{key}` (`setup.completed`, `tour.state` = `completed`/`skipped`/`null`, `tour.version`) |
+| ops | `GET /setup/hardware`, `GET /setup/questions`, `PUT /setup/answers`, `GET /setup/state`, `POST /setup/complete`, `GET /storage`, `POST /storage/cleanup`, `GET /notifications`, `GET /diagnostics`, `GET /guide` + `GET /guide/{page}` (Markdown from `live_clipper/guide/`) |
+| monitor | `GET/POST /channels` (body `{url, watch_mode, format_id?, publish_platforms?, enabled}`), `GET/PUT/DELETE /channels/{id}`, `POST /channels/{id}/arm`, `POST /channels/{id}/disarm`, `GET /channels/{id}/events`; `GET /sources` (per platform: connected?, what it enables: live status / chat / capture), `POST /sources/{platform}/connect` (credentials form or OAuth/device start), `GET /oauth/source/{platform}/callback`, `DELETE /sources/{platform}` |
+| select | `/formats*`, `/rules*`, `POST /formats/preview-effective` |
+| edit | `/presets*`, `GET /clips`, `GET /clips/{id}`, `GET /clips/{id}/media/{kind}`, `POST /clips/{id}/render` |
+| publish | `/destinations*`, `/oauth/{dest}/start|callback`, `/destinations/instagram/token`, `/publish/deliveries*`, `GET/PUT /publish/mode` |
+
+Channel status values shown in the UI: `offline`, `waiting`, `recording`, `reconnecting`, `needs_action`
+(plus `disabled`). `needs_action` always carries a human-readable `detail` and a fix link.
