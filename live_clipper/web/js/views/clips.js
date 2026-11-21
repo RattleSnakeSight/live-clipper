@@ -100,7 +100,7 @@ async function renderClip(main, id) {
     help: 'The words burned into the video. Fix spelling here; timing is kept.' });
   const preset = selectField({ label: 'Preset', value: clip.preset_id, help: 'How the clip looks: framing, captions style and size.',
     options: presets.length ? presets.map((p) => ({ value: p.id, label: p.name || p.id })) : [{ value: clip.preset_id || '', label: clip.preset_id || 'Default' }] });
-  const err = h('p', { class: 'error', role: 'alert' });
+  const err = h('p', { class: 'error', id: 'render-err', role: 'alert' });
   const renderBtn = h('button', { type: 'submit', class: 'btn primary', help: 'Make the video again with these changes. Your changes win over every format, rule and preset.' }, 'Render again');
   const editor = h('form', { class: 'panel', novalidate: true, 'aria-labelledby': 'ov-title' },
     h('h2', { id: 'ov-title' }, 'Change this clip'),

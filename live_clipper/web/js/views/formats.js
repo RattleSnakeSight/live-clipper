@@ -64,8 +64,10 @@ async function renderRules(container) {
     const next = [...rules];
     [next[i], next[j]] = [next[j], next[i]];
     saveOrder(next, `Moved "${next[j].name}" to position ${j + 1}.`).then(() => {
-      const el = panel.querySelector(`[data-key="${focusSel}-${next[j].id}"]`) || panel.querySelector(`[data-key="up-${next[j].id}"]`);
-      if (el && !el.disabled) el.focus();
+      const same = panel.querySelector(`[data-key="${focusSel}-${next[j].id}"]`);
+      const other = panel.querySelector(`[data-key="${focusSel === 'up' ? 'down' : 'up'}-${next[j].id}"]`);
+      const el = same && !same.disabled ? same : other;
+      if (el) el.focus();
     });
   }
 

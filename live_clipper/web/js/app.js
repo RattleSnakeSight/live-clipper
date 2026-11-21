@@ -23,6 +23,7 @@ const TITLES = {
 
 const main = document.getElementById('main');
 let cleanup = null;
+let renderSeq = 0;
 let setupDone = false;
 let signedOut = false;
 
@@ -55,12 +56,17 @@ async function render() {
     else a.removeAttribute('aria-current');
   }
   document.title = `${TITLES[route]} - Live Clipper`;
-  clear(main);
+  // each render gets its own container, so a slow earlier render cannot write into the new page
+  const view = h('div', { class: 'view' });
+  clear(main, view);
+  const seq = ++renderSeq;
   try {
-    cleanup = (await ROUTES[route].render(main, params)) || null;
+    const done = (await ROUTES[route].render(view, params)) || null;
+    if (seq !== renderSeq) { if (done) done(); return; }
+    cleanup = done;
   } catch (e) {
-    if (signedOut) return;
-    clear(main, h('div', { class: 'title-row' }, h('div', {}, h('h1', {}, TITLES[route]))),
+    if (signedOut || seq !== renderSeq) return;
+    clear(view, h('div', { class: 'title-row' }, h('div', {}, h('h1', {}, TITLES[route]))),
       h('p', { class: 'note bad', role: 'alert' }, `This page could not load: ${e.message}`),
       h('p', { class: 'small muted' }, 'Check the Status page, or reload this tab.'));
   }
