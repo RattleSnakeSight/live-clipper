@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
+from ..logging_setup import register_secret
 from .base import DestinationAdapter, PublishJob, PublishResult, http_result, oauth_error
 
 RUPLOAD = "https://rupload.facebook.com/ig-api-upload"
@@ -277,6 +278,7 @@ class InstagramAdapter(DestinationAdapter):
                     "redirect_uri": redirect_uri, "code": code})
                 r.raise_for_status()
                 short, extra = r.json()["access_token"], {}
+                register_secret(short)
                 r = await c.get(f"{self.base}/oauth/access_token", params={
                     "grant_type": "fb_exchange_token", "client_id": app["client_id"],
                     "client_secret": app.get("client_secret", ""), "fb_exchange_token": short})
@@ -288,8 +290,10 @@ class InstagramAdapter(DestinationAdapter):
                 d = r.json()
                 d = (d.get("data") or [d])[0]
                 short = d["access_token"]
+                register_secret(short)
                 extra = {"ig_user_id": str(d.get("user_id", "")), "scope": ",".join(d.get("permissions") or [])}
                 r = await c.get("https://graph.instagram.com/access_token", params={
                     "grant_type": "ig_exchange_token", "client_secret": app.get("client_secret", ""), "access_token": short})
-        r.raise_for_status()
+        if r.is_error:                       # never raise_for_status: its message carries the request URL
+            raise ValueError(f"token exchange failed: {oauth_error(r)}")
         return {**extra, **r.json()}

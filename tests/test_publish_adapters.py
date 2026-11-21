@@ -312,3 +312,18 @@ def test_retry_after_header_forms():
     assert retry_after(httpx.Response(429)) == 60.0
     assert retry_after(httpx.Response(429, headers={"x-ratelimit-reset": "12"})) == 12.0
     assert retry_after(httpx.Response(429, headers={"retry-after": "Wed, 21 Oct 2099 07:28:00 GMT"})) > 1e6
+
+
+def test_facebook_failed_long_lived_exchange_does_not_echo_short_token():
+    short = "SHORT-LIVED-FB-TOKEN-123456"
+
+    def exch(req):
+        if req.url.params.get("grant_type") == "fb_exchange_token":
+            return httpx.Response(400, json={"error": {"type": "OAuthException", "message": "Invalid token"}})
+        return httpx.Response(200, json={"access_token": short})
+
+    m = Mock({("GET", "/oauth/access_token"): exch})
+    ad = InstagramAdapter({"login": "facebook"}, transport=m.transport)
+    with pytest.raises(ValueError) as e:
+        run(ad.exchange_code({"client_id": "c", "client_secret": "s"}, "code", "u", "v"))
+    assert "OAuthException" in str(e.value) and short not in str(e.value) and "fb_exchange_token" not in str(e.value)

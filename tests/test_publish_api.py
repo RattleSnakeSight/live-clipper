@@ -359,3 +359,29 @@ def test_credentials_never_in_logs_events_or_api(app):
     for secret in (ATOKEN, RTOKEN, CSECRET, CODE):
         for where, text in [("log", log_text), ("events", events), *[(f"response {i}", t) for i, t in enumerate(responses)]]:
             assert secret not in text, f"{secret} leaked into {where}"
+
+
+def test_facebook_exchange_failure_never_leaks_short_token(app):
+    ctx, svc, c = app
+    ig = dest_id(c, "instagram")
+    short = "FB-SHORT-TOKEN-abcdef123456"
+    c.put(f"/api/destinations/{ig}/credentials", json={"client_id": "fbapp", "client_secret": CSECRET})
+    c.put(f"/api/destinations/{ig}/settings", json={"login": "facebook"})
+
+    def exch(req):
+        if req.url.params.get("grant_type") == "fb_exchange_token":
+            return httpx.Response(400, json={"error": {"type": "OAuthException", "message": "nope"}})
+        return httpx.Response(200, json={"access_token": short})
+
+    t = mock_transport({("GET", "/oauth/access_token"): exch})
+    svc.pub.factories["instagram"] = lambda s, app_dir: InstagramAdapter(s, transport=t)
+    _, q = start_oauth(c, "instagram")
+    r = c.get("/api/oauth/instagram/callback", params={"code": CODE, "state": q["state"]})
+    assert r.status_code == 502
+    d = c.get(f"/api/destinations/{ig}").json()
+    assert "OAuthException" in d["status_detail"]
+    import logging
+    for h in logging.getLogger().handlers:
+        h.flush()
+    log_text = (ctx.paths.logs / "live-clipper.log").read_text(encoding="utf-8")
+    assert short not in json.dumps(d) + r.text + log_text

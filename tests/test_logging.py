@@ -49,3 +49,12 @@ def test_log_file_and_args_and_exceptions_are_redacted(home):
     for leaked in ("S3CRET-VALUE-XYZ", "zzz111", "LEAKME"):
         assert leaked not in content
     assert "ValueError" in content
+
+
+@pytest.mark.parametrize("text, leaked", [
+    ("GET https://graph.example.com/oauth/access_token?fb_exchange_token=FBSHORT99&x=1", "FBSHORT99"),
+    ("x?id_token=IDT123&y=2", "IDT123"),
+    ('{"fb_exchange_token": "FBSHORT98"}', "FBSHORT98"),
+])
+def test_redacts_exchange_and_generic_token_keys(text, leaked):
+    assert leaked not in redact(text)

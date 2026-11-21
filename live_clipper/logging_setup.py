@@ -6,7 +6,7 @@ import re
 import threading
 from pathlib import Path
 
-_KEYS = r"access_token|refresh_token|client_secret|api_key|code|password"
+_KEYS = r"fb_exchange_token|\w*_token|client_secret|api_key|code|password"
 _PATTERNS = [
     # Authorization header in "Authorization: x", "authorization=x" or dict/JSON form.
     (re.compile(r"(?i)(authorization[\"']?\s*[:=]\s*[\"']?)[^\"'\r\n,}]+"), r"\1***"),
