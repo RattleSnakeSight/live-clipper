@@ -216,3 +216,10 @@ def test_title_template_override_skips_languages_without_captions(api):
     v = wait_idle(c, cid)
     assert v["captions"]["en"]["title"] == "[Big play]"      # edited (and re-rendered if it has a final)
     assert v["captions"]["es"]["title"] == "[Gran jugada]"   # no captions: title kept in step
+
+
+def test_preset_schema_endpoint_describes_every_field(api):
+    c, _, _ = api
+    schema = c.get("/api/presets/schema").json()
+    assert schema["$defs"]["Encode"]["properties"]["render_crf"]["description"]
+    assert all(p.get("description") for d in schema["$defs"].values() for p in d["properties"].values())

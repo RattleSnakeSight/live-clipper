@@ -1,8 +1,8 @@
 // Destinations: posting mode, step-by-step setup per destination (from GET /api/destinations requirements),
 // connect/disconnect, rights acknowledgement and enable. The test destination posts nothing.
 
-import { get, list, post, put } from '../api.js';
-import { busy, choiceGroup, clear, confirmDialog, h, switchField, textField, titleRow, toast } from '../ui.js';
+import { ApiError, get, list, post, put } from '../api.js';
+import { busy, choiceGroup, clear, confirmDialog, h, selectField, setError, switchField, textField, titleRow, toast } from '../ui.js';
 
 const STATUS = {
   connected: ['Connected', 'pos'], disconnected: ['Not connected', 'neutral'], needs_reconnect: ['Reconnect needed', 'warn'],
@@ -16,6 +16,85 @@ const CRED_FIELDS = {
   tiktok: [['client_key', 'Client key', false], ['client_secret', 'Client secret', true]],
   default: [['client_id', 'Client ID', false], ['client_secret', 'Client secret', true]],
 };
+
+// Settings the publish API accepts per provider (PUT /destinations/{id}/settings). kind: select | text | number |
+// bool (a Default / On / Off select) | list (comma separated). Empty means "use the built-in default".
+const REDIRECT = { key: 'redirect_uri', kind: 'text', label: 'Redirect address override',
+  help: 'Only change this if the provider refuses the default loopback address. Use the exact address registered in your developer app.' };
+const DAILY = { key: 'daily_limit', kind: 'number', label: 'Uploads per day',
+  help: 'The most clips this app posts here per day. 0 turns the limit off. Empty keeps the provider default.' };
+const SETTINGS = {
+  youtube: [
+    { key: 'privacy', kind: 'select', label: 'Who can watch uploads', options: [['public', 'Anyone (public)'], ['unlisted', 'Anyone with the link'], ['private', 'Only you']],
+      help: 'Visibility set on every upload. YouTube can still keep videos private until your project passes its audit. Empty means public.' },
+    { key: 'category_id', kind: 'text', label: 'YouTube category number', help: 'The category the videos are filed under. 20 is Gaming, which is the default.' },
+    { key: 'tags', kind: 'list', label: 'Extra tags', help: 'Tags added to every upload, separated by commas.' },
+    DAILY, REDIRECT],
+  tiktok: [
+    { key: 'mode', kind: 'select', label: 'How clips are sent', options: [['inbox', 'To your TikTok inbox as drafts'], ['direct', 'Post directly']],
+      help: 'Inbox saves a draft you finish in the TikTok app. Direct posts without opening the app and needs Direct Post enabled for your app. Empty means inbox.' },
+    { key: 'privacy_level', kind: 'select', label: 'Who can watch direct posts', options: [['PUBLIC_TO_EVERYONE', 'Anyone'], ['MUTUAL_FOLLOW_FRIENDS', 'Friends'], ['FOLLOWER_OF_CREATOR', 'Followers'], ['SELF_ONLY', 'Only you']],
+      help: 'Visibility of direct posts. Apps TikTok has not audited can only post privately, so the app falls back to Only you. Empty means Only you, or Anyone once the audit switch below is on.' },
+    { key: 'audited', kind: 'bool', label: 'My TikTok app has passed the audit', help: 'Turn on only after TikTok approved your app for public posting. Until then every post stays private.' },
+    { key: 'disable_comment', kind: 'bool', label: 'Turn off comments', help: 'Direct posts only: viewers cannot comment. Empty leaves comments on.' },
+    { key: 'disable_duet', kind: 'bool', label: 'Turn off duets', help: 'Direct posts only: viewers cannot make a duet with the clip. Empty leaves duets on.' },
+    { key: 'disable_stitch', kind: 'bool', label: 'Turn off stitches', help: 'Direct posts only: viewers cannot stitch the clip into their own. Empty leaves stitches on.' },
+    DAILY, REDIRECT],
+  instagram: [
+    { key: 'login', kind: 'select', label: 'Login type', options: [['instagram', 'Instagram Login'], ['facebook', 'Facebook Login for Business']],
+      help: 'Must match how your Meta app signs in. Facebook Login uploads the file itself and needs a linked Facebook Page. Instagram Login needs the public video address below. Empty means Instagram Login.' },
+    { key: 'video_base_url', kind: 'text', label: 'Public video folder address (https)',
+      help: 'Only needed for Instagram Login. Instagram downloads each video from a public web address, so give the https folder that serves your clip files. Facebook Login does not use it.' },
+    { key: 'share_to_feed', kind: 'bool', label: 'Also show the Reel in the profile feed', help: 'Empty keeps the default, which is on.' },
+    { key: 'target_account_id', kind: 'text', label: 'Instagram account number', help: 'Pin uploads to one account when your login can reach several. Digits only. Empty uses the first one found.' },
+    REDIRECT],
+};
+const TRI = [['', 'Default'], ['true', 'On'], ['false', 'Off']];
+const opts = (rows) => rows.map(([value, label]) => ({ value, label }));
+
+function settingsForm(d, refresh) {
+  const spec = SETTINGS[d.provider];
+  if (!spec) return null;
+  const cur = d.settings || {};
+  const fields = spec.map((f) => {
+    const val = cur[f.key];
+    const base = { id: `st-${d.id}-${f.key}`, name: f.key, label: f.label, help: f.help };
+    if (f.kind === 'select') return [f, selectField({ ...base, value: val ?? '', options: opts([['', 'Default'], ...f.options]) })];
+    if (f.kind === 'bool') return [f, selectField({ ...base, value: val === undefined ? '' : String(val), options: opts(TRI) })];
+    if (f.kind === 'number') return [f, textField({ ...base, type: 'number', min: 0, step: 1, value: val ?? '' })];
+    if (f.kind === 'list') return [f, textField({ ...base, value: (val || []).join(', ') })];
+    return [f, textField({ ...base, value: val ?? '', autocomplete: 'off', spellcheck: 'false' })];
+  });
+  const save = h('button', { type: 'submit', class: 'btn', help: 'Check and save these settings for this destination.' }, 'Save settings');
+  const out = h('div', { role: 'status', 'aria-live': 'polite' });
+  const form = h('form', { class: 'stack', novalidate: true, 'aria-label': `${d.label} settings`, dataset: { settings: d.provider } },
+    h('h3', {}, 'Settings'), h('p', { class: 'small muted' }, 'Leave a field on Default or empty to use the built-in behaviour.'),
+    h('div', { class: 'inline-fields' }, fields.map(([, f]) => f.el)), h('div', {}, save), out);
+  form.addEventListener('submit', busy(save, async (e) => {
+    e.preventDefault();
+    clear(out);
+    const body = {};
+    for (const [f, fld] of fields) {
+      setError(fld.el, '');
+      const v = fld.input.value.trim();
+      if (f.kind === 'bool') body[f.key] = v === '' ? '' : v === 'true';
+      else if (f.kind === 'number') body[f.key] = v === '' ? '' : Number(v);
+      else if (f.kind === 'list') body[f.key] = v === '' ? '' : v.split(',').map((t) => t.trim()).filter(Boolean);
+      else body[f.key] = v;
+    }
+    try {
+      await put(`/destinations/${d.id}/settings`, body);
+      toast('Settings saved.');
+      await refresh();
+    } catch (ex) {
+      const errs = ex instanceof ApiError ? ex.fields : {};
+      let shown = false;
+      for (const [f, fld] of fields) if (errs[f.key]) { setError(fld.el, errs[f.key]); shown = true; }
+      if (!shown) clear(out, h('p', { class: 'error' }, ex.message));
+    }
+  }));
+  return form;
+}
 
 export async function render(main) {
   const modeBox = h('section', { id: 'posting-mode', class: 'panel', 'aria-labelledby': 'pm-title' });
@@ -195,6 +274,7 @@ function card(d, refresh) {
       h('summary', { help: 'Show or hide what this destination needs.' }, h('strong', {}, 'What you need and how to set it up')),
       requirements(d)),
     h('div', { class: 'split', style: 'margin-top: 12px' }, keys, tokenForm),
+    h('div', { style: 'margin-top: 16px' }, settingsForm(d, refresh)),
     h('div', { class: 'row', style: 'margin-top: 16px' }, connect, disconnect),
     out,
     h('div', { class: 'stack', style: 'margin-top: 16px' },

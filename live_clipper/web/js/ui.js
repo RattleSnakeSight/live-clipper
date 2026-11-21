@@ -134,6 +134,37 @@ export function confirmDialog({ title, body, ok = 'Confirm', danger = false }) {
   });
 }
 
+// A dialog with one text field. `submit(value)` runs on OK; if it throws, the message shows under the field and
+// the dialog stays open. Resolves true after a successful submit, false on cancel.
+export function inputDialog({ title, body, label, help, ok = 'Save', submit, type = 'text' }) {
+  return new Promise((resolve) => {
+    const opener = document.activeElement;
+    const f = textField({ label, help, type, autocomplete: 'off', spellcheck: 'false' });
+    const okBtn = btn(ok, `${ok}. ${help}`, () => form.requestSubmit(), 'primary');
+    const form = h('form', { novalidate: true },
+      h('h2', { id: 'dlg-title' }, title), h('p', {}, body), f.el,
+      h('div', { class: 'row', style: 'margin-top: 12px' }, btn('Cancel', 'Close without changing anything.', () => d.close('cancel')), okBtn));
+    const d = h('dialog', { 'aria-labelledby': 'dlg-title' }, form);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      okBtn.disabled = true;
+      setError(f.el, '');
+      try { await submit(f.input.value.trim()); d.close('ok'); } catch (ex) {
+        setError(f.el, (ex.fields && Object.values(ex.fields)[0]) || ex.message);
+        f.input.focus();
+      } finally { okBtn.disabled = false; }
+    });
+    d.addEventListener('close', () => {
+      d.remove();
+      if (opener && opener.focus) opener.focus();
+      resolve(d.returnValue === 'ok');
+    });
+    document.body.append(d);
+    d.showModal();
+    f.input.focus();
+  });
+}
+
 export function busy(button, fn) {
   return async (...args) => {
     if (button.disabled) return;

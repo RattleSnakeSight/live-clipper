@@ -12,6 +12,9 @@ so you can keep re-editing a clip while its original is still around.
 - Captions. Correct the text of the burned-in captions, per language.
 - Framing. Auto, fit, crop, split or stack.
 - Preset. Switch the whole look to another preset for this clip only.
+- Look of this clip only. Video quality (CRF), video height, caption size, caption position and whether the
+  title shows. These replace the preset for this clip alone. The form starts from the clip's current values and
+  only the values you change are sent. Each field explains itself.
 
 Then click Render again. The app makes a new video from the original recording with your changes. A clip whose original is gone (expired or discarded) can no longer be edited.
 

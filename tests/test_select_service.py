@@ -105,3 +105,12 @@ def test_rules_crud_reorder_and_preview(client):
     assert bad.status_code == 422 and bad.json()["detail"]["errors"][0]["loc"] == "actions.window_post"
     r = client.post("/api/formats/preview-effective", json={"clip": {"override": {"nope": 1}}})
     assert r.status_code == 422
+
+
+def test_schema_endpoints_describe_every_field(client):
+    for path in ("/api/formats/schema", "/api/rules/schema"):
+        schema = client.get(path).json()
+        assert schema["properties"] and schema["$defs"]
+    fmt = client.get("/api/formats/schema").json()
+    assert fmt["properties"]["scoring"]["description"]
+    assert fmt["$defs"]["Scoring"]["properties"]["min_score"]["description"]

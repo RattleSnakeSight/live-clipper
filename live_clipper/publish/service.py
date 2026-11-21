@@ -6,6 +6,7 @@ import logging
 import re
 import secrets as _rnd
 import time
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -25,6 +26,41 @@ SETTING_KEYS = {"privacy", "mode", "privacy_level", "audited", "login", "api_ver
                 "video_base_url", "redirect_uri", "chunk_size", "daily_limit", "category_id", "tags", "share_to_feed",
                 "poll_interval", "backoff_base", "concurrency", "timeout", "disable_comment", "disable_duet",
                 "disable_stitch", "audio_language"}
+
+
+_ENUMS = {
+    "privacy": ("public", "unlisted", "private"),
+    "privacy_level": ("PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"),
+    "mode": ("inbox", "direct"),
+    "login": ("instagram", "facebook"),
+}
+_BOOLS = {"audited", "share_to_feed", "disable_comment", "disable_duet", "disable_stitch"}
+
+
+def check_settings(body: dict) -> dict[str, str]:
+    """Field -> plain message for every setting value the adapters could not use. Empty string clears a setting."""
+    bad: dict[str, str] = {}
+    for k, v in body.items():
+        if v == "" or v is None:
+            continue
+        if k in _ENUMS and v not in _ENUMS[k]:
+            bad[k] = f"Choose one of: {', '.join(_ENUMS[k])}."
+        elif k in _BOOLS and not isinstance(v, bool):
+            bad[k] = "Must be on or off."
+        elif k in ("video_base_url", "redirect_uri"):
+            u = urlsplit(str(v))
+            if k == "video_base_url" and u.scheme != "https":
+                bad[k] = "Must start with https:// so Instagram can fetch the video."
+            elif u.scheme not in ("http", "https") or not u.hostname or " " in str(v):
+                bad[k] = "Enter a full web address such as https://example.com/clips."
+        elif k in ("daily_limit", "chunk_size", "poll_interval", "timeout", "concurrency"):
+            if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                bad[k] = "Enter a whole number, 0 or more."
+        elif k in ("category_id", "target_account_id") and not re.fullmatch(r"\d{1,20}", str(v)):
+            bad[k] = "Enter digits only."
+        elif k == "tags" and not (isinstance(v, list) and all(isinstance(t, str) for t in v)):
+            bad[k] = "Enter a list of tags."
+    return bad
 
 
 class Ack(BaseModel):
@@ -307,7 +343,12 @@ class PublishService:
             bad = [k for k in body if k not in SETTING_KEYS or _SECRETISH.search(k)]
             if bad:
                 raise HTTPException(400, f"unsupported or secret-looking setting(s): {bad}; credentials go to /credentials")
-            st = {**(d["settings"] or {}), **body}
+            if errs := check_settings(body):
+                raise HTTPException(400, {"message": "; ".join(errs.values()), "errors": errs})
+            st = {**(d["settings"] or {}), **{k: v for k, v in body.items() if v not in ("", None)}}
+            for k, v in body.items():
+                if v in ("", None):
+                    st.pop(k, None)
             self.store.update("destinations", dest_id, settings=st)
             return self.dest_view(self._dest(dest_id))
 
@@ -491,7 +532,11 @@ class PublishService:
 
         @r.post("/publish/deliveries/{did}/confirm-posted")
         def confirm_posted(did: int, body: UrlBody | None = None):
-            self._act(self.pub.confirm_posted, did, (body.url if body else ""))
+            url = (body.url if body else "").strip()
+            if url and (urlsplit(url).scheme not in ("http", "https") or not urlsplit(url).hostname or " " in url):
+                raise HTTPException(400, {"message": "Enter the full address of the post, starting with https://.",
+                                          "errors": {"url": "Enter the full address of the post, starting with https://."}})
+            self._act(self.pub.confirm_posted, did, url)
             return self.delivery_view(self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did))
 
         @r.post("/publish/deliveries/{did}/confirm-not-posted")

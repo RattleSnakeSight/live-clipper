@@ -6,7 +6,7 @@ import { PLATFORMS, channelName } from '../labels.js';
 import {
   busy, choiceGroup, clear, confirmDialog, download, h, pickFile, selectField, switchField, textField, titleRow, toast,
 } from '../ui.js';
-import { renderEditor, renderList } from './docs.js';
+import { renderEditor, renderList, schemaHelp } from './docs.js';
 
 const LAYERS = {
   builtin: ['Built-in', 'neutral'], format: ['Your format', 'accent'], rule: ['Rule', 'warn'], override: ['This clip', 'pos'],
@@ -55,11 +55,13 @@ async function renderRules(container) {
   const msg = h('div', { role: 'status', 'aria-live': 'polite' });
   const editorSlot = h('div');
   container.append(panel);
-  const [channels, formats, presets, dests] = await Promise.all([
+  const [channels, formats, presets, dests, ruleSchema] = await Promise.all([
     get('/channels').then((d) => list(d, 'channels')).catch(() => []),
     get('/formats').then((d) => list(d, 'formats')).catch(() => []),
     get('/presets').then((d) => list(d, 'presets')).catch(() => []),
-    get('/destinations').then((d) => list(d, 'destinations')).catch(() => [])]);
+    get('/destinations').then((d) => list(d, 'destinations')).catch(() => []),
+    get('/rules/schema').catch(() => null)]);
+  const H = schemaHelp(ruleSchema);
   let rules = list(await get('/rules'), 'rules');
   const reload = async () => { rules = list(await get('/rules'), 'rules'); };
 
@@ -177,39 +179,39 @@ async function renderRules(container) {
     const du = r.duration || {};
     const st = r.streamers || {};
     const a = r.actions || {};
-    const name = textField({ label: 'Rule name', value: r.name || '', maxlength: 120, help: 'A short name so you recognise the rule in the list.' });
-    const onlyFmt = selectField({ label: 'Only with format', value: r.format_id || '', help: 'Apply this rule only while this format is in effect.',
+    const name = textField({ label: 'Rule name', value: r.name || '', maxlength: 120, help: H('name') });
+    const onlyFmt = selectField({ label: 'Only with format', value: r.format_id || '', help: H('format_id'),
       options: [{ value: '', label: 'Any format' }, ...formats.map((f) => ({ value: f.id, label: f.name || f.id }))] });
-    const platforms = choiceGroup({ type: 'checkbox', legend: 'Platforms', value: c.platforms || [], help: 'Only clips from these platforms. None ticked means any.',
+    const platforms = choiceGroup({ type: 'checkbox', legend: 'Platforms', value: c.platforms || [], help: H('conditions.platforms'),
       options: Object.entries(PLATFORMS).map(([v, l]) => ({ value: v, label: l })) });
     const category = textField({ label: 'Category or game matches', value: (c.categories || []).join('\n'), type: 'textarea', rows: 2, spellcheck: 'false',
-      help: 'Patterns (regular expressions, any case), one per line. Only when the stream category matches one of them.' });
+      help: H('conditions.categories') });
     const title = textField({ label: 'Stream title matches', value: c.title_regex || '', spellcheck: 'false',
-      help: 'A pattern (regular expression, any case). Only when the stream title matches it.' });
-    const language = textField({ label: 'Spoken languages', value: (c.languages || []).join(', '), help: 'Two-letter codes such as en, es. Empty means any.' });
-    const trigger = choiceGroup({ type: 'checkbox', legend: 'What found the moment', value: sc.trigger_types || [], help: 'Only clips started this way. None ticked means any.',
+      help: H('conditions.title_regex') });
+    const language = textField({ label: 'Spoken languages', value: (c.languages || []).join(', '), help: H('conditions.languages') });
+    const trigger = choiceGroup({ type: 'checkbox', legend: 'What found the moment', value: sc.trigger_types || [], help: H('scenario.trigger_types'),
       options: Object.entries(TRIGGERS).map(([v, l]) => ({ value: v, label: l })) });
-    const evidence = choiceGroup({ type: 'checkbox', legend: 'Evidence found', value: sc.evidence || [], help: 'Only clips where all the ticked evidence was found.',
+    const evidence = choiceGroup({ type: 'checkbox', legend: 'Evidence found', value: sc.evidence || [], help: H('scenario.evidence'),
       options: Object.entries(EVIDENCE).map(([v, l]) => ({ value: v, label: l })) });
-    const minD = textField({ label: 'Shortest clip (seconds)', type: 'number', value: du.min_s ?? '', min: 0, help: 'Only clips at least this long.' });
-    const maxD = textField({ label: 'Longest clip (seconds)', type: 'number', value: du.max_s ?? '', min: 0, help: 'Only clips at most this long.' });
+    const minD = textField({ label: 'Shortest clip (seconds)', type: 'number', value: du.min_s ?? '', min: 0, help: H('duration.min_s') });
+    const maxD = textField({ label: 'Longest clip (seconds)', type: 'number', value: du.max_s ?? '', min: 0, help: H('duration.max_s') });
     const keys = [...new Set([...channels.map(channelKey), ...(st.channels || [])])].filter(Boolean);
     const streamers = choiceGroup({ type: 'checkbox', legend: 'Streamers involved', value: st.channels || [],
-      help: 'Only clips that involve these streamers (a simulcast can involve several). None ticked means any.',
+      help: H('streamers.channels'),
       options: keys.map((k) => ({ value: k, label: k })) });
-    const matchAll = choiceGroup({ legend: 'Match', value: st.mode || 'any', help: 'For simulcasts with several streamers.',
+    const matchAll = choiceGroup({ legend: 'Match', value: st.mode || 'any', help: H('streamers.mode'),
       options: [{ value: 'any', label: 'Any of the ticked streamers' }, { value: 'all', label: 'All of the ticked streamers together' }] });
-    const decision = selectField({ label: 'Decision', value: a.decision || '', help: 'Post, hold or skip these clips whatever the score says.',
+    const decision = selectField({ label: 'Decision', value: a.decision || '', help: H('actions.decision'),
       options: [{ value: '', label: 'Keep the format decision' }, ...Object.entries(DECISIONS).map(([v, l]) => ({ value: v, label: l }))] });
-    const threshold = textField({ label: 'Minimum score', type: 'number', value: a.threshold ?? '', min: 0, step: 'any', help: 'Clips scoring below this are not posted. Empty keeps the format value.' });
-    const pre = textField({ label: 'Seconds before the moment', type: 'number', value: a.window_pre ?? '', min: 0, max: 120, step: 'any', help: 'Video kept before the moment. Empty keeps the format value.' });
-    const postW = textField({ label: 'Seconds after the moment', type: 'number', value: a.window_post ?? '', min: 0, max: 120, step: 'any', help: 'Video kept after the moment. Empty keeps the format value.' });
-    const preset = selectField({ label: 'Use preset', value: a.preset_id || '', help: 'Switch these clips to another look.',
+    const threshold = textField({ label: 'Minimum score', type: 'number', value: a.threshold ?? '', min: 0, step: 'any', help: H('actions.threshold') });
+    const pre = textField({ label: 'Seconds before the moment', type: 'number', value: a.window_pre ?? '', min: 0, max: 120, step: 'any', help: H('actions.window_pre') });
+    const postW = textField({ label: 'Seconds after the moment', type: 'number', value: a.window_post ?? '', min: 0, max: 120, step: 'any', help: H('actions.window_post') });
+    const preset = selectField({ label: 'Use preset', value: a.preset_id || '', help: H('actions.preset_id'),
       options: [{ value: '', label: 'Keep the format preset' }, ...presets.map((p) => ({ value: p.id, label: p.name || p.id }))] });
-    const tmpl = textField({ label: 'Title template', value: a.title_template || '', help: 'For example {title} | {channel}. Placeholders: {title} {channel} {game} {platform}. Empty keeps the format value.' });
+    const tmpl = textField({ label: 'Title template', value: a.title_template || '', help: H('actions.title_template') });
     const destOpts = [...new Set(dests.filter((d) => !d.test).map((d) => d.provider))];
     const destGroup = choiceGroup({ type: 'checkbox', legend: 'Only post to', value: a.destinations || [],
-      help: 'Limit where these clips go. None ticked keeps the channel setting.',
+      help: H('actions.destinations'),
       options: (destOpts.length ? destOpts : Object.keys(DEST_NAMES)).map((p) => ({ value: p, label: DEST_NAMES[p] || p })) });
     const err = h('p', { class: 'error', role: 'alert' });
     const save = h('button', { type: 'submit', class: 'btn primary', help: 'Save this rule.' }, rule ? 'Save rule' : 'Add rule');
