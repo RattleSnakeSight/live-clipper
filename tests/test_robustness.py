@@ -277,3 +277,42 @@ def test_disk_resume_only_restarts_monitors_that_want_media(tmp_path, monkeypatc
 
     asyncio.run(go())
     assert starts == ["recording"]
+
+
+def test_trigger_merge_does_not_lose_a_concurrent_trigger_write(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from live_clipper import moments
+    from live_clipper.capture import Capture
+    from live_clipper.events import Trigger
+
+    monkeypatch.setattr(Capture, "start", lambda self: None)
+    s, store, sec = env(tmp_path, topic_observe_seconds=0)
+    cid = store.add_channel("custom", "feed", "srt://example.invalid:9000", {"chat_adapter": "none"})
+    now = time.time()
+    clip_id = store.create_clip(cid, "k", "chat_spike", {"reason": "first"}, action_time=now,
+                                window_start=now - 18, window_end=now + 12)
+    eng = Engine(s, store, sec)
+    real = moments.merge_target
+
+    def racing_merge_target(rows, *a):           # another writer (e.g. a review request) lands right now
+        t = threading.Thread(target=lambda: store.merge_json("clips", clip_id, "trigger",
+                                                             {"review": {"gameplay": True}}))
+        t.start()
+        t.join(0.3)
+        return real(rows, *a)
+
+    monkeypatch.setattr(moments, "merge_target", racing_merge_target)
+
+    async def go():
+        eng.arm(cid)
+        trig = Trigger(channel_id=cid, reason="again", kind="chat_spike", burst_start=now + 2,
+                       action_time=now + 1, delay=3.0, detected_at=now + 2)
+        assert eng.on_trigger(eng.monitors[cid], trig) is None
+        await asyncio.sleep(0.5)
+        await eng.stop()
+
+    asyncio.run(go())
+    t = store.clip(clip_id)["trigger"]
+    assert t["review"] == {"gameplay": True} and [m["reason"] for m in t["merged"]] == ["again"]

@@ -793,13 +793,16 @@ class Engine:
         v = res["values"]
         start, end = self.window_for(m, trig.action_time, v)
         ids = self.simulcast_channels(m)
-        rows = self.store.q(f"SELECT id, channel_id, action_time, window_end, trigger FROM clips WHERE channel_id IN "
-                            f"({','.join('?' * len(ids))}) AND action_time>?", *ids, trig.action_time - 120)
-        c = moments.merge_target(rows, trig.kind, trig.action_time, start, end)
+        with self.store._lock:                        # read-modify-write of the trigger, like merge_json
+            rows = self.store.q(f"SELECT id, channel_id, action_time, window_end, trigger FROM clips WHERE "
+                                f"channel_id IN ({','.join('?' * len(ids))}) AND action_time>?", *ids,
+                                trig.action_time - 120)
+            c = moments.merge_target(rows, trig.kind, trig.action_time, start, end)
+            if c is not None:
+                merged = c["trigger"].setdefault("merged", [])
+                merged.append({"reason": trig.reason, "action_time": trig.action_time, "channel_id": m.id})
+                self.store.update("clips", c["id"], trigger=c["trigger"])
         if c is not None:
-            merged = c["trigger"].setdefault("merged", [])
-            merged.append({"reason": trig.reason, "action_time": trig.action_time, "channel_id": m.id})
-            self.store.update("clips", c["id"], trigger=c["trigger"])
             via = "" if c["channel_id"] == m.id else f" (same moment on simulcast channel {c['channel_id']})"
             self.store.log(f"trigger merged into clip {c['id']}{via}: {trig.reason}", channel_id=m.id,
                            clip_id=c["id"])
