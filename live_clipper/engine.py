@@ -348,9 +348,11 @@ class Monitor:
             self.chat.start()
 
     async def stop(self) -> None:
-        for t in (self._watch_task, self._observe_task, self._official_task):
-            if t:
-                t.cancel()
+        tasks = [t for t in (self._watch_task, self._observe_task, self._official_task) if t]
+        for t in tasks:
+            t.cancel()
+        if tasks:                                     # a watch must not restart capture after this point
+            await asyncio.gather(*tasks, return_exceptions=True)
         if self.engine.hub is not None:
             self.engine.hub.unwatch(self.ch["platform"], self.ch["name"])
         self.media_on = self.slot_wait = False

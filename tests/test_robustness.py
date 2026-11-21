@@ -41,3 +41,52 @@ def test_failed_handoff_is_retried_at_the_next_start(tmp_path):
 
     asyncio.run(go())
     assert calls == [(lost, "en"), (lost, "en")] and held not in [c for c, _ in calls]
+
+
+def test_disarm_while_capture_stop_is_in_progress_restarts_nothing(tmp_path, monkeypatch):
+    from live_clipper.capture import Capture
+    from live_clipper.engine import Monitor
+
+    s, store, sec = env(tmp_path, topic_observe_seconds=0)
+    cid = store.add_channel("custom", "feed", "srt://example.invalid:9000",
+                            {"topic_gate": {"enabled": True}, "chat_adapter": "none"})
+    runs = {"started": 0, "running": 0}
+
+    async def run_once(self):                    # a capture run whose processes take a moment to die
+        runs["started"] += 1
+        runs["running"] += 1
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            try:
+                await asyncio.sleep(0.3)
+            finally:
+                runs["running"] -= 1
+        return True
+
+    answers = iter([{"state": "live", "title": "GTA 6 day"}] + [{"state": "offline"}]
+                   + [{"state": "live", "title": "GTA 6 day"}] * 1000)
+
+    async def status(self):
+        return next(answers)
+
+    monkeypatch.setattr(Capture, "_run_once", run_once)
+    monkeypatch.setattr(Monitor, "_status", status)
+    eng = Engine(s, store, sec)
+
+    async def go():
+        eng.arm(cid)
+        m = eng.monitors[cid]
+        m.watch["poll_seconds"] = 0.05
+        for _ in range(200):                     # live -> capture; offline -> the watch is stopping capture
+            await asyncio.sleep(0.01)
+            if runs["started"] and not m.gate_open:
+                break
+        assert runs["started"] == 1 and not m.gate_open
+        await eng.disarm(cid)                    # while the watch's capture.stop() waits for the run to end
+        await asyncio.sleep(0.5)
+        assert m._watch_task.done() and m.capture._task.done()
+        assert runs == {"started": 1, "running": 0}  # nothing restarted, nothing left running
+        await eng.stop()
+
+    asyncio.run(go())
