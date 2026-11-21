@@ -6,7 +6,6 @@ If LIVE_CLIPPER_HOME is set when the unit is installed, it is carried into the u
 import getpass
 import os
 import plistlib
-import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +23,12 @@ def launch_command() -> list[str]:
     return [str(exe), "-m", "live_clipper", *(["--home", home] if home else []), "start", "--no-browser"]
 
 
+def _systemd_quote(arg: str) -> str:
+    """systemd quoting: double quotes, backslash escapes, %/$ doubled (they are specifiers)."""
+    arg = arg.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%").replace("$", "$$")
+    return f'"{arg}"'
+
+
 def render_systemd(cmd: list[str]) -> str:
     stop = [*cmd[:-2], "stop"]
     return f"""[Unit]
@@ -32,8 +37,8 @@ Description=Live Clipper
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart={shlex.join(cmd)}
-ExecStop={shlex.join(stop)}
+ExecStart={' '.join(map(_systemd_quote, cmd))}
+ExecStop={' '.join(map(_systemd_quote, stop))}
 
 [Install]
 WantedBy=default.target
