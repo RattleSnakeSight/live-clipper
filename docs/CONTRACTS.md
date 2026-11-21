@@ -159,3 +159,46 @@ Channel status values shown in the UI: `offline`, `waiting`, `recording`, `recon
   (used by `postprocess.post_cut`) are expected from select; they are imported lazily.
 - `buffer.RING_MARKER = ".live-clipper-ring"` for whoever places a transient ring directory.
 - `edit.clip` (UI refresh, `{id}`) is published in addition to `edit.clip_ready`.
+
+
+
+
+
+
+
+
+
+
+
+### ui
+
+The UI (`live_clipper/web/`) reads these shapes; `tests/ui/mock_api.py` implements them. Setup, guide,
+storage, diagnostics, notifications and publish match what ops and publish shipped. For monitor, select and
+edit the UI expects the following (lists may also be bare arrays):
+
+- `GET /api/channels` -> `{"channels": [{id, platform, login, url, watch_mode: "always"|"topic", format_id,
+  publish_platforms: [provider...], enabled, armed, state, detail, fix_url, status_source:
+  "official_api"|"stream_probe"}]}`. `fix_url` is an app hash route such as `#/sources`. POST/PUT return the
+  channel; 422 `{"detail": {"errors": {"url": "..."}}}` is shown next to the field.
+- `GET /api/sources` -> `{"sources": [{platform, name, connected, account, note, connect: {kind:
+  "device"|"oauth"|"credentials", fields: [{name, label, secret, help}]}, enables: [{key: "live_status"|"chat"|
+  "capture", label, available, detail}]}]}`. `POST /api/sources/{p}/connect {fields}` returns
+  `{device: {user_code, verification_uri}}`, `{authorize_url}` or `{status: "connected"}`.
+- `GET /api/clips?status=&channel_id=&q=` -> `{"clips": [{id, channel_id, channel, title, created_at,
+  duration_s, status: "rendering"|"held"|"queued"|"posted"|"failed", preset_id, language, captions, trim_in,
+  trim_out, reason}]}`; `GET /api/clips/{id}/media/final` is the preview video; `POST /api/clips/{id}/render
+  {"overrides": {trim_in, trim_out, title, captions, preset_id}}`.
+- `/api/formats` and `/api/presets`: `GET` -> `{"formats"|"presets": [{id, name, description, builtin}]}`,
+  `GET/PUT/DELETE /{id}`, `POST` (create or import a whole document), `POST /{id}/duplicate`,
+  `POST /{id}/reset` (built-in only), optional `GET /schema` (JSON Schema; `description` becomes field help).
+  Validation errors as pydantic 422 `[{loc, msg}]` are shown at the field whose path matches `loc`.
+- `GET /api/rules` -> `{"rules": [{id, name, enabled, conditions: {platform, category, title_contains,
+  language, trigger, evidence, min_duration_s, max_duration_s, channels: [channel_id], channels_match:
+  "any"|"all"}, actions: {format_id, preset_id, hold, destinations: [provider], set: {"dot.path": value}}}]}`.
+  The UI saves order, edits, imports and deletes with `PUT /api/rules {"rules": [...]}` (whole list, in order).
+- `POST /api/formats/preview-effective {channel_id, format_id, clip_id, context: {platform, category, title},
+  scenario: {trigger}, duration_s}` -> `{"settings": [{path, value, layer: "builtin"|"format"|"preset"|"rule"|
+  "override", source}]}`.
+
+
+

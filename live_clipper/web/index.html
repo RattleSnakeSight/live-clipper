@@ -3,19 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>Live Clipper</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <main>
-    <h1>Live Clipper</h1>
-    <p id="status">Checking the local server...</p>
-  </main>
-  <script>
-    fetch("/api/status").then(r => {
-      document.getElementById("status").textContent = r.ok
-        ? "Running. The full interface is coming soon."
-        : "Not signed in. Run `live-clipper start` to open a signed-in window.";
-    });
-  </script>
+  <a class="skip" href="#main" data-help="Jump past the menu to the page content.">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn btn ghost" id="menu-btn" aria-expanded="false" aria-controls="sidebar"
+            data-help="Show or hide the page menu.">Menu</button>
+    <a class="wordmark" href="#/dashboard" data-help="Go to the dashboard.">Live Clipper</a>
+    <div class="topbar-end">
+      <span id="health-badge" class="pill neutral" role="status">Checking</span>
+      <a class="btn ghost" href="#/guide" data-help="Open the built-in guide. It works offline.">Guide</a>
+    </div>
+  </header>
+  <div class="shell">
+    <nav class="sidebar" id="sidebar" aria-label="Main">
+      <ul>
+        <li><a href="#/dashboard" data-route="dashboard" data-help="Live status of every channel, recent clips and posting.">Dashboard</a></li>
+        <li><a href="#/channels" data-route="channels" data-help="Add, edit, pause or remove the channels you watch.">Channels</a></li>
+        <li><a href="#/sources" data-route="sources" data-help="Connect Twitch, Kick and YouTube so the app can see streams and chat.">Sources</a></li>
+        <li><a href="#/clips" data-route="clips" data-help="Watch, fix and post the clips the app made.">Clips</a></li>
+        <li><a href="#/formats" data-route="formats" data-help="Decide which moments become clips, and set rules for exceptions.">Formats and rules</a></li>
+        <li><a href="#/presets" data-route="presets" data-help="Decide how clips look: framing, captions, length.">Presets</a></li>
+        <li><a href="#/destinations" data-route="destinations" data-help="Connect the accounts clips are posted to.">Destinations</a></li>
+        <li><a href="#/settings" data-route="settings" data-help="Storage, processing, notifications and the tutorial.">Settings</a></li>
+        <li><a href="#/status" data-route="status" data-help="App health, restarts, disk and recent log lines.">Status</a></li>
+        <li><a href="#/guide" data-route="guide" data-help="How everything works, step by step.">Guide</a></li>
+      </ul>
+    </nav>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <div id="tooltip" role="tooltip" hidden></div>
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <noscript><p class="noscript">Live Clipper needs JavaScript turned on in this browser.</p></noscript>
 </body>
 </html>
