@@ -336,7 +336,7 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     # sources: the stream probe is named, and every connect form is there
     page.goto(f"{app.url}/#/sources")
     twitch = page.locator("#source-twitch")
-    expect(twitch).to_contain_text("Stream probe: stream probe (no official API connected)")
+    expect(twitch).to_contain_text("Stream probe (no official API connected)")
     expect(twitch.get_by_role("button", name="Get a Twitch code")).to_be_visible()
     expect(page.locator("#source-kick")).to_contain_text(f"http://localhost:{app.port}/api/oauth/source/kick/callback")
     expect(page.locator("#source-youtube").get_by_role("button", name="Save YouTube key")).to_be_visible()
@@ -396,6 +396,19 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     fc.value.set_files(str(f))
     expect(page.locator("#format-list")).to_contain_text('Imported "My format"')
     assert "my-format" in [x["id"] for x in app.api("/formats")["formats"]]
+
+    # the API reference is drawn locally from the app's own route list; this page's guard fails the test on
+    # any request that leaves the computer
+    page.goto(f"{app.url}/api/docs")
+    expect(page.get_by_role("heading", name="API reference")).to_be_visible()
+    routes = page.locator("#routes summary")
+    expect(routes.filter(has_text="/api/publish/mode").first).to_be_visible()
+    page.get_by_label("Filter routes").fill("publish/mode")
+    expect(routes.filter(has_text="/api/channels").first).to_be_hidden()
+    mode = routes.filter(has_text="/api/publish/mode").filter(has_text="PUT")
+    mode.click()
+    expect(page.locator("#routes details[open]")).to_contain_text("Request body")
+    expect(page.locator("#state")).to_contain_text("routes shown")
 
     # a guide page
     page.goto(f"{app.url}/#/guide/first-run")

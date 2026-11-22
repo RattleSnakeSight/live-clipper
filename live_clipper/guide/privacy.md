@@ -22,7 +22,9 @@ The app contacts only services you set up:
 - The destinations you post to, with the clip and its title and caption.
 - The webhook address you gave for notifications. A webhook message holds the notification title and text,
   such as "Clip posted".
-- Downloads of speech and translation models on first use, which go to the model host, not to us.
+- The download of the speech recognition model the first time a clip is captioned, which goes to the model
+  host, not to us. The app does not download translation models: captions in a second language work only
+  with models you add yourself.
 
 The app listens on your own machine only (127.0.0.1), and every request needs the sign-in link it opens for
 you.

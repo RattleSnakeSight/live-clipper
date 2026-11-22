@@ -21,7 +21,7 @@ export async function render(main) {
   const byId = Object.fromEntries(questions.map((q) => [q.id, q]));
   const saved = { ...st.answers };
   const answers = effective(questions, saved);
-  main.append(titleRow('Settings', 'Every answer from setup, grouped by topic. Changes apply right away.'));
+  main.append(titleRow('Settings', 'Your setup answers, grouped by topic. Each group has its own Save.'));
 
   for (const [id, title, intro, ids] of SECTIONS) {
     const qs = ids.map((x) => byId[x]).filter(Boolean);
@@ -34,9 +34,9 @@ export async function render(main) {
     };
     const save = h('button', { type: 'submit', class: 'btn primary', help: `Save the ${title.toLowerCase()} settings.` }, 'Save');
     const out = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
-    const form = h('form', { class: 'panel', novalidate: true, id, 'aria-labelledby': `${id}-title` },
+    const form = h('form', { class: 'panel narrow', novalidate: true, id, 'aria-labelledby': `${id}-title` },
       h('h2', { id: `${id}-title` }, title), h('p', { class: 'muted', style: 'margin-bottom: 12px' }, intro),
-      extra, h('div', { class: 'stack' }, fields.map(({ f }) => f.el)),
+      extra, h('div', { class: 'settings-list' }, fields.map(({ f }) => f.el)),
       id === 'settings-notify' ? h('p', { class: 'small muted', style: 'margin-top: 12px' },
         'Start at login adds a small entry to your system startup list; turn it off here to remove it. '
         + 'The app keeps recording in the background while it runs.') : null,
@@ -124,7 +124,7 @@ function browserNotifications() {
 }
 
 async function postingBlock() {
-  const box = h('section', { id: 'settings-posting', class: 'panel', 'aria-labelledby': 'sp-title' }, h('h2', { id: 'sp-title' }, 'Posting'));
+  const box = h('section', { id: 'settings-posting', class: 'panel narrow', 'aria-labelledby': 'sp-title' }, h('h2', { id: 'sp-title' }, 'Posting'));
   try {
     const m = await get('/publish/mode');
     const g = choiceGroup({ legend: 'Posting mode', value: m.mode, options: [
@@ -144,11 +144,11 @@ async function postingBlock() {
 function helpBlock(health) {
   const replay = h('button', { type: 'button', class: 'btn', help: 'Show the guided tour of every screen again.' }, 'Replay tutorial');
   replay.addEventListener('click', () => startTour());
-  return h('section', { id: 'settings-help', class: 'panel', 'aria-labelledby': 'sh-title' },
+  return h('section', { id: 'settings-help', class: 'panel narrow', 'aria-labelledby': 'sh-title' },
     h('h2', { id: 'sh-title' }, 'Help and about'),
     h('div', { class: 'row', style: 'margin: 12px 0' }, replay,
       h('a', { class: 'btn', href: '#/setup', help: 'Go through the setup questions again with your current answers filled in.' }, 'Run setup again')),
-    h('dl', { class: 'kv' },
+    h('dl', { class: 'kv long' },
       h('dt', {}, 'Version'), h('dd', {}, health ? health.version : '-'),
       h('dt', {}, 'Your data'), h('dd', {}, 'Kept in the app\'s data folder, outside the program, so updates keep your settings, clips and tutorial progress.')),
     h('p', { style: 'margin-top: 12px' }, 'To update, follow the steps for how you installed it in the ',

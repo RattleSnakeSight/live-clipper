@@ -10,6 +10,9 @@ SOURCE = Path(__file__).resolve().parent / "skill" / "SKILL.md"
 def targets(agent: str, dest: Path | None, project: bool, home: Path, cwd: Path) -> list[Path]:
     if dest is not None:
         return [dest / SKILL]
+    if project and agent != "claude":  # never fall back to the home folder when this folder was asked for
+        raise SystemExit("--project installs the Claude skill into this folder only. Use it with "
+                         "--agent claude, and install the other agents without --project.")
     names = list(FOLDERS) if agent == "all" else [agent]
     return [(cwd if project and n == "claude" else home) / FOLDERS[n] / SKILL for n in names]
 

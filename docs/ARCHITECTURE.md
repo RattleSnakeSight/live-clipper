@@ -98,7 +98,11 @@ register_migrations("monitor", [
   Routers from services, HTTP and WebSocket, are covered automatically.
 - `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding protection).
 - Non-GET/HEAD/OPTIONS requests with an `Origin` other than the server's own are refused.
-- Static UI files from `live_clipper/web/` are served at `/` without auth; API docs at `/api/docs`.
+- Static UI files from `live_clipper/web/` are served at `/` without auth.
+- The API reference is at `/api/docs` and its source, the OpenAPI document, at `/api/openapi.json`; both need
+  the token. The reference is a local page (`web/api-docs.html`, `web/js/api-docs.js`) served with a
+  `Content-Security-Policy` that allows this app's own files only. FastAPI's built-in docs page is off because
+  it loads its viewer from a public CDN.
 
 Core endpoints: `GET /api/health` (status, version, uptime, pid), `GET /api/status` (plus per-service
 `status()`), `GET/PUT /api/app-state/{key}` (body `{"value": <json>}`).

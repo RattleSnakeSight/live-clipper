@@ -83,6 +83,11 @@ class Guard:
         await self.app(scope, receive, send)
 
 
+# the API reference may load this app's own files and nothing else (data: is the empty tab icon)
+DOCS_CSP = ("default-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; "
+            "frame-ancestors 'none'")
+
+
 class StateValue(BaseModel):
     value: Any = None
 
@@ -105,9 +110,15 @@ def create_app(ctx: AppContext) -> FastAPI:
             except Exception:
                 log.exception("service %s failed to stop", svc.name)
 
+    # docs_url=None: the framework's docs page loads its viewer from a public CDN, which fails offline and
+    # shows a third party who opened it. /api/docs below is a local page that reads /api/openapi.json instead.
     app = FastAPI(title="Live Clipper", version=ctx.version, lifespan=lifespan,
-                  docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
+                  docs_url=None, redoc_url=None, openapi_url="/api/openapi.json")
     app.add_middleware(Guard, ctx=ctx)
+
+    @app.get("/api/docs", include_in_schema=False)
+    def api_docs():
+        return FileResponse(WEB_DIR / "api-docs.html", headers={"Content-Security-Policy": DOCS_CSP})
 
     def uptime() -> float:
         return round(time.time() - ctx.started_at, 1)

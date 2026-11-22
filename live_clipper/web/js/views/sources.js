@@ -2,7 +2,7 @@
 
 import { ApiError, del, get, list, post } from '../api.js';
 import { PLATFORMS } from '../labels.js';
-import { busy, clear, confirmDialog, h, textField, titleRow, toast } from '../ui.js';
+import { busy, clear, confirmDialog, h, sentence, textField, titleRow, toast } from '../ui.js';
 
 const F = {
   client_id: ['client_id', 'Client ID', false, 'From your developer app on the platform\'s developer site.'],
@@ -33,10 +33,12 @@ const METHODS = {
 
 export async function render(main) {
   const box = h('div', { id: 'source-list', class: 'stack' });
+  const captureNote = h('p', { class: 'small', style: 'margin-top: 4px' });
   main.append(titleRow('Sources', 'Connections to the streaming sites. Each one shows what it turns on.'),
-    h('p', { class: 'note', role: 'note', style: 'margin-bottom: 20px' },
-      'Connecting lets Live Clipper see when a stream is live and read its chat. It does not give you the right to record, '
-      + 'edit or repost anyone\'s stream. Get the streamer\'s permission before clipping their content.'),
+    h('div', { class: 'note', role: 'note', style: 'margin-bottom: var(--gap)' },
+      h('p', {}, 'Connecting lets Live Clipper see when a stream is live and read its chat. It does not give you the right to record, '
+        + 'edit or repost anyone\'s stream. Get the streamer\'s permission before clipping their content.'),
+      captureNote),
     box);
   const chosen = await get('/setup/state').then((s) => (s.answers || {})['platforms.enabled'] || []).catch(() => []);
   let timer = null;
@@ -45,9 +47,14 @@ export async function render(main) {
     const rows = list(await get('/sources'), 'sources');
     const mine = rows.filter((s) => chosen.includes(s.platform));
     const other = rows.filter((s) => !chosen.includes(s.platform));
-    clear(box, mine.map((s) => card(s, load)),
-      mine.length && other.length ? h('h2', { class: 'small muted', style: 'margin-top: 8px' }, 'Other platforms') : null,
-      other.map((s) => card(s, load)));
+    // every platform is captured the same way, so that notice is shown once above instead of on every card
+    const notes = new Set(rows.map((s) => (s.capture || {}).note || ''));
+    const shared = notes.size === 1 ? [...notes][0] : '';
+    captureNote.textContent = shared;
+    captureNote.hidden = !shared;
+    clear(box, mine.map((s) => card(s, load, shared)),
+      mine.length && other.length ? h('h2', { class: 'group-label' }, 'Other platforms') : null,
+      other.map((s) => card(s, load, shared)));
     clearTimeout(timer);
     if (rows.some((s) => s.pending && s.pending.kind === 'device' && s.pending.state === 'waiting')) timer = setTimeout(load, 4000);
   }
@@ -56,10 +63,10 @@ export async function render(main) {
 }
 
 function row(label, available, how, detail) {
-  return h('tr', {},
-    h('th', { scope: 'row', style: 'color: var(--text); font-size: inherit' }, label),
-    h('td', {}, h('span', { class: `pill ${available ? 'pos' : 'neutral'}` }, available ? 'Yes' : 'No')),
-    h('td', {}, how || '', detail ? h('div', { class: 'small muted' }, detail) : null));
+  return h('li', {},
+    h('div', { class: 'grow' }, h('div', { class: 'title' }, label), h('div', {}, how || ''),
+      detail ? h('div', { class: 'small muted' }, detail) : null),
+    h('span', { class: `pill ${available ? 'pos' : 'neutral'}` }, available ? 'Available' : 'Not available'));
 }
 
 function connectForm(s, m, out, refresh) {
@@ -116,20 +123,17 @@ function webhookForm(s, out, refresh) {
   return form;
 }
 
-function card(s, refresh) {
+function card(s, refresh, sharedNote) {
   const name = PLATFORMS[s.platform] || s.platform;
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
   const live = s.live_status || {};
   const chat = s.chat || {};
   const cap = s.capture || {};
-  const enables = h('table', {},
-    h('caption', { class: 'sr-only' }, `What the ${name} connection enables`),
-    h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Feature'), h('th', { scope: 'col' }, 'Available'), h('th', { scope: 'col' }, 'How'))),
-    h('tbody', {},
-      row('Live status', true, live.available ? `Official API: ${live.how}` : `Stream probe: ${live.how}`,
-        [live.detail, live.fix].filter(Boolean).join('. ')),
-      row('Chat', chat.available, chat.how, chat.detail),
-      row('Capture', true, cap.tool, cap.note)));
+  const enables = h('ul', { class: 'rows', 'aria-label': `What the ${name} connection enables` },
+    row('Live status', true, live.available ? `Official API: ${live.how}` : sentence(live.how),
+      [live.detail, live.fix].filter(Boolean).join('. ')),
+    row('Chat', chat.available, chat.how, chat.detail),
+    row('Capture', true, cap.tool, cap.note === sharedNote ? '' : cap.note));
   const pend = s.pending && s.pending.kind === 'device' ? s.pending : null;
   const pending = pend ? h('div', { class: 'note info' },
     pend.state === 'waiting' ? [
@@ -154,7 +158,7 @@ function card(s, refresh) {
     h('header', {}, h('h2', { id: `src-${s.platform}` }, name),
       h('span', { class: `pill ${s.connected ? 'pos' : 'neutral'}` }, s.connected ? 'Connected' : 'Not connected')),
     saved.length ? h('p', { class: 'small muted', style: 'margin-bottom: 8px' }, `Saved: ${saved.join(', ')}.`) : null,
-    h('div', { class: 'table-wrap', style: 'margin-bottom: 16px' }, enables), pending,
+    h('div', { style: 'margin-bottom: 12px' }, enables), pending,
     h('details', { open: !s.connected },
       h('summary', { help: `Show or hide the ways to connect ${name}.` }, h('strong', {}, s.connected ? 'Connect again or change keys' : 'Connect')),
       h('div', { class: 'split', style: 'margin-top: 12px' }, forms)),

@@ -76,8 +76,15 @@ say "ffmpeg: found"
 
 if ! command -v pipx >/dev/null 2>&1; then
   if ask "Install pipx with: $PY -m pip install --user pipx?"; then
-    "$PY" -m pip install --user pipx || "$PY" -m pip install --user --break-system-packages pipx
-    "$PY" -m pipx ensurepath || true
+    # a system-managed Python refuses the plain install; overriding that is the user's call, so ask again
+    if "$PY" -m pip install --user pipx || {
+      ask "That did not work. If the system manages this Python, pip refuses a plain install. Retry with --break-system-packages (still for your user only)?" \
+        && "$PY" -m pip install --user --break-system-packages pipx
+    }; then
+      "$PY" -m pipx ensurepath || true
+    else
+      say "pipx was not installed. Falling back to: $PY -m pip install --user"
+    fi
   else
     say "pipx is needed for the tidy install. Falling back to: $PY -m pip install --user"
   fi

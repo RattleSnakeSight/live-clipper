@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>API reference - Live Clipper</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/js/api-docs.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="wordmark" href="/" data-help="Back to the app.">Live Clipper</a>
+  </header>
+  <main id="main" class="api-docs">
+    <div class="title-row">
+      <div>
+        <h1>API reference</h1>
+        <p>Every route this copy of the app serves, read from <a href="/api/openapi.json">/api/openapi.json</a>.
+          This page loads nothing from the internet.</p>
+      </div>
+    </div>
+    <p class="note info">Every route except <code>GET /api/health</code> needs the sign-in cookie this browser
+      already has, or the header <code>Authorization: Bearer &lt;token&gt;</code>. The token is the text in
+      <code>state/token</code> in the data folder; <code>live-clipper doctor</code> prints where that folder is.</p>
+    <div class="field narrow">
+      <label for="q">Filter routes</label>
+      <input id="q" type="search" autocomplete="off" spellcheck="false"
+             data-help="Show only the routes whose method, address or summary contains this text.">
+    </div>
+    <p id="state" class="muted" role="status">Loading the route list.</p>
+    <div id="routes"></div>
+  </main>
+  <noscript><p class="noscript">The API reference needs JavaScript turned on in this browser.</p></noscript>
+</body>
+</html>

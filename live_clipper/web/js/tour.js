@@ -15,12 +15,12 @@ const first = async (path, key) => {
 export const STEPS = [
   { route: '#/dashboard', title: 'Welcome to Live Clipper',
     text: 'This tour shows every screen in about two minutes. Skip it any time and replay it from Settings.' },
-  { route: '#/dashboard', target: '#channel-cards', title: 'Channel cards',
-    text: 'Each card shows whether a channel is offline, waiting, recording, reconnecting, needs action or disabled, and where that status comes from.' },
-  { route: '#/dashboard', target: '.card.needs', title: 'When a channel needs you',
-    text: 'A card marked Needs action says what went wrong and links straight to the fix.' },
-  { route: '#/dashboard', target: '#rail', title: 'Clips, posting and health',
-    text: 'The newest clips, what was posted today and whether the app itself is healthy.' },
+  { route: '#/dashboard', target: '#channel-cards', title: 'Channel list',
+    text: 'Each row shows whether a channel is offline, waiting, recording, reconnecting, needs action or disabled, and where that status comes from.' },
+  { route: '#/dashboard', target: '.chan.needs', title: 'When a channel needs you',
+    text: 'A channel marked Needs action says what went wrong and links straight to the fix.' },
+  { route: '#/dashboard', target: '#rail', title: 'Clips and posting',
+    text: 'The newest clips and what was posted in the last 24 hours. Clips that wait for you are listed above the channels.' },
   { route: '#/channels', target: '#channel-list', title: 'Channels',
     text: 'Start or stop watching a channel, edit it, or remove it.' },
   { route: '#/channels/new', target: '#channel-form', title: 'Add a channel',
@@ -85,9 +85,9 @@ function controlsIn(target) {
       || (el.tagName === 'INPUT' ? '' : el.textContent);
     if (!label && (el.type === 'checkbox' || el.type === 'radio')) label = (el.closest('label') || {}).textContent || label;
     label = (label || '').replace(/\s+/g, ' ').trim();
-    const key = `${label}|${el.dataset.help}`;
-    if (!label || seen.has(key)) continue;
-    seen.add(key);
+    // one line per kind of control: four channel cards have four Edit buttons that do the same thing
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
     out.push([label, el.dataset.help]);
   }
   return out.slice(0, 14);
@@ -159,14 +159,30 @@ export function startTour() {
         width: `${Math.min(innerWidth - 8, r.width + pad * 2)}px`, height: `${Math.max(24, bottom - top)}px` });
       spot.hidden = false;
       shade.hidden = true;
-      const cw = card.offsetWidth;
+      // below the target, else above it, else beside it (narrower if needed), so the card does not cover what it
+      // explains. Only when none of those fit does it sit over the bottom of the screen.
+      card.style.width = '';
+      let cw = card.offsetWidth;
       const ch = card.offsetHeight;
+      const phone = innerWidth < 600;
+      const side = Math.max(innerWidth - r.right - 24, r.left - 24);
       let cy = bottom + 12;
-      if (cy + ch > innerHeight - 8) cy = top - ch - 12;
-      if (cy < 8 || innerWidth < 600) cy = Math.max(8, innerHeight - ch - 12);
-      const cx = Math.min(Math.max(8, r.left), innerWidth - cw - 8);
-      Object.assign(card.style, { top: `${cy}px`, left: `${innerWidth < 600 ? (innerWidth - cw) / 2 : cx}px` });
+      let cx = Math.min(Math.max(8, r.left), innerWidth - cw - 8);
+      if (phone) {
+        cy = Math.max(8, innerHeight - ch - 12);
+        cx = (innerWidth - cw) / 2;
+      } else if (cy + ch > innerHeight - 8) {
+        if (top - ch - 12 >= 8) cy = top - ch - 12;
+        else if (side >= 300) {
+          cw = Math.min(cw, side);
+          card.style.width = `${cw}px`;
+          cx = innerWidth - r.right - 24 >= r.left - 24 ? r.right + 12 : r.left - cw - 12;
+          cy = Math.max(8, Math.min(top, innerHeight - card.offsetHeight - 12));
+        } else cy = Math.max(8, innerHeight - ch - 12);
+      }
+      Object.assign(card.style, { top: `${cy}px`, left: `${cx}px` });
     } else {
+      card.style.width = ''; // a card narrowed to fit beside the last target gets its full width back
       spot.hidden = true;
       shade.hidden = false;
       Object.assign(card.style, { top: `${Math.max(8, (innerHeight - card.offsetHeight) / 2)}px`,
@@ -184,7 +200,12 @@ export function startTour() {
     targetSel = step.target || null;
     target = step.target && hash ? await waitFor(step.target) : null;
     if (my !== seq) return;
-    if (target) target.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    // a target taller than half the screen starts just under the top bar, so the card below hides less of it
+    if (target) {
+      const r = target.getBoundingClientRect();
+      const above = r.height > innerHeight / 2 ? 72 : (innerHeight - r.height) / 2;
+      window.scrollTo({ top: scrollY + r.top - above, behavior: reduce ? 'auto' : 'smooth' });
+    }
     const items = target ? controlsIn(target) : [];
     const last = i === STEPS.length - 1;
     card.replaceChildren(

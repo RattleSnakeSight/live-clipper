@@ -125,9 +125,10 @@ export async function render(main) {
     const real = rows.filter((d) => !d.test);
     const mine = real.filter((d) => chosen.includes(d.provider));
     const other = real.filter((d) => !chosen.includes(d.provider));
+    // the long requirements start open only for a destination picked in setup that is not connected yet
     clear(list_, testCard(rows.find((d) => d.test), test, load),
-      mine.length ? h('h2', { class: 'small muted' }, 'Picked during setup') : null, mine.map((d) => card(d, load)),
-      mine.length && other.length ? h('h2', { class: 'small muted' }, 'Other destinations') : null, other.map((d) => card(d, load)));
+      mine.length ? h('h2', { class: 'group-label' }, 'Picked during setup') : null, mine.map((d) => card(d, load, true)),
+      mine.length && other.length ? h('h2', { class: 'group-label' }, 'Other destinations') : null, other.map((d) => card(d, load, false)));
   }
   await Promise.all([loadMode().catch((e) => clear(modeBox, h('p', { class: 'error' }, e.message))), load()]);
 }
@@ -181,7 +182,7 @@ function requirements(d) {
       r.quotas ? h('div', {}, h('h3', {}, 'Limits'), h('p', {}, r.quotas.summary),
         d.quota ? h('p', { class: 'small muted num' }, `Used today: ${d.quota.used_today} of ${d.quota.limit}`) : null) : null,
       fails.length ? h('div', {}, h('h3', {}, 'What fails without each step'),
-        h('dl', { class: 'kv' }, fails.map(([k, v]) => [h('dt', {}, k.replace(/_/g, ' ')), h('dd', {}, v)]))) : null,
+        h('dl', { class: 'kv long' }, fails.map(([k, v]) => [h('dt', {}, k.replace(/_/g, ' ')), h('dd', {}, v)]))) : null,
       r.tos_rights ? h('div', {}, h('h3', {}, 'Terms and rights'), h('p', {}, r.tos_rights)) : null,
       (r.notes || []).length ? h('div', {}, h('h3', {}, 'Good to know'), list2(r.notes)) : null,
       (r.docs || []).length ? h('div', {}, h('h3', {}, 'Official documentation'),
@@ -190,7 +191,7 @@ function requirements(d) {
       r.as_of ? h('p', { class: 'small muted' }, `Checked against the provider docs on ${r.as_of}.`) : null));
 }
 
-function card(d, refresh) {
+function card(d, refresh, picked) {
   const [label, tone] = STATUS[d.status] || [d.status, 'neutral'];
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
   const connected = d.status === 'connected';
@@ -270,15 +271,16 @@ function card(d, refresh) {
     d.status_detail ? h('p', { class: 'note', style: 'margin-bottom: 8px' }, d.status_detail) : null,
     steps.length ? h('ol', { class: 'row', 'aria-label': 'Setup progress', style: 'list-style: none; padding: 0; margin: 0 0 8px' },
       steps.map((s) => h('li', {}, h('span', { class: `pill ${s.done ? 'pos' : 'neutral'}` }, `${s.done ? 'Done' : 'To do'}: ${STEP_NAMES[s.id] || s.id}`)))) : null,
-    h('details', { open: !connected },
+    h('details', { open: picked && !connected },
       h('summary', { help: 'Show or hide what this destination needs.' }, h('strong', {}, 'What you need and how to set it up')),
       requirements(d)),
+    // in the order the setup steps above are done: keys, connect, rights, on. Optional settings come last.
     h('div', { class: 'split', style: 'margin-top: 12px' }, keys, tokenForm),
-    h('div', { style: 'margin-top: 16px' }, settingsForm(d, refresh)),
     h('div', { class: 'row', style: 'margin-top: 16px' }, connect, disconnect),
     out,
     h('div', { class: 'stack', style: 'margin-top: 16px' },
       h('label', { class: 'choice', for: ackId }, ack, h('span', {}, 'I own these clips or have the streamer\'s permission to post them on this account.')),
-      enable.el));
+      enable.el),
+    h('div', { style: 'margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border)' }, settingsForm(d, refresh)));
 }
 

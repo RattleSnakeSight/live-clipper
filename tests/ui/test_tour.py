@@ -97,7 +97,7 @@ def test_tour_skipped_profile_and_escape(setup_done_server, make_page):
     page.goto(srv.url + "/")
     expect(tour(page)).to_contain_text("Welcome to Live Clipper")
     page.get_by_role("button", name="Next").click()
-    expect(tour(page)).to_contain_text("Channel cards")
+    expect(tour(page)).to_contain_text("Channel list")
     # the step lists the controls in the highlighted area with their one-line help
     expect(tour(page).locator("ul")).to_contain_text("Stop watching")
     page.get_by_role("button", name="Skip tour").click()

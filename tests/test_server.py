@@ -77,6 +77,21 @@ def test_api_requires_token(ctx):
     assert c.get("/api/status", headers=auth(ctx)).status_code == 200
 
 
+def test_api_docs_is_a_local_page(ctx):
+    c = TestClient(create_app(ctx), base_url=BASE)
+    assert c.get("/api/docs").status_code == 401  # behind the token like every other API route
+    r = c.get("/api/docs", headers=auth(ctx))
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert "default-src 'self'" in r.headers["content-security-policy"]
+    # the page and its script name no other host, and bring no inline script or style the policy would block
+    for path in ("/api/docs", "/js/api-docs.js", "/js/ui.js"):
+        text = c.get(path, headers=auth(ctx)).text
+        assert "http://" not in text and "https://" not in text and "//cdn" not in text, path
+    assert "<script type=\"module\" src=\"/js/api-docs.js\">" in r.text and "style=" not in r.text
+    paths = c.get("/api/openapi.json", headers=auth(ctx)).json()["paths"]
+    assert "/api/status" in paths and "/api/docs" not in paths
+
+
 def test_token_link_sets_strict_httponly_cookie_and_redirects(ctx):
     c = TestClient(create_app(ctx), base_url=BASE, follow_redirects=False)
     bad = c.get("/?t=wrong")

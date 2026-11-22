@@ -57,13 +57,14 @@ function row(c, refresh) {
     try { await del(`/channels/${c.id}`); toast(`${name} deleted.`); await refresh(); } catch (e) { toast(e.message, true); }
   });
   return h('li', {},
-    h('div', { class: 'grow' }, h('div', { style: 'font-weight:600; overflow-wrap: anywhere' }, name),
+    h('div', { class: 'grow' }, h('div', { class: 'title' }, name),
       h('div', { class: 'small muted' }, `${platformName(c.platform)} · `,
         isTopicMode(c) ? 'only when the title matches' : 'always watch',
         c.format_id ? ` · format ${c.format_id}` : '')),
-    pill(CHANNEL_STATES, c.state), arm,
-    h('a', { class: 'btn small ghost', href: `#/channels/${c.id}`, help: `Change ${name}'s format, destinations or turn it off.` }, 'Edit'),
-    remove);
+    pill(CHANNEL_STATES, c.state),
+    h('div', { class: 'row' }, arm,
+      h('a', { class: 'btn small ghost', href: `#/channels/${c.id}`, help: `Change ${name}'s format, destinations or turn it off.` }, 'Edit'),
+      remove));
 }
 
 async function renderForm(main, id) {
@@ -113,7 +114,7 @@ async function renderForm(main, id) {
   const formErr = h('p', { class: 'error', role: 'alert' });
   const save = h('button', { type: 'submit', class: 'btn primary', help: id ? 'Save the changes to this channel.' : 'Add this channel.' },
     id ? 'Save changes' : 'Add channel');
-  const form = h('form', { id: 'channel-form', class: 'panel', novalidate: true },
+  const form = h('form', { id: 'channel-form', class: 'panel narrow', novalidate: true },
     url.el, display.el, mode.el, pollSecs.el,
     h('div', { class: 'field' }, h('label', { for: 'ch-format' }, 'Format'),
       h('p', { class: 'help', id: 'ch-format-help' }, 'Decides which moments become clips. Edit formats under Formats and rules.'), fmt),

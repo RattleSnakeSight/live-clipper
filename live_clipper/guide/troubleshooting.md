@@ -48,12 +48,12 @@ or raise the cap. The Status page lists what would be cleaned next.
 
 ## Platform problems
 
-Look at the message on the channel card or the delivery line first. It names the cause and the fix.
+Look at the message on the channel's dashboard row or the delivery line first. It names the cause and the fix.
 
 | Message or sign | Cause | What to do |
 |---|---|---|
 | "needs reconnect" on a posting destination | The sign-in expired or was revoked. On YouTube this happens every 7 days while your Google consent screen is in Testing, and when you change your password or remove access. Instagram tokens last 60 days and cannot be refreshed once expired. | Click Connect again (or paste a new Instagram token). Waiting clips continue. |
-| Twitch, Kick or YouTube card says needs action, credentials rejected | Wrong or expired client ID, secret, key or token. | Fix them on the Sources page, or sign in again. |
+| A Twitch, Kick or YouTube channel says needs action, credentials rejected | Wrong or expired client ID, secret, key or token. | Fix them on the Sources page, or sign in again. |
 | "rate limit" or "too many requests" | The platform said slow down. | Nothing. The app waits for the time given and tries again. |
 | YouTube "quota exceeded" | The daily quota is used up (it resets at midnight Pacific time). Chat reading uses a lot of it. | Wait, turn off YouTube chat, or watch fewer channels. |
 | YouTube upload limit | About 100 uploads a day. | Wait for the next day. |

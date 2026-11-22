@@ -44,7 +44,8 @@ export function checkValue(q, v) {
   return null;
 }
 
-// Returns {el, read(), setError(msg), focus()}. titleTag 'h2' for the wizard, 'label' styling for Settings.
+// Returns {el, read(), setError(msg), focus()}. `big` is the wizard: an h2 title, and Yes and No as two answers.
+// Settings (not big) shows a yes/no answer as a switch and puts short controls beside their label.
 export function questionField(q, value, { big = false } = {}) {
   const id = nextId('q');
   const helpId = `${id}-help`;
@@ -68,7 +69,12 @@ export function questionField(q, value, { big = false } = {}) {
     return inputs;
   };
 
-  if (q.type === 'boolean') {
+  if (q.type === 'boolean' && !big) {
+    control = h('input', { id, type: 'checkbox', role: 'switch', class: 'switch', checked: Boolean(value), help: q.help,
+      'aria-describedby': described });
+    first = control;
+    read = () => control.checked;
+  } else if (q.type === 'boolean') {
     const inputs = group('radio', [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }], [value ? 'yes' : 'no']);
     read = () => inputs[0].checked;
   } else if (q.type === 'multiselect') {
@@ -96,7 +102,12 @@ export function questionField(q, value, { big = false } = {}) {
     read = () => (q.type === 'number' ? (control.value === '' ? NaN : Number(control.value)) : control.value.trim());
   }
   const labelled = control.tagName === 'DIV' ? Title(q.title) : Title(h('label', { for: id }, q.title));
-  const el = h('div', { class: big ? 'question' : 'field', dataset: { qid: q.id } }, labelled, helpEl, control, errEl);
+  const isSwitch = control.classList.contains('switch');
+  const short = !big && (control.tagName === 'SELECT' || control.type === 'number');
+  const el = isSwitch
+    ? h('div', { class: 'field', dataset: { qid: q.id } },
+      h('div', { class: 'switch-row' }, h('div', { class: 'text' }, labelled, helpEl), control), errEl)
+    : h('div', { class: `${big ? 'question' : 'field'}${short ? ' short' : ''}`, dataset: { qid: q.id } }, labelled, helpEl, control, errEl);
   return {
     el,
     read,

@@ -179,6 +179,8 @@ export function busy(button, fn) {
 
 // --- formatting ------------------------------------------------------------------------------------------
 
+export const sentence = (s) => String(s || '').replace(/^./, (c) => c.toUpperCase());
+
 export function fmtBytes(n) {
   if (n === null || n === undefined) return '-';
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];

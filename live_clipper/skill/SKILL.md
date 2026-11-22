@@ -52,8 +52,10 @@ python -m pip install --user git+<REPO_URL>
 After the install, `live-clipper skill install --agent claude` installs this skill for the agent in use.
 The other route is a clone of `<REPO_URL>` and `python scripts/install-skill.py --agent claude`.
 
-The repository also has install scripts that do all of the above after asking: `scripts/install.sh`
-(macOS and Linux) and `scripts/install.ps1` (Windows).
+The repository also has install scripts: `scripts/install.sh` (macOS and Linux) and `scripts/install.ps1`
+(Windows). They ask before installing Python, ffmpeg or pipx, then install the app and start it in the same
+run, so tell the user that first. Pass `--no-start` or `-NoStart` to install without starting. Do not pass
+`--yes` or `-Yes` unless the user agreed to every step.
 
 Verify with `live-clipper version` and `live-clipper doctor`. Every line of `doctor` should say `[ok]`.
 If `live-clipper` is not found after a user-level install, the Python scripts folder is not on PATH:

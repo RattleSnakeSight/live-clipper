@@ -52,7 +52,7 @@ async function render() {
   document.body.classList.toggle('setup-mode', route === 'setup');
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('menu-btn').setAttribute('aria-expanded', 'false');
-  for (const a of document.querySelectorAll('.sidebar a')) {
+  for (const a of document.querySelectorAll('a[data-route]')) { // the sidebar and the phone tab bar
     if (a.dataset.route === route) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }

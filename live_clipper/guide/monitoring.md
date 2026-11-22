@@ -24,7 +24,7 @@ Each channel shows one state.
 | Waiting | Armed and waiting. The note says why: for a free recording slot, for the title to be on topic, or just for the stream to start. | Nothing, unless it waits for a slot for a long time. Then raise "streams recorded at the same time" or switch another channel off. |
 | Recording | The channel is live and being recorded. | Nothing. |
 | Reconnecting | The recording dropped (a network problem, for instance) and the app is restarting it. | Wait. It retries by itself and keeps growing its wait between tries. |
-| Needs action | Something blocks it. The card says what and how to fix it. | Follow the fix shown. Common ones are below. |
+| Needs action | Something blocks it. Its row on the dashboard says what and how to fix it. | Follow the fix shown. Common ones are below. |
 
 Common "needs action" messages:
 

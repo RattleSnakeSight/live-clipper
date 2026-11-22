@@ -50,6 +50,21 @@ def test_install_skill_dest_override_and_project(tmp_path, monkeypatch):
     assert (tmp_path / ".claude" / "skills" / "live-clipper" / "SKILL.md").is_file()
 
 
+@pytest.mark.parametrize("agent", ["all", "codex", "qwen"])
+def test_project_scope_is_refused_for_anything_but_claude(agent, tmp_path, monkeypatch):
+    """--project means this folder only: no agent's skill may land in the home folder instead."""
+    from live_clipper.cli import main
+    home = tmp_path / "h"
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.chdir(tmp_path)
+    for run in (lambda: load_installer().main(["--project", "--agent", agent]),
+                lambda: main(["skill", "install", "--project", "--agent", agent])):
+        with pytest.raises(SystemExit) as stop:
+            run()
+        assert "--project" in str(stop.value)
+    assert not home.exists() and not (tmp_path / ".claude").exists()  # nothing was written anywhere
+
+
 def test_repo_and_packaged_skill_are_identical():
     repo = (ROOT / "skills" / "live-clipper" / "SKILL.md").read_bytes()
     assert repo == (ROOT / "live_clipper" / "skill" / "SKILL.md").read_bytes()
