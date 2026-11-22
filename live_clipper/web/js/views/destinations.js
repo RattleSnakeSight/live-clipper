@@ -136,7 +136,7 @@ export async function render(main) {
 function testCard(dest, test, refresh) {
   const on = test ? test.enabled : Boolean(dest && dest.enabled);
   const sw = switchField({ label: 'Use the test destination', checked: on,
-    help: 'Clips go to a folder on this computer. Nothing is posted anywhere.',
+    help: 'Each post is only recorded on this computer. Nothing is sent anywhere.',
     onchange: async (e) => {
       try { await put('/publish/test-mode', { enabled: e.target.checked }); await refresh(); } catch (ex) { toast(ex.message, true); }
     } });

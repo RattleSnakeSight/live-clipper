@@ -18,8 +18,8 @@ def targets(agent: str, dest: Path | None, project: bool, home: Path, cwd: Path)
 
 
 def install(folders: list[Path]) -> list[Path]:
-    text = SOURCE.read_text(encoding="utf-8")
+    data = SOURCE.read_bytes()  # bytes: text mode would write CRLF line ends on Windows
     for folder in folders:
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "SKILL.md").write_text(text, encoding="utf-8")
+        (folder / "SKILL.md").write_bytes(data)
     return folders

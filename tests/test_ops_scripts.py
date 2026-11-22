@@ -65,6 +65,21 @@ def test_project_scope_is_refused_for_anything_but_claude(agent, tmp_path, monke
     assert not home.exists() and not (tmp_path / ".claude").exists()  # nothing was written anywhere
 
 
+def test_installed_skill_is_byte_identical_and_a_bad_dest_is_an_error(tmp_path, capsys):
+    from live_clipper.cli import main
+    packaged = (ROOT / "live_clipper" / "skill" / "SKILL.md").read_bytes()
+    script = load_installer()
+    runs = (lambda d: script.main(["--dest", str(d)]), lambda d: main(["skill", "install", "--dest", str(d)]))
+    for n, run in enumerate(runs):
+        dest = tmp_path / f"dest{n}"
+        assert run(dest) == 0
+        assert (dest / "live-clipper" / "SKILL.md").read_bytes() == packaged  # no CRLF line ends on Windows
+        a_file = tmp_path / f"file{n}"
+        a_file.write_text("x")
+        assert run(a_file) == 1  # --dest names a file: one line of explanation, not a traceback
+        assert "Could not install the skill" in capsys.readouterr().err
+
+
 def test_repo_and_packaged_skill_are_identical():
     repo = (ROOT / "skills" / "live-clipper" / "SKILL.md").read_bytes()
     assert repo == (ROOT / "live_clipper" / "skill" / "SKILL.md").read_bytes()

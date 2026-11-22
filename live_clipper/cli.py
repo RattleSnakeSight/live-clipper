@@ -286,7 +286,12 @@ def cmd_skill(args) -> int:
         print(skillinstall.SOURCE)
         return 0
     folders = skillinstall.targets(args.agent, args.dest, args.project, Path.home(), Path.cwd())
-    for folder in skillinstall.install(folders):
+    try:
+        skillinstall.install(folders)
+    except OSError as e:  # for example --dest names a file, or the folder is read-only
+        print(f"Could not install the skill: {e}", file=sys.stderr)
+        return 1
+    for folder in folders:
         print(f"Installed {folder / 'SKILL.md'}")
     print("Restart your agent so it picks the skill up.")
     return 0

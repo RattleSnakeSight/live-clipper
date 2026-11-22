@@ -27,10 +27,10 @@ def targets(agent: str, dest: Path | None, project: bool, home: Path, cwd: Path)
     return [(cwd if project and n == "claude" else home) / FOLDERS[n] / SKILL for n in names]
 
 
-def install(text: str, folders: list[Path]) -> list[Path]:
+def install(data: bytes, folders: list[Path]) -> list[Path]:
     for folder in folders:
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "SKILL.md").write_text(text, encoding="utf-8")
+        (folder / "SKILL.md").write_bytes(data)  # bytes: text mode would write CRLF line ends on Windows
     return folders
 
 
@@ -44,8 +44,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Skill file not found: {SOURCE}. Run this script from a checkout of the repository.",
               file=sys.stderr)
         return 1
-    text = SOURCE.read_text(encoding="utf-8")
-    for folder in install(text, targets(args.agent, args.dest, args.project, Path.home(), Path.cwd())):
+    try:
+        folders = targets(args.agent, args.dest, args.project, Path.home(), Path.cwd())
+        done = install(SOURCE.read_bytes(), folders)
+    except OSError as e:  # for example --dest names a file, or the folder is read-only
+        print(f"Could not install the skill: {e}", file=sys.stderr)
+        return 1
+    for folder in done:
         print(f"Installed {folder / 'SKILL.md'}")
     print("Restart your agent so it picks the skill up. "
           "Codex and Qwen Code also read AGENTS.md in the repository.")

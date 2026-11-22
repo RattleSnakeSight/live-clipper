@@ -46,6 +46,11 @@ def tour(page):
     return page.locator(".tour-card")
 
 
+# text that sits directly in the card, outside the count, title, text, list and buttons
+STRAY_TEXT = """() => [...document.querySelector('.tour-card').childNodes]
+  .filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()).map(n => n.textContent)"""
+
+
 def test_tour_completed_profile_persists_across_reload_and_update(setup_done_server, make_page):
     srv = setup_done_server
     page = make_page()
@@ -65,6 +70,8 @@ def test_tour_completed_profile_persists_across_reload_and_update(setup_done_ser
     for i in range(total - 1):
         expect(tour(page).locator(".count")).to_have_text(f"Step {i + 1} of {total}")
         seen_hashes.add(page.evaluate("location.hash.split('/')[1]"))
+        # a step without a control list once showed the word "null" between its text and its buttons
+        assert page.evaluate(STRAY_TEXT) == [], f"step {i + 1} shows text outside its elements"
         page.get_by_role("button", name="Next").click()
     expect(tour(page).locator(".count")).to_have_text(f"Step {total} of {total}")
     # every screen was visited by the tour

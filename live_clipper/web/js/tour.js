@@ -3,7 +3,7 @@
 // Shown once after setup; the result is stored in the app database (tour.state, tour.version).
 
 import { appState, get, list, setAppState } from './api.js';
-import { h } from './ui.js';
+import { clear, h } from './ui.js';
 
 export const TOUR_VERSION = 1;
 
@@ -52,7 +52,7 @@ export const STEPS = [
   { route: '#/destinations', target: '#dest-youtube', title: 'Setting up a destination',
     text: 'Each destination lists the exact steps it needs and what fails without each one, including the address to register.' },
   { route: '#/destinations', target: '#dest-test', title: 'Test destination',
-    text: 'Posts to a folder on this computer. Nothing is posted anywhere, so it is safe for trying things out.' },
+    text: 'Records each post on this computer instead of sending it. Nothing is posted anywhere, so it is safe for trying things out.' },
   { route: '#/settings', target: '#settings-storage', title: 'Storage',
     text: 'Where clips are kept, how much disk the app may use and what is cleaned up first.' },
   { route: '#/settings', target: '#settings-processing', title: 'Processing',
@@ -208,7 +208,8 @@ export function startTour() {
     }
     const items = target ? controlsIn(target) : [];
     const last = i === STEPS.length - 1;
-    card.replaceChildren(
+    // clear() drops the empty list of a step without controls; the native replaceChildren would print "null"
+    clear(card,
       h('p', { class: 'count' }, `Step ${i + 1} of ${STEPS.length}`),
       h('h2', { id: 'tour-title' }, step.title),
       h('p', { id: 'tour-text' }, step.text),

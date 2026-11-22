@@ -64,8 +64,8 @@ run `python -m pipx ensurepath` or call `python -m live_clipper` instead.
 ## 3. Launch and set up
 
 1. Run `live-clipper start`. It starts in the background and opens the browser.
-   Use `live-clipper start --no-browser` on a machine without a display, and read the address from
-   `live-clipper status`.
+   Use `live-clipper start --no-browser` on a machine without a display. It prints the sign-in link, and
+   running it again while the app is up prints the link again. `live-clipper status` shows the port only.
 2. The browser shows a first-run wizard. Tell the user it asks about: how they will use the app, which
    platforms to watch, storage folder and disk cap, how long to keep posted clips, speech recognition
    settings (defaults are picked from the hardware), where to post (or nowhere), automatic or manual posting,
