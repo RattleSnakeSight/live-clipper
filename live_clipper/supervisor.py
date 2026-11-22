@@ -69,8 +69,17 @@ def acquire_lock(paths: Paths, port: int) -> bool:
 
 def release_lock(paths: Paths) -> None:
     info = read_lock(paths)
-    if info and info["pid"] == os.getpid():
-        (paths.state / "supervisor.lock").unlink(missing_ok=True)
+    if not info or info["pid"] != os.getpid():
+        return
+    # Windows refuses to delete a file that another process has open, and `live-clipper stop` opens the lock
+    # five times a second to see whether we are gone. That read takes a moment, so try again for a few
+    # seconds instead of leaving a stale lock behind.
+    for _ in range(50):
+        try:
+            (paths.state / "supervisor.lock").unlink(missing_ok=True)
+            return
+        except PermissionError:
+            time.sleep(0.1)
 
 
 def spawn_kwargs() -> dict:

@@ -17,6 +17,17 @@ from live_clipper.supervisor import Supervisor, acquire_lock, pid_alive, read_lo
 TINY = str(Path(__file__).parent / "tiny_worker.py")
 
 
+def test_lock_is_released_although_stop_is_reading_it():
+    """`live-clipper stop` polls the lock file; on Windows a delete during that read is refused."""
+    paths = get_paths()
+    assert acquire_lock(paths, 1)
+    reader = open(paths.state / "supervisor.lock", encoding="utf-8")
+    threading.Timer(0.3, reader.close).start()
+    release_lock(paths)
+    assert not (paths.state / "supervisor.lock").exists()
+    assert read_lock(paths) is None
+
+
 def wait_for(pred, timeout=20.0):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
