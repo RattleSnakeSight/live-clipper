@@ -18,11 +18,20 @@ what gets posted, and you do not hand your accounts to a service.
 Claude Code, Codex, Qwen Code and similar agents can do the install and walk you through it. Paste this:
 
 ```
-Install the Live Clipper skill and then use it to install and start Live Clipper.
-Repository: https://github.com/RattleSnakeSight/live-clipper
-Run: pipx install git+https://github.com/RattleSnakeSight/live-clipper
-then: live-clipper skill install --agent claude   (use codex or qwen if that is your agent)
-Ask me before installing anything. Do not connect accounts or post anything for me.
+Install Live Clipper from https://github.com/RattleSnakeSight/live-clipper on this computer, open it in my browser, and walk me through my first test.
+
+1. Check for Git, Python 3.11 or newer, pipx, FFmpeg and ffprobe. On macOS use an FFmpeg build with libass and freetype. Explain any missing prerequisites and help me install them for my OS.
+2. Run: pipx install git+https://github.com/RattleSnakeSight/live-clipper
+   If it is already installed with pipx, use: pipx upgrade live-clipper
+3. If you are Claude Code, run: live-clipper skill install --agent claude
+   If you are Codex, run: live-clipper skill install --agent codex
+   If skill discovery needs a new agent session, tell me how to reopen it and continue the setup.
+4. Run these commands:
+   live-clipper version
+   live-clipper doctor
+   live-clipper start
+   If the command is missing from PATH, run pipx ensurepath and reopen the terminal. Confirm that the local browser shows the setup wizard.
+5. Guide me through storage, hardware settings, platform accounts and the tour. For this first test, help me select manual posting. I will sign in myself in the browser. Help me add a channel I own or have permission to clip, enable monitoring, and find the resulting clip for review. Leave publishing to me.
 ```
 
 The agent can also clone the repository and run `python scripts/install-skill.py --agent claude`. Either way
