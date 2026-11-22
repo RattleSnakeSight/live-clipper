@@ -12,6 +12,7 @@ from e2e_util import (
     FFPROBE,
     Stream,
     add_channel,
+    burst_bounds,
     deliveries,
     probe,
     published,
@@ -66,7 +67,8 @@ def test_single_channel_spike_to_published_clip(app, streams):
     c = clips[0]
     trig = c["trigger"]
     # onset of the burst (integer second on the local clock), action = onset - reaction delay 4 s
-    assert t0 + 25 <= trig["burst_start"] <= t0 + 26.5 and trig["action_time"] == trig["burst_start"] - 4.0
+    lo, hi = burst_bounds(t0, 26)
+    assert lo <= trig["burst_start"] <= hi and trig["action_time"] == trig["burst_start"] - 4.0
     assert trig["score"] >= 3.0 and trig["format_id"] == "gta-vi"
     # the cut window: [action - 18, action + 12] (the built-in format), not truncated by the ring
     assert abs(c["window_start"] - (trig["action_time"] - 18.0)) < 0.05 and not c["truncated"]
@@ -103,7 +105,8 @@ def test_two_channels_at_once_held_in_manual_mode_until_posted(app, streams):
     for cid, t0, spike in ((ca, ta, 26), (cb, tb, 28)):
         c = clips[cid]
         trig = c["trigger"]
-        assert t0 + spike - 1 <= trig["burst_start"] <= t0 + spike + 0.5
+        lo, hi = burst_bounds(t0, spike)
+        assert lo <= trig["burst_start"] <= hi, (t0, spike, trig["burst_start"])
         assert abs(c["window_start"] - (trig["burst_start"] - 22.0)) < 0.05
         assert abs(c["window_end"] - (trig["burst_start"] + 8.0)) < 0.05
     assert {d["clip_id"] for d in held} == {clips[ca]["id"], clips[cb]["id"]}

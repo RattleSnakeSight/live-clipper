@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import http.server
 import json
+import math
 import os
 import re
 import shutil
@@ -129,6 +130,22 @@ class HLSHandler(http.server.BaseHTTPRequestHandler):
             return self._reply(404)
         ctype = "application/vnd.apple.mpegurl" if self._name().endswith(".m3u8") else "video/mp2t"
         self._reply(200, body, ctype)
+
+
+# how much earlier than its schedule the replay may stamp a message: an asyncio timer on Windows can fire up
+# to one clock tick (about 16 ms) early; 50 ms leaves margin without admitting a whole earlier second
+EARLY_WAKE = 0.05
+
+
+def burst_bounds(t0: float, spike_at: float) -> tuple[float, float]:
+    """Where the detector may put the onset of the spike chat_rows(spike_at) replays from t0.
+
+    The onset is a whole second: the floor of the first spike message's time on the skew-corrected clock. The
+    message is sent at t0 + spike_at; the correction is min(received - sent), a few milliseconds of delivery
+    delay, or slightly negative when the replay's timer wakes early. So the onset is floor(t0 + spike_at), the
+    second before only when the message is within EARLY_WAKE of a whole second, and at most half a second of
+    delay after it."""
+    return math.floor(t0 + spike_at - EARLY_WAKE), t0 + spike_at + 0.5
 
 
 def chat_rows(spike_at: float, quiet_until: float | None = None) -> list[dict]:

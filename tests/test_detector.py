@@ -43,6 +43,40 @@ def run(events, end=None, cfg=None):
     return d, trig
 
 
+def test_onset_second_at_a_whole_second_boundary():
+    """The end-to-end fixture's spike when t0 + spike sits next to a whole second (seen on CI: t0 =
+    ...455.000064, spike 28 s, onset ...482.0). The skew correction (an early timer wake, or delivery delay)
+    can move the first spike message into the neighbouring second; burst_bounds() accepts those onsets."""
+    import math
+
+    from e2e_util import burst_bounds, chat_rows
+
+    spike = 28
+    cases = [  # (chat start, receive delay, expected onset second)
+        (1_795_387_455.000064, 0.2, math.floor(1_795_387_455.000064 + spike)),
+        (1_795_387_455.000064, -0.0005, math.floor(1_795_387_455.000064 + spike) - 1),  # the CI case
+        (1_795_387_455.9, 0.2, math.floor(1_795_387_455.9 + spike) + 1),
+        (1_795_387_455.5, -0.0005, math.floor(1_795_387_455.5 + spike)),  # far from a boundary
+    ]
+    for t0, delay, onset in cases:
+        evs = [ChatEvent("replay", "c", str(i), r["user"], r["user"], r["text"],
+                         received_at=t0 + r["t"] + delay, sent_at=t0 + r["t"])
+               for i, r in enumerate(chat_rows(spike))]
+        d = SpikeDetector(1, DetectorConfig())
+        d.samples.extend((t0 - 30 + s, 0.3) for s in range(30))  # a learned quiet baseline, as after warm-up
+        d.first_t = t0 - 60
+        trig, t = [], t0 - 30.0
+        while t <= t0 + spike + 8:
+            trig += [x for e in evs if t - 0.25 < e.received_at <= t for x in d.feed(e)] + d.tick(t)
+            t += 0.25
+        assert len(trig) == 1 and trig[0].burst_start == onset, (t0, delay, [x.burst_start for x in trig])
+        lo, hi = burst_bounds(t0, spike)
+        assert lo <= trig[0].burst_start <= hi
+    assert cases[1][0] + spike - 1 > cases[1][2]  # the old lower bound refused the CI case
+    t0 = cases[3][0]  # away from a boundary the second before is not accepted
+    assert burst_bounds(t0, spike)[0] == math.floor(t0 + spike) > math.floor(t0 + spike) - 1
+
+
 def test_ordinary_chatter_no_trigger():
     d, trig = run(chatter(300))
     assert trig == [], [t.reason for t in trig]
