@@ -32,6 +32,12 @@ The webhook address is stored in the encrypted vault, not in the settings.
 Choosing a destination in the wizard does not connect it. You connect each account later, as described in
 Posting. Until an account is connected, enabled and acknowledged, nothing is posted.
 
+The last page of the wizard lists the platforms you picked under Platform keys. If an AI agent installed Live
+Clipper, it can look those keys up for you from a place you choose; see Let your agent set up keys. You can
+also skip this and enter the keys later.
+
+The app opens in a dark theme. Settings > Appearance switches to light.
+
 ## The tour
 
 After the wizard, a short tour points out the main parts of the app. You can click Skip tour (or press Escape) at any time.

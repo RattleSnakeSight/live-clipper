@@ -4,6 +4,7 @@ import { appState, get, setUnauthorizedHandler } from './api.js';
 import { clear, h, initHelp } from './ui.js';
 import { svcError } from './labels.js';
 import { maybeStartTour } from './tour.js';
+import { syncTheme } from './theme.js';
 import * as dashboard from './views/dashboard.js';
 import * as channels from './views/channels.js';
 import * as sources from './views/sources.js';
@@ -103,6 +104,7 @@ function showSignedOut() {
 
 async function boot() {
   initHelp();
+  syncTheme();
   setUnauthorizedHandler(() => { if (!signedOut) showSignedOut(); });
   document.getElementById('menu-btn').addEventListener('click', (e) => {
     const open = document.getElementById('sidebar').classList.toggle('open');

@@ -30,7 +30,8 @@ steps yourself.
 
 1. Install Python and ffmpeg if you do not have them:
    - Windows: `winget install Python.Python.3.12` and `winget install Gyan.FFmpeg`
-   - macOS: `brew install python@3.12 ffmpeg`
+   - macOS: `brew install python@3.12 ffmpeg-full`, then `export PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"`
+     (ffmpeg-full has the libass and freetype support the captions need)
    - Linux: `sudo apt install python3 python3-venv python3-pip ffmpeg` (or your system's equivalent)
 2. Install the app with pipx, which keeps it apart from your other Python programs:
 

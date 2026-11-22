@@ -87,4 +87,5 @@ if (-not (Get-Command live-clipper -ErrorAction SilentlyContinue)) {
 }
 
 live-clipper doctor
+Write-Host 'If an AI agent installed Live Clipper for you, it can also set up your platform keys: see live-clipper agent --help.'
 if (-not $NoStart) { live-clipper start } else { Write-Host 'Done. Start it with: live-clipper start' }

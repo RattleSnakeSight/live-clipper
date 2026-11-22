@@ -10,6 +10,8 @@ Live Clipper runs only on your computer.
   operating system keyring when one is available, and in a protected file in the data folder otherwise. This
   includes API keys, client secrets, tokens and the webhook address.
 - Log files, with tokens and passwords masked.
+- If you pair the AI agent that installed the app: which agent is paired, in the data folder, and your key
+  requests (platform, the place you chose, the outcome). Never the key values, which go to the vault.
 
 ## What is sent, and where
 

@@ -32,6 +32,7 @@ Install Live Clipper from https://github.com/RattleSnakeSight/live-clipper on th
    live-clipper start
    If the command is missing from PATH, run pipx ensurepath and reopen the terminal. Confirm that the local browser shows the setup wizard.
 5. Guide me through storage, hardware settings, platform accounts and the tour. For this first test, help me select manual posting. I will sign in myself in the browser. Help me add a channel I own or have permission to clip, enable monitoring, and find the resulting clip for review. Leave publishing to me.
+6. Ask me whether you should set up my platform keys. If I agree, pair yourself (`live-clipper agent pair --agent claude` or `--agent codex`) and keep `live-clipper agent serve` running; I will press "Ask my agent" in the app. Never read or print the key values yourself.
 ```
 
 The agent can also clone the repository and run `python scripts/install-skill.py --agent claude`. Either way
@@ -87,6 +88,20 @@ clip and post their stream. You are responsible for following their rules and ea
 
 Details are in the [platforms guide](live_clipper/guide/platforms.md) and the [posting guide](live_clipper/guide/posting.md).
 
+## Let your agent set up keys
+
+The agent that installed Live Clipper can also fill in your platform keys, without the keys passing through
+the AI chat. It pairs a small helper with your copy of the app (`live-clipper agent pair`, then
+`live-clipper agent serve`). You pick the platform and where the keys are (environment variables, a file you
+choose or a credential manager entry) and press "Ask my agent"; the helper reads only that platform's named
+keys from that place and the app saves them. It cannot create developer apps, sign in or approve access for
+you, and typing the keys in yourself always works. Revoke it in Settings > Agent setup. Details:
+[Let your agent set up keys](live_clipper/guide/agent-setup.md).
+
+## Appearance
+
+The app opens in a dark theme. Settings > Appearance switches to light; the choice is kept.
+
 ## Guide
 
 The same pages open inside the app.
@@ -98,6 +113,7 @@ The same pages open inside the app.
 - [Formats and presets](live_clipper/guide/formats-and-presets.md)
 - [Platforms](live_clipper/guide/platforms.md)
 - [Posting](live_clipper/guide/posting.md)
+- [Let your agent set up keys](live_clipper/guide/agent-setup.md)
 - [Privacy](live_clipper/guide/privacy.md)
 - [Troubleshooting](live_clipper/guide/troubleshooting.md)
 - [Updating](live_clipper/guide/updating.md)

@@ -70,7 +70,14 @@ fi
 say "Python: $($PY --version)"
 
 if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
-  pkg_install "ffmpeg" ffmpeg
+  if command -v brew >/dev/null 2>&1; then
+    # the captions need libass and freetype, which ffmpeg-full has; it is not linked onto PATH by brew
+    pkg_install "ffmpeg (full build)" ffmpeg-full
+    PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"; export PATH
+    say "Add this line to ~/.zprofile so new terminals find ffmpeg: export PATH=\"$(brew --prefix ffmpeg-full)/bin:\$PATH\""
+  else
+    pkg_install "ffmpeg" ffmpeg
+  fi
 fi
 say "ffmpeg: found"
 
@@ -109,6 +116,7 @@ if ! command -v live-clipper >/dev/null 2>&1; then
 fi
 
 live-clipper doctor || say "Some checks failed. Fix them, then run: live-clipper start"
+say "If an AI agent installed Live Clipper for you, it can also set up your platform keys: see live-clipper agent --help."
 if [ "$START" = 1 ]; then
   live-clipper start
 else

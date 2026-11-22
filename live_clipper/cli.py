@@ -294,7 +294,33 @@ def cmd_skill(args) -> int:
     for folder in folders:
         print(f"Installed {folder / 'SKILL.md'}")
     print("Restart your agent so it picks the skill up.")
+    print("The agent can also set up platform keys for you: see `live-clipper agent --help`.")
     return 0
+
+
+def cmd_agent(args) -> int:
+    from . import agent_helper, agent_setup
+
+    state = get_paths().state
+    if args.action == "pair":
+        p = agent_setup.pair(state, args.agent)
+        print(f"Paired {agent_setup.AGENTS[p['agent']]} with this Live Clipper ({get_paths().root}).")
+        print("Start the helper with `live-clipper agent serve`; the customer asks for keys in the app.")
+        print("To withdraw access: `live-clipper agent unpair`, or Settings > Agent setup > Revoke.")
+        return 0
+    if args.action == "unpair":
+        print("Agent access removed." if agent_setup.unpair(state) else "No agent was paired.")
+        return 0
+    if args.action == "status":
+        p = agent_setup.read_pairing(state)
+        root = str(get_paths(create=False).root)
+        print(json.dumps({"paired": p["agent"] if p else None, "data_folder": root}))
+        return 0 if p else 1
+    try:
+        return agent_helper.serve(once=args.once, max_wait=args.max_wait)
+    except KeyboardInterrupt:
+        print("Helper stopped.")
+        return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -328,6 +354,16 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--project", action="store_true", help="install the Claude skill into ./.claude/skills")
     s.add_argument("--dest", type=Path, help="skills folder to use instead of the agent's default")
     s.set_defaults(func=cmd_skill)
+    s = sub.add_parser("agent", help="let the agent that installed Live Clipper set up platform keys",
+                       description="pair: let this agent answer key requests (ask the customer first). "
+                                   "serve: run the helper that answers them. unpair: withdraw access.")
+    s.add_argument("action", choices=["pair", "serve", "unpair", "status"])
+    s.add_argument("--agent", choices=["claude", "codex"], default="claude",
+                   help="the installing agent (pair)")
+    s.add_argument("--once", action="store_true", help="serve: answer one request, then exit")
+    s.add_argument("--max-wait", type=float, default=0,
+                   help="serve: stop after this many seconds without a request")
+    s.set_defaults(func=cmd_agent)
     sub.add_parser("version").set_defaults(func=lambda a: print(__version__) or 0)
     args = p.parse_args(argv)
     if args.home:

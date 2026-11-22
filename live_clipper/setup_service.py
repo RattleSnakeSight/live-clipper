@@ -338,7 +338,7 @@ GUIDE_DIR = Path(__file__).parent / "guide"
 GUIDE_PAGES = [
     ("install", "Install"), ("first-run", "First run"), ("platforms", "Platforms"),
     ("monitoring", "Monitoring streams"), ("formats-and-presets", "Formats and presets"),
-    ("editing", "Editing clips"), ("posting", "Posting"), ("troubleshooting", "Troubleshooting"),
+    ("editing", "Editing clips"), ("posting", "Posting"), ("agent-setup", "Let your agent set up keys"), ("troubleshooting", "Troubleshooting"),
     ("updating", "Updating"), ("uninstalling", "Uninstalling"), ("privacy", "Privacy"),
 ]
 

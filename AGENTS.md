@@ -21,11 +21,17 @@ Install the skill for your agent in one of two ways:
 - From a clone (`git clone https://github.com/RattleSnakeSight/live-clipper`):
   `python scripts/install-skill.py --agent claude`. This uses no network.
 
-Do not connect accounts, enter credentials, enable automatic posting or post anything for the user.
+Do not connect accounts, enable automatic posting or post anything for the user, and never read, print or
+pass key values yourself. Platform keys: with the user's consent, pair the key helper
+(`live-clipper agent pair --agent claude|codex`, then `live-clipper agent serve`). The user asks for keys in
+the app; the helper reads only that platform's named keys from the place the user chose and saves them. See
+SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
 
 ## Repository layout
 
 - `live_clipper/` is the app (flat modules). `registry.py` lists the services that plug into the core.
+- `live_clipper/agent_setup.py` (requests, pairing, saving) and `live_clipper/agent_helper.py` (the helper
+  behind `live-clipper agent serve`) are the agent-assisted key setup.
 - `live_clipper/guide/` is the in-app user guide (Markdown, shipped as package data).
 - `live_clipper/web/` is the browser UI.
 - `docs/ARCHITECTURE.md` is the plug-in contract; `docs/CONTRACTS.md` is the contract between subsystems;

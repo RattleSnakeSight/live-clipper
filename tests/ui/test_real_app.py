@@ -14,6 +14,7 @@ its database.
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -432,4 +433,67 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     assert mon["armed"] == 0 and all(s["calls"] == 0 for s in mon["sources"].values())
     log = (app.home / "logs" / "live-clipper.log").read_text(encoding="utf-8", errors="replace")
     assert not re.search(r"streamlink|twitch\.tv/streamer_alpha.*(probe|capture)", log, re.I)
+    assert not page.js_errors
+
+
+def test_dark_default_light_choice_and_agent_key_setup_on_the_real_app(make_app, offline_page, tmp_path):
+    """The real app, the real `agent pair` / `agent serve` commands and a synthetic key file: the customer
+    asks in the browser, the helper reads the file and the existing destination integration has the keys."""
+    key, secret = "FAKEKEY-e2e-4711", "FAKESECRET-e2e-0815"  # gitleaks:allow (synthetic)
+    app = make_app("profile-agent")
+    page = offline_page()
+    open_app(page, app)
+    assert page.evaluate("document.documentElement.dataset.theme") == "dark"  # no preference: dark
+    run_wizard(page)
+    page.get_by_role("button", name="Skip tour").click()
+    app.wait_state(page, "tour.version", 1)  # the tour then returns to the dashboard
+    expect(page).to_have_url(f"{app.url}/#/dashboard")
+
+    # Appearance: light applies at once and survives a reload and a restart
+    page.goto(f"{app.url}/#/settings")
+    page.locator("#settings-appearance").get_by_label("Light").check()
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    app.wait_state(page, "ui.theme", "light")
+    page.reload()
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+
+    # pairing by the installing agent, then the request from the Destinations page
+    pair = subprocess.run(app._cli("agent", "pair", "--agent", "codex"), capture_output=True, text=True,
+                          timeout=60)
+    assert pair.returncode == 0 and "Paired Codex" in pair.stdout
+    keys = tmp_path / "tiktok.env"
+    keys.write_text(f"TIKTOK_CLIENT_KEY={key}\nTIKTOK_CLIENT_SECRET={secret}\n", encoding="utf-8")
+    page.goto(f"{app.url}/#/destinations")
+    panel = page.locator('#dest-tiktok .agent-panel')
+    expect(panel).to_contain_text("Paired with Codex")
+    panel.get_by_label("A file I choose").check()
+    panel.get_by_label("File or entry name").fill(str(keys))
+    panel.get_by_role("button", name="Ask my agent").click()
+    expect(panel.locator(".agent-status")).to_contain_text("Waiting for your agent")
+
+    # the helper, as the agent starts it; a dead proxy in its environment must not be used
+    env = {**os.environ, "LIVE_CLIPPER_HOME": str(app.home), "HTTP_PROXY": "http://127.0.0.1:9",
+           "HTTPS_PROXY": "http://127.0.0.1:9", "ALL_PROXY": "http://127.0.0.1:9"}
+    cmd = [sys.executable, "-m", "live_clipper", "agent", "serve", "--once", "--max-wait", "60"]
+    helper = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+    for _ in range(300):  # let the page poll while the helper works
+        if helper.poll() is not None:
+            break
+        page.wait_for_timeout(100)
+    out = helper.communicate(timeout=30)[0]
+    assert helper.returncode == 0, out
+    assert "found client_key, client_secret" in out and "result: done" in out
+    expect(panel.locator(".agent-status")).to_contain_text("Saved: client_key, client_secret", timeout=10000)
+    tiktok = next(d for d in app.api("/destinations")["destinations"] if d["provider"] == "tiktok")
+    assert tiktok["app_credentials_set"] == ["client_key", "client_secret"]
+
+    # still light after a restart; and no key in the helper's output, the page, the API or the logs
+    app.stop()
+    app.start()
+    open_app(page, app)
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    logs = "".join(p.read_text(encoding="utf-8", errors="replace") for p in (app.home / "logs").glob("*.log"))
+    seen = out + page.content() + json.dumps(app.api("/agent/requests"))
+    seen += json.dumps(app.api("/destinations")) + logs
+    assert key not in seen and secret not in seen
     assert not page.js_errors

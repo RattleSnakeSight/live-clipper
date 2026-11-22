@@ -3,6 +3,7 @@
 
 import { ApiError, get, list, post, put } from '../api.js';
 import { busy, choiceGroup, clear, confirmDialog, h, selectField, setError, switchField, textField, titleRow, toast } from '../ui.js';
+import { agentPanel } from '../agent.js';
 
 const STATUS = {
   connected: ['Connected', 'pos'], disconnected: ['Not connected', 'neutral'], needs_reconnect: ['Reconnect needed', 'warn'],
@@ -251,6 +252,9 @@ function card(d, refresh, picked) {
     });
   }
 
+  const agentSlot = h('div', { class: 'agent-slot' });
+  agentPanel(`destination:${d.provider}`, refresh).then((p) => p && agentSlot.append(p));
+
   const ackId = `ack-${d.id}`;
   const ack = h('input', { type: 'checkbox', id: ackId, checked: d.rights_acknowledged,
     help: 'Required before posting: you own the clips or have the streamer\'s permission to post them here.' });
@@ -275,6 +279,7 @@ function card(d, refresh, picked) {
       h('summary', { help: 'Show or hide what this destination needs.' }, h('strong', {}, 'What you need and how to set it up')),
       requirements(d)),
     // in the order the setup steps above are done: keys, connect, rights, on. Optional settings come last.
+    agentSlot,
     h('div', { class: 'split', style: 'margin-top: 12px' }, keys, tokenForm),
     h('div', { class: 'row', style: 'margin-top: 16px' }, connect, disconnect),
     out,

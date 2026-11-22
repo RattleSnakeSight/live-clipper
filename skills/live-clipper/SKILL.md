@@ -18,8 +18,9 @@ Getting this skill into your agent (the user usually did this already):
   add `--project` for a Claude skill in the current project).
 - From a clone of the repository: `python scripts/install-skill.py --agent claude`.
 
-Ask before you install software, change settings, or start anything that runs at login. Never post, connect
-accounts or enter credentials on the user's behalf. The user does those steps in the browser.
+Ask before you install software, change settings, or start anything that runs at login. Never post or
+connect accounts on the user's behalf, and never handle key values yourself. With the user's consent you can
+pair the key helper (section 4); it fills in keys the user asks for without passing them through you.
 
 ## 1. Check the machine
 
@@ -30,7 +31,8 @@ accounts or enter credentials on the user's behalf. The user does those steps in
    - Linux: `sudo apt install python3 python3-venv python3-pip` (or the distribution's equivalent)
 2. ffmpeg and ffprobe: run `ffmpeg -version`. If missing, offer:
    - Windows: `winget install Gyan.FFmpeg`
-   - macOS: `brew install ffmpeg`
+   - macOS: `brew install ffmpeg-full` (the captions need its libass and freetype), then put it on PATH:
+     `export PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"` (add that line to `~/.zprofile` to keep it)
    - Linux: `sudo apt install ffmpeg`
    Open a new terminal afterwards so the PATH change applies.
 
@@ -72,9 +74,31 @@ run `python -m pipx ensurepath` or call `python -m live_clipper` instead.
    notifications, and start at login.
 3. Suggest the defaults unless the user has a reason to change one. Let the user answer in the browser.
    Do not choose posting destinations or turn on automatic posting for them.
-4. Connecting platform accounts happens in the app. Point the user to the in-app guide.
+4. Connecting platform accounts happens in the app. Tell the user now that you can set up their platform
+   keys for them (next section), and that typing them in on Sources and Destinations always works too.
 
-## 4. Troubleshoot
+## 4. Set up platform keys (when the user wants it)
+
+You can fill in the user's platform keys without ever seeing them. The user starts each request in the app.
+
+1. Ask the user whether you may set up keys for them. If yes, pair yourself with this Live Clipper (add the
+   same `--home <folder>` you used for `start`, if any):
+   - Claude Code: `live-clipper agent pair --agent claude`
+   - Codex: `live-clipper agent pair --agent codex`
+2. Start the helper in the background and keep it running while the user sets up:
+   `live-clipper agent serve`. If the app was closed, or this is a new session, run it again; it reattaches.
+   `live-clipper agent serve --once` answers one request and exits.
+3. Tell the user: open Sources or Destinations (or the last setup page), open "Let your agent set this up",
+   pick where the keys are (environment variables, a file they choose, or a credential manager entry) and
+   press "Ask my agent". The helper reads only that platform's named keys from that place and saves them.
+4. Read the helper's output: it prints field names and the result, never values. Never read, print or pass
+   the key values yourself, never put them on a command line, and never ask the user to paste them to you.
+5. If keys are missing or not accepted, say so and point to the in-app guide page "Let your agent set up
+   keys" for where to get them. Developer app registration, sign-in consent and platform approval are the
+   user's to do in the browser. Typing the keys in by hand always works.
+6. The user withdraws access in Settings > Agent setup > Revoke, or you run `live-clipper agent unpair`.
+
+## 5. Troubleshoot
 
 Run these in order and read the output before changing anything:
 
@@ -88,7 +112,7 @@ Common causes: ffmpeg not on PATH (reinstall, open a new terminal), disk cap rea
 clips, or raise the cap in the app), port already in use (the app picks a free one; read it from
 `live-clipper status`), another copy already running (`live-clipper start` opens the running one).
 
-## 5. Update and uninstall
+## 6. Update and uninstall
 
 - Update: `live-clipper update`. Data is kept. Re-running the install script also works.
 - Stop: `live-clipper stop`.

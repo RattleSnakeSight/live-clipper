@@ -30,6 +30,7 @@ from pydantic import ValidationError
 import live_clipper
 from live_clipper import formats as F
 from live_clipper import presets as P
+from live_clipper.agent_setup import AGENTS, TARGETS, spec_view
 from live_clipper.db import Database
 from live_clipper.monitor_service import parse_channel_url
 from live_clipper.presets import SHIPPED, PresetStore
@@ -276,12 +277,12 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     # core
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "version": "0.1.0", "uptime": 12.5, "pid": 1}
+        return {"status": "ok", "version": live_clipper.__version__, "uptime": 12.5, "pid": 1}
 
     @app.get("/api/status")
     def status():
         armed = [c for c in db["channels"].values() if c["enabled"]]
-        return {"version": "0.1.0", "uptime": 12.5, "pid": 1, "services": {
+        return {"version": live_clipper.__version__, "uptime": 12.5, "pid": 1, "services": {
             "monitor": {"state": "running", "channels": len(db["channels"]), "armed": len(armed), "recording": 1},
             "publish": {"started": True, "mode": mode(), "eligible_destinations": ["youtube"], "deliveries": {}},
             "maintenance": {"state": "healthy", "paused": False}}}
@@ -391,7 +392,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
 
     @app.get("/api/diagnostics")
     def diagnostics():
-        return {"version": "0.1.0", "uptime": 12.5, "services": status()["services"],
+        return {"version": live_clipper.__version__, "uptime": 12.5, "services": status()["services"],
                 "restarts": {"count": 1, "recent": [{"ts": NOW - 3600, "message": "worker exited, restarting",
                                                      "data": {"code": 1}}]},
                 "disk": {"free_bytes": 400 * 1024**3, "total_bytes": 1000 * 1024**3},
@@ -849,6 +850,39 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         resp = await call_next(request)
         resp.headers["Cache-Control"] = "no-store"
         return resp
+
+    # agent-assisted setup: a paired agent whose helper is not running, so requests stay pending
+    agent_reqs: list[dict] = []
+
+    @app.get("/api/agent")
+    def agent_overview():
+        return {"paired": {"agent": "claude", "agent_label": AGENTS["claude"], "since": NOW},
+                "helper": {"online": False, "last_seen": None}, "targets": [spec_view(t) for t in TARGETS],
+                "source_kinds": ["env", "file", "keyring"]}
+
+    @app.get("/api/agent/requests")
+    def agent_requests(target: str = ""):
+        return {"requests": [r for r in reversed(agent_reqs) if not target or r["target"] == target]}
+
+    @app.post("/api/agent/requests", status_code=201)
+    def agent_request(body: dict = Body(...)):
+        if body.get("target") not in TARGETS:
+            raise HTTPException(422, "unknown platform")
+        if body.get("source", {}).get("kind") != "env" and not body["source"].get("ref", "").strip():
+            raise HTTPException(422, "choose the file or the credential manager entry to read")
+        if any(r["target"] == body["target"] and r["status"] == "pending" for r in agent_reqs):
+            raise HTTPException(409, "a request for this platform is already open; wait or cancel it")
+        r = {"id": len(agent_reqs) + 1, "target": body["target"], "label": TARGETS[body["target"]]["label"],
+             "source": body["source"], "status": "pending", "detail": "", "saved": [], "missing": [],
+             "created_at": time.time(), "updated_at": time.time(), "expires_at": time.time() + 600}
+        agent_reqs.append(r)
+        return r
+
+    @app.post("/api/agent/requests/{rid}/cancel")
+    def agent_cancel(rid: int):
+        r = next((x for x in agent_reqs if x["id"] == rid), None) or nf("request")
+        r.update(status="cancelled", detail="You cancelled this request.")
+        return r
 
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
     return app

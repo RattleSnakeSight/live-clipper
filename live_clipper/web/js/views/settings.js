@@ -1,10 +1,12 @@
 // Settings: the setup answers grouped by topic, plus storage cleanup, browser notifications, posting mode,
 // tutorial replay, setup re-run and version info.
 
-import { ApiError, get, post, put } from '../api.js';
+import { ApiError, api, get, post, put } from '../api.js';
 import { checkValue, effective, isVisible, questionField } from '../questions.js';
 import { startTour } from '../tour.js';
-import { busy, choiceGroup, clear, confirmDialog, fmtBytes, h, titleRow, toast } from '../ui.js';
+import { busy, choiceGroup, clear, confirmDialog, fmtBytes, h, selectField, titleRow, toast } from '../ui.js';
+import { agentOverview, agentPanel } from '../agent.js';
+import { THEMES, currentTheme, saveTheme } from '../theme.js';
 
 const SECTIONS = [
   ['settings-storage', 'Storage', 'Where clips are kept and what is cleaned up.',
@@ -22,6 +24,7 @@ export async function render(main) {
   const saved = { ...st.answers };
   const answers = effective(questions, saved);
   main.append(titleRow('Settings', 'Your setup answers, grouped by topic. Each group has its own Save.'));
+  main.append(appearanceBlock());
 
   for (const [id, title, intro, ids] of SECTIONS) {
     const qs = ids.map((x) => byId[x]).filter(Boolean);
@@ -76,6 +79,7 @@ export async function render(main) {
   }
 
   main.append(await postingBlock());
+  main.append(await agentBlock());
   main.append(helpBlock(health));
 }
 
@@ -138,6 +142,41 @@ async function postingBlock() {
   } catch {
     box.append(h('p', { class: 'muted' }, 'Posting is not available right now.'));
   }
+  return box;
+}
+
+function appearanceBlock() {
+  const g = choiceGroup({ legend: 'Theme', name: 'theme', value: currentTheme(),
+    help: 'Dark is the default. Your choice is saved for this app and applies right away.',
+    options: Object.entries(THEMES).map(([value, label]) => ({ value, label })) });
+  g.inputs.forEach((i) => i.addEventListener('change', async () => {
+    try { await saveTheme(i.value); toast(`${THEMES[i.value]} theme on.`); } catch (e) { toast(e.message, true); }
+  }));
+  return h('section', { id: 'settings-appearance', class: 'panel narrow', 'aria-labelledby': 'sa-title' },
+    h('h2', { id: 'sa-title' }, 'Appearance'), g.el);
+}
+
+async function agentBlock() {
+  const box = h('section', { id: 'settings-agent', class: 'panel narrow', 'aria-labelledby': 'sg-title' },
+    h('h2', { id: 'sg-title' }, 'Agent setup'));
+  const info = await agentOverview(true);
+  if (!info) return box.append(h('p', { class: 'muted' }, 'Agent setup is not available right now.')), box;
+  if (info.paired) {
+    const revoke = h('button', { type: 'button', class: 'btn danger', help: 'Stop the paired agent from answering key requests. Keys already saved stay.' }, 'Revoke');
+    revoke.addEventListener('click', async () => {
+      if (!await confirmDialog({ title: 'Revoke agent access?', body: 'The helper can no longer answer requests; open requests are cancelled. Saved keys stay.', ok: 'Revoke', danger: true })) return;
+      try { await api('/agent/pairing', { method: 'DELETE' }); toast('Agent access revoked.'); location.reload(); } catch (e) { toast(e.message, true); }
+    });
+    box.append(h('p', {}, `Paired with ${info.paired.agent_label}. Its helper is ${info.helper.online ? 'running' : 'not running'}.`),
+      h('div', { class: 'row', style: 'margin: 8px 0 12px' }, revoke));
+  }
+  const pick = selectField({ label: 'Platform', help: 'Choose which keys to ask the agent for.',
+    options: info.targets.map((t) => ({ value: t.target, label: `${t.target.startsWith('source') ? 'Watch' : 'Post'}: ${t.label}` })) });
+  const slot = h('div');
+  const draw = async () => { const p = await agentPanel(pick.input.value, () => {}, 'link'); slot.replaceChildren(...(p ? [p] : [])); };
+  pick.input.addEventListener('change', draw);
+  box.append(pick.el, slot);
+  await draw();
   return box;
 }
 

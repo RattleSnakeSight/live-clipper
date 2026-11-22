@@ -3,6 +3,7 @@
 import { ApiError, del, get, list, post } from '../api.js';
 import { PLATFORMS } from '../labels.js';
 import { busy, clear, confirmDialog, h, sentence, textField, titleRow, toast } from '../ui.js';
+import { agentPanel } from '../agent.js';
 
 const F = {
   client_id: ['client_id', 'Client ID', false, 'From your developer app on the platform\'s developer site.'],
@@ -123,6 +124,13 @@ function webhookForm(s, out, refresh) {
   return form;
 }
 
+// the panel loads on its own, so the card can draw at once
+function agentSlot(target, refresh) {
+  const slot = h('div', { class: 'agent-slot' });
+  agentPanel(target, refresh).then((p) => p && slot.append(p));
+  return slot;
+}
+
 function card(s, refresh, sharedNote) {
   const name = PLATFORMS[s.platform] || s.platform;
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
@@ -161,6 +169,7 @@ function card(s, refresh, sharedNote) {
     h('div', { style: 'margin-bottom: 12px' }, enables), pending,
     h('details', { open: !s.connected },
       h('summary', { help: `Show or hide the ways to connect ${name}.` }, h('strong', {}, s.connected ? 'Connect again or change keys' : 'Connect')),
+      agentSlot(`source:${s.platform}`, refresh),
       h('div', { class: 'split', style: 'margin-top: 12px' }, forms)),
     disconnect ? h('div', { class: 'row', style: 'margin-top: 12px' }, disconnect) : null, out);
 }

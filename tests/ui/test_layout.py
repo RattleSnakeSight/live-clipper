@@ -130,3 +130,75 @@ def test_settings_switch_saves_a_yes_or_no_answer(seeded_server, make_page):
     form.get_by_role("button", name="Save").click()
     expect(page.locator("#toasts")).to_contain_text("Notifications and startup saved")
     assert json.loads(seeded_server.state_file.read_text())["answers"]["service.start_at_login"] is True
+
+
+def test_theme_is_set_before_the_app_script_runs(seeded_server, make_page):
+    """No flash: theme-boot.js sets the theme from the cookie before the app's own script loads."""
+    page = make_page()
+    page.route("**/js/app.js", lambda route: route.abort())  # only the pre-paint script may act
+    page.goto(seeded_server.url + "/#/dashboard")
+    assert page.evaluate("document.documentElement.dataset.theme") == "dark"  # nothing saved: dark
+    page.context.add_cookies([{"name": "lc_theme", "value": "light", "url": seeded_server.url}])
+    page.reload()
+    assert page.evaluate("document.documentElement.dataset.theme") == "light"
+    bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
+    assert bg == "rgb(241, 244, 244)"  # the light ground colour, before any module ran
+
+
+def test_settings_theme_choice_applies_and_is_saved(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/settings")
+    box = page.locator("#settings-appearance")
+    expect(box.get_by_label("Dark")).to_be_checked()
+    box.get_by_label("Light").check()
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    assert json.loads(seeded_server.state_file.read_text())["app_state"]["ui.theme"] == "light"
+    page.goto(seeded_server.url + "/#/clips")
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    page.goto(seeded_server.url + "/#/settings")
+    page.locator("#settings-appearance").get_by_label("Dark").check()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+
+def test_ask_my_agent_request_waits_and_can_be_cancelled(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/destinations")
+    panel = page.locator("#dest-tiktok .agent-panel")
+    expect(panel).to_contain_text("Paired with Claude Code")
+    expect(panel).to_contain_text("TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET")
+    expect(panel.get_by_label("File or entry name")).to_be_hidden()  # environment needs no location
+    panel.get_by_label("A file I choose").check()
+    panel.get_by_role("button", name="Ask my agent").click()
+    expect(panel.locator(".field .error")).to_contain_text("choose the file")  # a file needs its path
+    panel.get_by_label("File or entry name").fill("/data/keys.env")
+    panel.get_by_role("button", name="Ask my agent").click()
+    status = panel.locator(".agent-status")
+    expect(status).to_contain_text("Waiting for your agent")
+    expect(panel.get_by_role("button", name="Ask my agent")).to_be_disabled()
+    status.get_by_role("button", name="Cancel").click()
+    expect(status).to_contain_text("Cancelled")
+    expect(status).to_contain_text("enter the keys yourself")
+    assert not page.js_errors
+
+
+def test_manual_fallback_points_to_the_right_form(seeded_server, fresh_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/settings")
+    box = page.locator("#settings-agent")
+    box.get_by_label("Platform").select_option("destination:tiktok")
+    panel = box.locator(".agent-panel")
+    panel.get_by_role("button", name="Ask my agent").click()
+    panel.get_by_role("button", name="Cancel").click()
+    link = panel.get_by_role("link", name="enter the keys yourself on Destinations")
+    link.click()
+    expect(page.locator("main h1")).to_have_text("Destinations")
+
+    # the wizard cannot be left half done: it says where to go once finished, and keeps the answers
+    page.goto(fresh_server.url + "/#/setup/review")
+    keys = page.locator("#wizard-keys")
+    keys.locator("summary").first.click()
+    panel = keys.locator(".agent-panel").first
+    panel.get_by_role("button", name="Ask my agent").click()
+    panel.get_by_role("button", name="Cancel").click()
+    expect(panel).to_contain_text("once setup is finished")
+    assert not page.js_errors

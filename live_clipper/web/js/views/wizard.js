@@ -4,8 +4,15 @@
 import { ApiError, get, post, put } from '../api.js';
 import { answerLabel, checkValue, effective, isVisible, questionField } from '../questions.js';
 import { btn, clear, fmtBytes, h } from '../ui.js';
+import { agentPanel } from '../agent.js';
 import { markSetupDone } from '../app.js';
 import { maybeStartTour } from '../tour.js';
+
+const KEY_LABELS = {
+  'source:twitch': 'Watch Twitch', 'source:kick': 'Watch Kick', 'source:youtube': 'Watch YouTube',
+  'destination:youtube': 'Post to YouTube Shorts', 'destination:tiktok': 'Post to TikTok',
+  'destination:instagram': 'Post to Instagram Reels',
+};
 
 export async function render(main, params) {
   const [qd, st, hw] = await Promise.all([
@@ -107,8 +114,22 @@ export async function render(main, params) {
         errors[q.id] ? h('span', { class: 'error' }, errors[q.id]) : null),
     ]));
     const errCount = Object.keys(errors).length;
+    // keys for the platforms picked above: the installing agent can look them up now, or later on Sources
+    const targets = [...(answers['platforms.enabled'] || []).map((p) => `source:${p}`),
+      ...(answers['posting.destinations'] || []).filter((p) => ['youtube', 'tiktok', 'instagram'].includes(p))
+        .map((p) => `destination:${p}`)];
+    const keysBox = targets.length ? h('section', { id: 'wizard-keys', class: 'panel', 'aria-labelledby': 'wk-title' },
+      h('h3', { id: 'wk-title' }, 'Platform keys'),
+      h('p', { class: 'small muted' }, 'Optional now, and always possible later on Sources and Destinations. '
+        + 'The AI agent that installed Live Clipper can look your keys up for you; you choose where.')) : null;
+    for (const t of targets) {
+      const slot = h('details', {}, h('summary', { help: 'Show or hide the agent request for this platform.' }, KEY_LABELS[t] || t));
+      keysBox.append(slot);
+      agentPanel(t, () => {}, 'after-setup').then((p) => { if (p) slot.append(p); else slot.remove(); });
+    }
     clear(root, header(vis.length + 1, vis.length + 1),
       h('h2', { tabindex: -1, id: 'review-title' }, 'Check your answers'),
+      keysBox,
       errCount ? h('p', { class: 'note bad', role: 'alert' },
         errors._ || `${errCount} answer${errCount > 1 ? 's need' : ' needs'} a change before setup can finish.`) : null,
       list,
