@@ -20,6 +20,7 @@ from .logging_setup import setup_logging
 from .paths import get_paths
 from .server import allow_remote, create_app, ensure_token
 from .services import build_context, load_services
+from .update_gate import RESTART_EXIT, UpdateGate
 
 log = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 5.0
@@ -30,6 +31,7 @@ class Heartbeat:
 
     name = "heartbeat"
     router = None
+    essential = True  # runs while the update gate is closed: the supervisor restarts a silent worker
 
     def __init__(self, state_dir: Path):
         self.file = state_dir / "heartbeat"
@@ -74,13 +76,19 @@ def run(port: int, host: str = "127.0.0.1") -> None:
     ctx = build_context(paths, port=port, token=ensure_token(paths))
     heartbeat = Heartbeat(paths.state)
     ctx.services[:0] = [heartbeat, *services]
+    ctx.update_gate = gate = UpdateGate(paths.state)
     server = uvicorn.Server(uvicorn.Config(create_app(ctx), host=host, port=port, log_config=None,
                                            access_log=False))
     heartbeat.on_stop_request = lambda: setattr(server, "should_exit", True)
+    restart = []
+    # a newer release appeared while the services ran: stop them the normal way and come back gated
+    gate.on_restart = lambda: (restart.append(True), setattr(server, "should_exit", True))
     log.info("worker %d serving on %s:%d", os.getpid(), host, port)
     server.run()
     if not server.started:
         raise SystemExit(1)
+    if restart:
+        raise SystemExit(RESTART_EXIT)
 
 
 def main(argv: list[str] | None = None) -> None:

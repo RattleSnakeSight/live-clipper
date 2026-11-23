@@ -8,7 +8,8 @@ what gets posted, and you do not hand your accounts to a service.
 
 - Free and open source (MIT).
 - Self-hosted. There is no hosted backend and no account with us.
-- No telemetry. The app talks only to the platforms you connect. See the [privacy page](live_clipper/guide/privacy.md).
+- No telemetry. The app talks to the platforms you connect, and reads its newest version number from GitHub
+  to check for updates (nothing about you is sent). See the [privacy page](live_clipper/guide/privacy.md).
 - Logins are kept in an encrypted file on your machine. The web interface listens on 127.0.0.1 only.
 
 ## Get started
@@ -126,6 +127,11 @@ live-clipper update
 ```
 
 Your data stays where it is. See the [updating guide](live_clipper/guide/updating.md).
+
+Live Clipper runs only when it is the newest version. At every start and every open it checks, and when a
+newer version is out it shows **Update pending** and pauses watching, clipping and posting until you update.
+Without an internet connection at start it waits and retries instead of running. Versions up to 0.2.0 do not
+have this check: update them once with `live-clipper update`.
 
 ## Uninstall
 

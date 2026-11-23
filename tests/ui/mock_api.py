@@ -23,7 +23,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -277,12 +277,48 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     # core
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "version": live_clipper.__version__, "uptime": 12.5, "pid": 1}
+        return {"status": "ok", "version": live_clipper.__version__, "uptime": 12.5, "pid": 1,
+                "update": update_view()["state"]}
+
+    # update check: "current" unless a test puts another view in store["update"] (state file or
+    # PUT /api/_mock/update). A check counts itself and applies store["update_next"] if a test queued one.
+    def update_view() -> dict:
+        return {"state": "current", "installed": live_clipper.__version__, "available": live_clipper.__version__,
+                "checked_at": NOW, "error": None, "next_check": None, "method": "pipx", "agent": None,
+                **store.get("update", {})}
+
+    @app.get("/api/update")
+    def update_get():
+        return update_view()
+
+    @app.post("/api/update/check")
+    def update_check(body: dict = Body(default={})):
+        store.setdefault("update_checks", []).append(body.get("kind", "open"))
+        if store.get("update_next"):
+            store["update"] = store.pop("update_next")
+        save()
+        return update_view()
+
+    @app.put("/api/_mock/update")
+    def update_set(body: dict = Body(...)):
+        store["update"] = body
+        save()
+        return update_view()
+
+    @app.middleware("http")
+    async def update_gate(request: Request, call_next):
+        open_paths = ("/api/health", "/api/status", "/api/update", "/api/update/check", "/api/_mock/update")
+        path = request.url.path
+        reading = request.method == "GET" and path.startswith("/api/app-state/")
+        view = update_view()
+        if view["state"] != "current" and path.startswith("/api/") and path not in open_paths and not reading:
+            return JSONResponse({"detail": "update", "update": view}, 423)
+        return await call_next(request)
 
     @app.get("/api/status")
     def status():
         armed = [c for c in db["channels"].values() if c["enabled"]]
-        return {"version": live_clipper.__version__, "uptime": 12.5, "pid": 1, "services": {
+        return {"version": live_clipper.__version__, "uptime": 12.5, "pid": 1, "update": update_view(), "services": {
             "monitor": {"state": "running", "channels": len(db["channels"]), "armed": len(armed), "recording": 1},
             "publish": {"started": True, "mode": mode(), "eligible_destinations": ["youtube"], "deliveries": {}},
             "maintenance": {"state": "healthy", "paused": False}}}

@@ -18,6 +18,14 @@ live-clipper start ──spawns──> supervisor ──spawns──> worker (uv
 - Stop: `live-clipper stop` creates `state/stop`; the supervisor creates `state/worker.stop`, the worker
   shuts down gracefully (services get `stop()`), and the supervisor exits. SIGINT/SIGTERM/CTRL_BREAK work too.
 - `start --foreground` runs the supervisor in the terminal instead of in the background.
+- Update gate (`live_clipper/update_gate.py`): the worker checks the version line on the project's main
+  branch before anything else. Only services marked `essential = True` (the heartbeat) start at once; the
+  rest start when the check says this copy is current. While it is `checking`, `pending` or `unknown`, the
+  Guard answers every `/api/*` request with 423 except health, status, `/api/update*`, app-state reads and
+  the API reference, and closes websockets. A release found while the services run makes the worker exit
+  with code 75; the supervisor restarts it at once (not counted as a crash) and the new worker starts gated.
+  A second `live-clipper start` asks the running app to check (`POST /api/update/check`), and restarts it
+  if the running version differs from the installed one (an upgrade while it ran).
 
 ## Plug-in interface
 
@@ -39,6 +47,8 @@ class MonitorService:
 ```
 
 A service that fails to import or start is logged and skipped; the rest of the app keeps running.
+Services start only once the update gate is open (see Process model); until then `GET /api/status`
+reports them as `{"state": "paused", "reason": "update check"}`.
 
 ## AppContext (`ctx`)
 

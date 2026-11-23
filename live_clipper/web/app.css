@@ -467,3 +467,36 @@ body.setup-mode main { max-width: none; padding-bottom: 48px; }
   .kv.long { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .kv.long dd { margin-bottom: 8px; }
 }
+
+/* Update gate (js/update.js): replaces the app until this copy is current. Same column as the setup wizard. */
+body.gated .topbar-end { display: none; }
+.gate { max-width: 640px; margin: 0 auto; }
+.gate h1 { font-size: var(--fs-title); margin-bottom: 12px; }
+.gate h1:focus, .gate h1:focus-visible { outline: none; } /* moved there by script for screen readers; not a control */
+.gate h2 { font-size: var(--fs-section); margin: 28px 0 10px; }
+.gate .lead { font-size: 17px; line-height: 1.5; margin-bottom: 16px; }
+.gate p { line-height: 1.5; }
+.gate > p + p { margin-top: 12px; }
+.gate-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
+.gate-versions > div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 16px; }
+.gate-versions > .available { background: var(--accent-soft); border-color: var(--accent-track); }
+.gate-versions dt { color: var(--muted); font-size: var(--fs-small); }
+.gate-versions dd { margin: 2px 0 0; font-size: 22px; font-weight: 650; }
+.gate-versions > .available dd { color: var(--accent-ink); }
+.gate-steps { margin: 0; padding-left: 22px; }
+.gate-steps > li { padding-left: 4px; }
+.gate-steps > li + li { margin-top: 18px; }
+.gate-steps .copy-row { margin: 8px 0 6px; }
+.gate-steps .help { margin-top: 4px; }
+.gate-steps .help code { overflow-wrap: anywhere; }
+.gate blockquote { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+.gate-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+.gate-actions .btn { min-width: 140px; }
+.gate-more { margin-top: 20px; }
+.gate-more > summary { cursor: pointer; font-weight: 600; min-height: var(--tap); display: flex; align-items: center; }
+.gate-more > .gate-steps { margin-top: 10px; }
+.gate-why { margin-top: 32px; max-width: 60ch; }
+@media (max-width: 760px) {
+  .gate .lead { font-size: var(--fs-body); }
+  .gate-actions .btn { flex: 1 1 100%; }
+}

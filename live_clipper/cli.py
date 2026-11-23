@@ -57,6 +57,36 @@ def _health(port: int) -> dict | None:
         return None
 
 
+def _check_update(port: int, kind: str) -> dict | None:
+    """Ask the running app to check for an update now (it owns the check and its result)."""
+    token = (get_paths().state / "token").read_text().strip()
+    try:
+        r = httpx.post(f"http://127.0.0.1:{port}/api/update/check", json={"kind": kind},
+                       headers={"Authorization": f"Bearer {token}"}, timeout=20)
+        return r.json() if r.status_code == 200 else None
+    except (httpx.HTTPError, ValueError):
+        return None
+
+
+ERRORS = {"offline": "no connection", "timeout": "no answer in time", "rate_limited": "too many requests",
+          "unavailable": "the update source did not answer", "bad_response": "an answer it could not read"}
+
+
+def report_update(u: dict | None) -> None:
+    u = u or {}
+    state = u.get("state")
+    if state == "pending":
+        print(f"Update pending: Live Clipper {u['available']} is available (this is {u['installed']}).\n"
+              "It will not watch, clip or post until it is updated. Update: live-clipper update\n"
+              "(it stops the app, installs the new version and starts it again; your data is kept).")
+    elif state == "unknown":
+        why = ERRORS.get(str(u.get("error")), "unknown error")
+        print(f"Live Clipper could not check for updates ({why}).\n"
+              "It does not start its normal work until a check works, and tries again by itself.")
+    elif state == "checking":
+        print("Live Clipper is still checking for updates; the browser tab shows the result.")
+
+
 def _open_ui(port: int, no_browser: bool) -> None:
     token = (get_paths().state / "token").read_text().strip()
     url = f"http://127.0.0.1:{port}/?t={token}"
@@ -68,22 +98,34 @@ def _open_ui(port: int, no_browser: bool) -> None:
 def cmd_start(args) -> int:
     info = read_lock(get_paths())
     if info:
-        print("Live Clipper is already running.")
-        _open_ui(info["port"], args.no_browser)
-        return 0
+        running = (_health(info["port"]) or {}).get("version")
+        if running and running != __version__:
+            # the program was upgraded while the old one kept running: finish the update with a restart
+            print(f"Live Clipper {running} is still running; restarting it as {__version__}.")
+            cmd_stop()
+        else:
+            print("Live Clipper is already running.")
+            report_update(_check_update(info["port"], "open"))
+            _open_ui(info["port"], args.no_browser)
+            return 0
     port = _pick_port(args.port)
     if args.foreground:
         from . import supervisor
 
-        if not args.no_browser:
-            opener = lambda: _wait(lambda: _health(port), 60) and _open_ui(port, False)  # noqa: E731
-            threading.Thread(target=opener, daemon=True).start()
+        def opener():
+            if _wait(lambda: _health(port), 60):
+                report_update(_check_update(port, "after_start"))
+                if not args.no_browser:
+                    _open_ui(port, False)
+
+        threading.Thread(target=opener, daemon=True).start()
         supervisor.main(["--port", str(port)])
         return 0
     subprocess.Popen([sys.executable, "-m", "live_clipper.supervisor", "--port", str(port)], **spawn_kwargs())
     if not _wait(lambda: _health(port), 60):
         print("Live Clipper did not start. See `live-clipper logs`.")
         return 1
+    report_update(_check_update(port, "after_start"))
     _open_ui(port, args.no_browser)
     return 0
 
@@ -234,7 +276,26 @@ def _direct_url() -> dict | None:
     return json.loads(text) if text else None
 
 
+def check_now() -> int:
+    """`live-clipper update --check`: one check from this terminal, without the app."""
+    from .update_gate import CheckFailed, fetch_latest, is_newer
+
+    try:
+        available, _ = fetch_latest()
+    except CheckFailed as e:
+        print(f"Could not check for updates ({ERRORS[e.code]}).")
+        return 2
+    if available and is_newer(available, __version__):
+        print(f"Update pending: Live Clipper {available} is available (this is {__version__}). "
+              "Update: live-clipper update")
+        return 1
+    print(f"Up to date: this is {__version__} (the newest release on main is {available}).")
+    return 0
+
+
 def cmd_update(args) -> int:
+    if args.check:
+        return check_now()
     source = args.source or install_source(_direct_url())
     if source is None:
         print("This is an editable (developer) install: update it with `git pull`.")
@@ -243,8 +304,9 @@ def cmd_update(args) -> int:
     if was_running:
         cmd_stop()
     rc = subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", source])
-    if was_running:
-        subprocess.call([sys.executable, "-m", "live_clipper", "start", "--no-browser"])
+    if was_running:  # the new version, from the same environment; it checks for updates as it starts
+        flags = ["--no-browser"] if args.no_browser else []
+        subprocess.call([sys.executable, "-m", "live_clipper", "start", *flags])
     return rc
 
 
@@ -340,6 +402,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("doctor", help="check this machine can run Live Clipper").set_defaults(func=cmd_doctor)
     s = sub.add_parser("update", help="upgrade the program (data is kept)")
     s.add_argument("--source", help="pip requirement or URL to install from")
+    s.add_argument("--check", action="store_true", help="only check whether a newer version exists")
+    s.add_argument("--no-browser", action="store_true", help="do not open the browser after restarting")
     s.set_defaults(func=cmd_update)
     s = sub.add_parser("uninstall", help="stop, remove start-at-login, optionally delete data")
     s.add_argument("--purge-data", action="store_true")

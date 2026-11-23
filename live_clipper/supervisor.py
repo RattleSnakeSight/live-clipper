@@ -17,6 +17,7 @@ from .db import Database
 from .logging_setup import setup_logging
 from .paths import Paths, get_paths
 from .server import ensure_token
+from .update_gate import RESTART_EXIT
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,11 @@ class Supervisor:
                 reason = self._watch(started)
                 if reason == "stop":
                     break
+                if reason == "exited" and self.proc.returncode == RESTART_EXIT:
+                    log.info("worker asked for a restart (update check)")
+                    if self._stop.wait(1.0):
+                        break
+                    continue
                 if reason == "stale heartbeat":
                     self._kill()
                 if time.time() - started >= self.healthy_reset:

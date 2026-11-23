@@ -38,6 +38,10 @@ SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
   `docs/DEVIATIONS.md` records where behavior differs from the design it was ported from.
 - `live_clipper/skill/` is the agent skill as shipped; `skills/live-clipper/` is its copy for clones; `scripts/` holds the install scripts.
 - `tests/` holds the tests. No test may use the network.
+- `live_clipper/update_gate.py` is the required update check. Every installed copy reads the line
+  `__version__ = "X.Y.Z"` of `live_clipper/__init__.py` on `main`: that line is the release manifest. A release
+  is a commit on main that raises it; keep the file and the line format (a test checks it). Tests point the
+  check at a fake upstream (`tests/fake_upstream.py`, `tests/update_shim/`); the app has no switch for it.
 
 ## Build, lint, test
 

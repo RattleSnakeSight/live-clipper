@@ -6,7 +6,9 @@ description: Install, launch, set up and troubleshoot Live Clipper, a free local
 # Live Clipper
 
 Live Clipper is a local Python app. It runs on the user's computer, serves its interface at `http://127.0.0.1:<port>`
-and sends nothing to anyone except the platforms the user connects.
+and sends nothing to anyone except the platforms the user connects. To check for updates it reads its newest
+version number from the repository on GitHub at every start and open; that request carries nothing about the
+user.
 
 Repository (the one place this address is written in this file):
 
@@ -115,6 +117,13 @@ clips, or raise the cap in the app), port already in use (the app picks a free o
 ## 6. Update and uninstall
 
 - Update: `live-clipper update`. Data is kept. Re-running the install script also works.
+- Update pending: when `live-clipper start` prints "Update pending" or the browser shows it, a newer version
+  is out and Live Clipper does not watch, clip or post until it is updated. Ask the user, then run
+  `live-clipper update` (it stops the app, installs the new version and starts it again). For a pipx install,
+  `pipx upgrade live-clipper` then `live-clipper start` also works. Check with `live-clipper update --check`.
+- "Can't check for updates": the check got no answer (offline, GitHub unreachable). Live Clipper retries by
+  itself and does not run until a check works. Do not try to bypass it; check the connection.
+- Versions up to 0.2.0 have no update check: update them once with `live-clipper update`.
 - Stop: `live-clipper stop`.
 - Start at login: `live-clipper service install` or `live-clipper service uninstall`.
 - Uninstall: `live-clipper uninstall` (add `--purge-data` only if the user wants every clip and setting

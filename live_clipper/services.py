@@ -85,6 +85,7 @@ class AppContext:
     version: str = __version__
     started_at: float = field(default_factory=time.time)
     services: list[Service] = field(default_factory=list)
+    update_gate: Any = None  # update_gate.UpdateGate in the worker; None runs every service at once
 
     def notify(self, title: str, body: str) -> None:
         """User-facing notification. Delivered as bus topic `app.notify`; the UI/desktop layer subscribes."""

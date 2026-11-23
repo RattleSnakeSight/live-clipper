@@ -13,6 +13,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "httpx",
+    "packaging",  # version comparison for the update check
     "pydantic>=2",
     "cryptography",
     "platformdirs",

@@ -17,7 +17,12 @@ Live Clipper runs only on your computer.
 
 Nothing goes to the people who made Live Clipper. There is no telemetry, no usage counting and no account.
 
-The app contacts only services you set up:
+One request goes out on its own: the update check. At every start, every time you open the app, and every 6
+hours while it runs, Live Clipper reads the version number of its newest release from its GitHub repository
+(`raw.githubusercontent.com`). The request carries nothing about you: no account, key, path, file list or
+device details. GitHub sees your IP address and the time, as with any web request. See Updating.
+
+Everything else the app contacts is a service you set up:
 
 - The streaming platforms you watch (to ask whether a channel is live, to read chat, and, through Streamlink,
   to record).

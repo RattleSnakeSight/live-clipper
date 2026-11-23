@@ -116,6 +116,7 @@ if ! command -v live-clipper >/dev/null 2>&1; then
 fi
 
 live-clipper doctor || say "Some checks failed. Fix them, then run: live-clipper start"
+say "Live Clipper checks GitHub for a newer version at every start and runs only when it is up to date."
 say "If an AI agent installed Live Clipper for you, it can also set up your platform keys: see live-clipper agent --help."
 if [ "$START" = 1 ]; then
   live-clipper start

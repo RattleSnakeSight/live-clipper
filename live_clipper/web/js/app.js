@@ -1,10 +1,11 @@
 // Boot, hash router, health badge and first-run flow (wizard, then the guided tour).
 
-import { appState, get, setUnauthorizedHandler } from './api.js';
+import { appState, get, setLockedHandler, setUnauthorizedHandler } from './api.js';
 import { clear, h, initHelp } from './ui.js';
 import { svcError } from './labels.js';
 import { maybeStartTour } from './tour.js';
 import { syncTheme } from './theme.js';
+import { checkOnOpen, gateShown, hideGate, isGated, showGate } from './update.js';
 import * as dashboard from './views/dashboard.js';
 import * as channels from './views/channels.js';
 import * as sources from './views/sources.js';
@@ -42,7 +43,7 @@ export function navigate(hash) {
 export function markSetupDone() { setupDone = true; }
 
 async function render() {
-  if (signedOut) return;
+  if (signedOut || gateShown()) return;
   let { route, params } = parseHash();
   if (!setupDone && route !== 'setup') {
     location.replace('#/setup');
@@ -67,11 +68,12 @@ async function render() {
     if (seq !== renderSeq) { if (done) done(); return; }
     cleanup = done;
   } catch (e) {
-    if (signedOut || seq !== renderSeq) return;
+    if (signedOut || gateShown() || seq !== renderSeq) return;
     clear(view, h('div', { class: 'title-row' }, h('div', {}, h('h1', {}, TITLES[route]))),
       h('p', { class: 'note bad', role: 'alert' }, `This page could not load: ${e.message}`),
       h('p', { class: 'small muted' }, 'Check the Status page, or reload this tab.'));
   }
+  if (gateShown()) return; // a request was refused for the update: the gate screen has the focus
   if (!document.querySelector('.tour-layer')) { // the tour keeps focus in its own dialog
     window.scrollTo(0, 0);
     main.focus({ preventScroll: true });
@@ -83,6 +85,7 @@ async function updateHealth() {
   const badge = document.getElementById('health-badge');
   try {
     const s = await get('/status');
+    if (isGated(s.update)) { showGate(s.update); return; }
     const errors = Object.entries(s.services || {}).filter(([, v]) => svcError(v));
     badge.className = `pill ${errors.length ? 'warn' : 'pos'}`;
     badge.textContent = errors.length ? `${errors.length} service${errors.length > 1 ? 's' : ''} with problems` : 'Running';
@@ -106,17 +109,26 @@ async function boot() {
   initHelp();
   syncTheme();
   setUnauthorizedHandler(() => { if (!signedOut) showSignedOut(); });
+  setLockedHandler((u) => { if (!signedOut) showGate(u); });
   document.getElementById('menu-btn').addEventListener('click', (e) => {
     const open = document.getElementById('sidebar').classList.toggle('open');
     e.currentTarget.setAttribute('aria-expanded', String(open));
   });
+  // every open checks for an update first; the app runs only when this copy is current
+  const slow = setTimeout(() => { if (!gateShown()) showGate({ state: 'checking' }); }, 400);
+  const update = await checkOnOpen();
+  clearTimeout(slow);
+  if (signedOut) return;
+  if (isGated(update)) { showGate(update); return; }
+  if (gateShown()) hideGate();
   try {
     setupDone = (await appState('setup.completed')) === true;
   } catch {
-    if (signedOut) return;
+    if (signedOut || gateShown()) return;
   }
   window.addEventListener('hashchange', render);
   await render();
+  if (gateShown()) return;
   updateHealth();
   setInterval(() => { if (document.visibilityState === 'visible' && !signedOut) updateHealth(); }, 5000);
   if (setupDone) maybeStartTour();

@@ -39,6 +39,8 @@ function errorText(body) {
 
 let onUnauthorized = () => {};
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
+let onLocked = () => {};
+export function setLockedHandler(fn) { onLocked = fn; } // 423: the update gate is closed
 
 export async function api(path, { method = 'GET', body, raw = false } = {}) {
   const opts = { method, credentials: 'same-origin', headers: {} };
@@ -50,6 +52,7 @@ export async function api(path, { method = 'GET', body, raw = false } = {}) {
   if (res.status === 401) onUnauthorized();
   const type = res.headers.get('content-type') || '';
   const data = raw || !type.includes('json') ? await res.text() : await res.json().catch(() => null);
+  if (res.status === 423 && data && data.update) onLocked(data.update);
   if (!res.ok) throw new ApiError(res.status, data);
   return data;
 }
