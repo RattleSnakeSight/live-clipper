@@ -302,7 +302,7 @@ class UpdateGate:
             log.error("update check broke (%s)", type(e).__name__)
             self._failed("unavailable")
             return
-        available = available or self.available  # 304: unchanged
+        available = available or self.available or ""  # 304: unchanged (an ETag is sent only after an answer)
         self.failures, self.error = 0, None
         self.available, self.checked_at = available, self.clock()
         self.next_check = self.checked_at + RECHECK

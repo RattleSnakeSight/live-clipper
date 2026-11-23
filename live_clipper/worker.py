@@ -81,8 +81,12 @@ def run(port: int, host: str = "127.0.0.1") -> None:
                                            access_log=False))
     heartbeat.on_stop_request = lambda: setattr(server, "should_exit", True)
     restart = []
-    # a newer release appeared while the services ran: stop them the normal way and come back gated
-    gate.on_restart = lambda: (restart.append(True), setattr(server, "should_exit", True))
+
+    def come_back_gated() -> None:  # a release appeared while the services ran: stop them the normal way
+        restart.append(True)
+        server.should_exit = True
+
+    gate.on_restart = come_back_gated
     log.info("worker %d serving on %s:%d", os.getpid(), host, port)
     server.run()
     if not server.started:
