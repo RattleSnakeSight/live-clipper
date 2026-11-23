@@ -50,9 +50,16 @@ def _pick_port(port: int) -> int:
         return s.getsockname()[1]
 
 
+def _local(method: str, port: int, path: str, **kw) -> httpx.Response:
+    """A request to this computer's own app: never through a proxy from the environment (it would see the
+    token, and a broken one would make the app look down), never redirected."""
+    url = f"http://127.0.0.1:{port}{path}"
+    return httpx.request(method, url, trust_env=False, follow_redirects=False, **kw)
+
+
 def _health(port: int) -> dict | None:
     try:
-        return httpx.get(f"http://127.0.0.1:{port}/api/health", timeout=2).json()
+        return _local("GET", port, "/api/health", timeout=2).json()
     except (httpx.HTTPError, ValueError):
         return None
 
@@ -61,15 +68,16 @@ def _check_update(port: int, kind: str) -> dict | None:
     """Ask the running app to check for an update now (it owns the check and its result)."""
     token = (get_paths().state / "token").read_text().strip()
     try:
-        r = httpx.post(f"http://127.0.0.1:{port}/api/update/check", json={"kind": kind},
-                       headers={"Authorization": f"Bearer {token}"}, timeout=20)
+        r = _local("POST", port, "/api/update/check", json={"kind": kind},
+                   headers={"Authorization": f"Bearer {token}"}, timeout=20)
         return r.json() if r.status_code == 200 else None
     except (httpx.HTTPError, ValueError):
         return None
 
 
 ERRORS = {"offline": "no connection", "timeout": "no answer in time", "rate_limited": "too many requests",
-          "unavailable": "the update source did not answer", "bad_response": "an answer it could not read"}
+          "unavailable": "the update source did not answer", "bad_response": "an answer it could not read",
+          "proxy": "the system proxy setting cannot be used"}
 
 
 def report_update(u: dict | None) -> None:

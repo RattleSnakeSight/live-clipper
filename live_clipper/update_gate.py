@@ -69,7 +69,7 @@ def manifest_url() -> str:
 
 class CheckFailed(Exception):
     """The check gave no verified answer. `code` is one of: offline, timeout, rate_limited, unavailable,
-    bad_response."""
+    bad_response, proxy."""
 
     def __init__(self, code: str):
         super().__init__(code)
@@ -87,10 +87,26 @@ def parse_version(text: str) -> str:
     return m.group(1)
 
 
+PROXY_SCHEMES = ("http", "https", "socks5", "socks5h")
+PROXY_HOST = re.compile(r"[A-Za-z0-9.\-]+|\[[0-9A-Fa-f:.]+\]")
+
+
 def _proxy(url: str) -> str | None:
+    """The HTTPS proxy this computer is set to use, if any. Raises CheckFailed("proxy") for one that cannot
+    be used, without repeating it (it may hold a password)."""
     if urlsplit(url).hostname in ("127.0.0.1", "localhost"):
         return None
-    return urllib.request.getproxies().get("https")
+    proxy = urllib.request.getproxies().get("https")
+    if not proxy:
+        return None
+    try:
+        parts = urlsplit(proxy)
+        host, _port = parts.hostname, parts.port  # .port raises ValueError for a bad port
+    except ValueError:
+        raise CheckFailed("proxy") from None
+    if parts.scheme not in PROXY_SCHEMES or not host or not PROXY_HOST.fullmatch(host):
+        raise CheckFailed("proxy")
+    return proxy
 
 
 def fetch_latest(etag: str | None = None) -> tuple[str | None, str | None]:
@@ -104,9 +120,14 @@ def fetch_latest(etag: str | None = None) -> tuple[str | None, str | None]:
     try:
         # trust_env=False: no .netrc credentials and no cookies from the environment; the proxy is passed
         # explicitly instead
-        with httpx.Client(timeout=TIMEOUT, trust_env=False, follow_redirects=False, proxy=_proxy(url),
-                          headers=headers) as http:
-            with http.stream("GET", url) as r:
+        http = httpx.Client(timeout=TIMEOUT, trust_env=False, follow_redirects=False, proxy=_proxy(url),
+                            headers=headers)
+    except (ImportError, ValueError, httpx.HTTPError):
+        # the system proxy cannot be used: a SOCKS proxy without the optional socksio package, or a malformed
+        # address. Never repeat the address: it may hold a password.
+        raise CheckFailed("proxy") from None
+    try:
+        with http, http.stream("GET", url) as r:
                 if r.status_code == 304 and etag:
                     return None, etag
                 if r.status_code in (403, 429):
@@ -276,8 +297,9 @@ class UpdateGate:
         except CheckFailed as e:
             self._failed(e.code)
             return
-        except Exception:  # a bug or an odd environment (a malformed proxy setting): no answer, never stuck
-            log.exception("update check broke")
+        except Exception as e:  # a bug or an odd environment: no answer, never stuck
+            # the type only: an exception's text can carry an address with a password in it
+            log.error("update check broke (%s)", type(e).__name__)
             self._failed("unavailable")
             return
         available = available or self.available  # 304: unchanged

@@ -35,9 +35,9 @@ the newest version". It runs the same command.
 
 ## When the check does not work
 
-Without an answer (no internet, GitHub not reachable, an answer it cannot read), Live Clipper shows **Can't
-check for updates**. It never guesses: it does not claim an update exists, and it does not start its normal
-work either. It tries again by itself, after 15 seconds and then with growing waits up to every 5 minutes,
+Without an answer (no internet, GitHub not reachable, a proxy setting it cannot use, an answer it cannot
+read), Live Clipper shows **Can't check for updates**. It never guesses: it does not claim an update exists,
+and it does not start its normal work either. It tries again by itself, after 15 seconds and then with growing waits up to every 5 minutes,
 and starts as soon as a check works. This means Live Clipper needs an internet connection when it starts.
 
 An update that was already confirmed stays pending through outages and restarts, until you install it.

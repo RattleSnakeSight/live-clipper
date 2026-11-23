@@ -12,6 +12,7 @@ const REASONS = {
   rate_limited: 'GitHub is refusing requests for a moment',
   unavailable: 'the update source did not answer',
   bad_response: 'the answer could not be read',
+  proxy: "this computer's proxy setting cannot be used for the check",
 };
 
 let timer = null;

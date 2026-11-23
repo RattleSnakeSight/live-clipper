@@ -92,6 +92,25 @@ def test_fetch_timeout_and_no_server(upstream, monkeypatch):
     assert e.value.code == "offline"
 
 
+@pytest.mark.parametrize("proxy", ["socks5://someone:hunter2-secret@127.0.0.1:1080",
+                                   "ftp://someone:hunter2-secret@127.0.0.1:21", "http://[hunter2-secret",
+                                   "http://someone:hunter2-secret@proxy.example:notaport",
+                                   "hunter2-secret:8080"])
+def test_an_unusable_system_proxy_is_a_redacted_failure(monkeypatch, caplog, home, proxy):
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "getproxies", lambda: {"https": proxy})
+    monkeypatch.setattr(update_gate, "manifest_url", lambda: "https://example.com/v.py")  # not loopback
+    if proxy.startswith("socks5"):  # the normal install has no socksio; make sure of it here
+        monkeypatch.setitem(sys.modules, "socksio", None)
+    with pytest.raises(CheckFailed) as e:
+        fetch_latest()
+    assert e.value.code == "proxy" and "hunter2" not in str(e.value) and e.value.__cause__ is None
+    v = run(UpdateGate(get_paths().state, clock=Clock()).check("open"))  # a fresh start: recovery screen
+    assert v["state"] == "unknown" and v["error"] == "proxy"
+    assert "hunter2" not in caplog.text
+
+
 def test_request_is_anonymous(upstream, monkeypatch, tmp_path):
     seen = {}
     real = httpx.Client.stream
@@ -517,6 +536,32 @@ def test_offline_start_is_verification_only(home, upstream):
         time.sleep(update_gate.RETRY_SPACING)
         assert api(port, "POST", "/api/update/check", json={"kind": "retry"}).json()["state"] == "current"
         assert api(port, "GET", "/api/setup/state").status_code == 200
+    finally:
+        cli("stop")
+
+
+def test_a_usable_proxy_is_passed_on(monkeypatch):
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "getproxies", lambda: {"https": "http://proxy.example:3128"})
+    assert update_gate._proxy("https://example.com/v.py") == "http://proxy.example:3128"
+    assert update_gate._proxy("http://127.0.0.1:9/v.py") is None  # loopback never goes through it
+
+
+def test_launch_ignores_a_broken_environment_proxy(home, upstream):
+    """The CLI talks to its own app over loopback without environment proxies (they would see the token,
+    and a dead one would make a healthy app look down)."""
+    port = free_port()
+    dead = "http://127.0.0.1:9"
+    env = {**os.environ, "HTTP_PROXY": dead, "HTTPS_PROXY": dead, "ALL_PROXY": dead, "NO_PROXY": ""}
+    try:
+        cmd = [sys.executable, "-m", "live_clipper", "start", "--no-browser", "--port", str(port)]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=90, env=env)
+        assert r.returncode == 0 and f"127.0.0.1:{port}/?t=" in r.stdout, r.stdout + r.stderr
+        upstream.version = NEWER
+        r = subprocess.run([sys.executable, "-m", "live_clipper", "start", "--no-browser"],
+                           capture_output=True, text=True, timeout=90, env=env)
+        assert f"Update pending: Live Clipper {NEWER}" in r.stdout, r.stdout + r.stderr
     finally:
         cli("stop")
 
