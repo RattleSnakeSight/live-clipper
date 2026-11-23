@@ -1,8 +1,15 @@
 # Let your agent set up keys
 
-If an AI coding agent (Claude Code or Codex) installed Live Clipper for you, it can also fill in the keys
-that Twitch, Kick, YouTube, TikTok and Instagram need. You stay in charge: you choose the platform, you
-choose where the agent looks, and nothing happens until you press **Ask my agent**.
+If Claude Code or Codex installed Live Clipper for you, it can also fill in the keys that Twitch, Kick,
+YouTube, TikTok and Instagram need. You stay in charge: you choose the platform, you choose where the helper
+looks, and nothing happens until you press **Ask my agent**.
+
+Only Claude Code and Codex can pair. Other agents, such as Qwen Code, can install and start the app, but
+then you type the keys in yourself on Sources and Destinations. That always works, with or without an agent.
+
+This only fills in keys. Creating developer applications, signing in, approving access on a platform's
+consent screen and accepting terms stay with you, in your browser: see [Platforms](platforms.md) and
+[Posting](posting.md) for each step.
 
 ## How it works
 
@@ -38,7 +45,8 @@ choose where the agent looks, and nothing happens until you press **Ask my agent
 
 - It does not look anywhere else: no other folders, no browser or password stores, no other apps' accounts.
 - It does not create developer apps, sign in for you, approve access on a platform's consent screen or accept
-  terms. You do those in the browser. The guide pages Platforms and Posting say where to get each key.
+  terms. You do those in the browser. [Platforms](platforms.md) and [Posting](posting.md) say where to get
+  each key.
 - It does not post anything or turn posting on.
 - The keys do not pass through the AI chat: the helper reads them and hands them to Live Clipper directly.
 

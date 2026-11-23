@@ -18,7 +18,8 @@ dependencies = [
     "cryptography",
     "platformdirs",
     "numpy",
-    # captions: speech recognition + offline translation (models download on first use into the data dir)
+    # captions: speech recognition (the model downloads on first use into the data dir) + offline translation
+    # (converted models are not downloaded; the user adds them)
     "faster-whisper>=1.1",
     "ctranslate2>=4.4",
     "sentencepiece>=0.2",

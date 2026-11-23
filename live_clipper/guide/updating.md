@@ -1,20 +1,37 @@
 # Updating
 
 Run `live-clipper update`. It stops the app if it is running, upgrades the program from the place you
-installed it from, and starts it again. Your data stays in your user data folder and is not touched. That
-includes your settings, channels, clips, saved logins, formats, presets, and whether you finished the tour.
+installed it from, and starts it again if it was running. Your data stays in your data folder and is not
+touched. That includes your settings, channels, clips, saved logins, formats, presets, and whether you
+finished the tour.
 
-If you installed with pipx, `pipx upgrade live-clipper` followed by `live-clipper start` does the same.
-If you installed with the install script, running the script again does the same thing.
-If you run from a checkout (a developer install), use `git pull` instead. `live-clipper update` says so and
-changes nothing.
+Other ways, by how you installed:
+
+- pipx: `pipx upgrade live-clipper`, then `live-clipper start`.
+- An install script: run the script again.
+- A developer checkout (editable install): `git pull`. `live-clipper update` says so and changes nothing.
 
 After an update:
 
 - Your edited formats and presets are kept. The built-in ones are never overwritten. Use Reset on a built-in
   one if you want the new shipped version.
-- If something looks off, run `live-clipper doctor`, then `live-clipper logs`.
+- If something looks off, run `live-clipper doctor`, then `live-clipper logs`, and see
+  [Troubleshooting](troubleshooting.md).
 - To check the version, run `live-clipper version`.
+
+## Newer documentation between releases
+
+The guide ships inside the program, so it changes only when the program does. Documentation changes between
+releases keep the version number, and `pipx upgrade` can then keep the copy you already have. To pick up guide
+changes published after your install, stop the app, reinstall from the same source and start it again:
+
+```text
+live-clipper stop
+pipx reinstall live-clipper
+live-clipper start
+```
+
+The newest guide is also readable on GitHub, in the `live_clipper/guide` folder of the repository.
 
 ## Update pending
 
@@ -22,8 +39,8 @@ Live Clipper runs only when it is the newest version. Every time it starts, and 
 `live-clipper start` or by loading it in the browser), it checks whether a newer version is out.
 
 When one is, the browser shows **Update pending** with the installed and the available version and the
-steps above, and `live-clipper start` prints the same. Until you update, Live Clipper does not watch
-channels, record, make clips or post, also when it runs in the background or starts at login. Nothing is
+steps for your install method, and `live-clipper start` prints the same. Until you update, Live Clipper
+does not watch channels, record, make clips or post, also when it runs in the background or starts at login. Nothing is
 deleted: recordings, clips, settings, saved keys and queued posts wait, and everything carries on after the
 update. **Check again** asks once more. After the update Live Clipper starts again and opens a new tab.
 

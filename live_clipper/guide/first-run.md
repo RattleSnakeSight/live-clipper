@@ -1,47 +1,91 @@
 # First run
 
-The first time you open Live Clipper it shows a short wizard. Every question has a default picked for your
-computer, so you can accept them all and change things later. Your answers stay on your computer. The wizard
-only shows a question when an earlier answer needs it.
+The first time you open Live Clipper it shows "Set up Live Clipper", a short series of questions. Every
+question already has an answer picked for your computer, so you can press **Next** through all of them and
+change things later. A question only appears when an earlier answer needs it. Your answers stay on your
+computer.
+
+The setup cannot be skipped: the other pages open once it is finished. To change your answers later, open
+**Settings**, which groups them by topic, or press **Run setup again** there.
 
 ## The questions
 
-| Question | What it means | Default |
-|---|---|---|
-| How will you use Live Clipper? | Your own channel, other streamers with their permission, or just trying it. If you pick other streamers, the next question asks you to confirm their permission. It does not change how the app works. | Your own channel |
-| Do you have permission to clip and post their streams? | Only shown if you picked "other streamers". You must answer yes to continue. Only clip and post streamers who said yes. | No |
-| Which platforms do you want to watch? | Twitch, Kick, YouTube. Pick at least one. The Sources page shows these first. | Twitch |
-| Where should clips and recordings be stored? | A folder on a drive with plenty of space. The app will not use a drive root or your home folder. If the folder you pick already holds other files, it makes a `LiveClipper` subfolder inside it. | The app's own media folder |
-| How much disk space may Live Clipper use (GB)? | At this limit the app stops starting new clips and cleans up old posted ones. | A quarter of the free space, at least 5 GB and at most 50 GB |
-| How many days should posted clips be kept? | Posted clips are deleted after this long. Clips that are not posted yet are never deleted. | 14 days |
-| What should be deleted first when the disk is full? | Original recordings of posted clips first, or whole posted clips, oldest first. Recordings are big and finished clips are small. | Original recordings first |
-| Which automatic cleanups do you want? | Delete posted clips after the retention period, and delete the oldest posted clips when the cap is reached. Temporary files are always cleaned, and clips waiting to be posted are always kept. | Both |
-| Where should speech recognition run? | The processor or an NVIDIA graphics card. The app tells you what it found. Speech recognition writes the captions. | NVIDIA GPU if one is found, otherwise the processor |
-| How accurate should speech recognition be? | Bigger models hear better but need more memory and time. | With an NVIDIA GPU: large with 10 GB of video memory or more, medium with 6 GB or more, small below that. Without one: small with 16 GB of RAM and 8 or more cores, tiny under 6 GB of RAM, base otherwise |
-| Which number precision should speech recognition use? | A technical setting. Leave it unless you know why. | float16 on a GPU, int8 on a processor |
-| How many streams may be recorded at the same time? | Each recording uses processor, memory and disk. | Half your processor cores or one per 4 GB of RAM, whichever is lower, at least 1 and at most 8 |
-| Where do you want to post clips? | YouTube Shorts, TikTok, Instagram Reels, or nowhere (you only want the files). "Nowhere" cannot be combined with the others. The Destinations page shows the ones you pick first. Picking one does not connect it. | Nowhere |
-| Should clips be posted automatically? | Only shown if you picked a destination. Automatic posts each finished clip to every destination you have connected, confirmed and turned on. Manual means every clip waits for your approval under "Waiting for your approval" on the Clips page. Without a destination the question is skipped and automatic applies, which posts nothing until you connect one. | Automatic |
-| How should Live Clipper tell you about new clips and problems? | No notifications, browser notifications (only while the app is open in a tab), a webhook, or both. | Browser |
-| What is the webhook address? | Only shown for the webhook choices. An ntfy topic address, a Discord webhook address, or any address that accepts a JSON message. | Empty |
-| Which message format does the webhook expect? | Detect it from the address, plain JSON, ntfy or Discord. | Detect |
-| Start Live Clipper automatically when you log in? | Runs in the background so recording is not missed after a restart. It uses Task Scheduler on Windows, a launch agent on macOS and a user service on Linux. | No |
+**How you use it**
 
-The webhook address is stored in the encrypted vault, not in the settings.
+- *How will you use Live Clipper?* Your own channel, other streamers with their permission, or just trying
+  it. Default: your own channel. It does not change how the app works.
+- *Do you have permission to clip and post their streams?* Only shown for "other streamers". You must answer
+  yes to continue, and you should only clip streamers who said yes.
+- *Which platforms do you want to watch?* Twitch, Kick, YouTube; at least one. Default: Twitch. The Sources
+  page lists these first.
 
-Choosing a destination in the wizard does not connect it. You connect each account later, as described in
-Posting. Until an account is connected, enabled and acknowledged, nothing is posted.
+**Storage**
 
-The last page of the wizard lists the platforms you picked under Platform keys. If an AI agent installed Live
-Clipper, it can look those keys up for you from a place you choose; see Let your agent set up keys. You can
-also skip this and enter the keys later.
+- *Where should clips and recordings be stored?* Default: the media folder inside the app's data folder. The
+  app refuses a drive root or your home folder, and makes a `LiveClipper` subfolder if the folder you pick
+  already holds other files.
+- *How much disk space may Live Clipper use (GB)?* Default: a quarter of the free space, at least 5 and at
+  most 50. At this cap the app stops starting new clips and cleans up old posted ones.
+- *How many days should posted clips be kept?* Default: 14. Clips that are not posted are never deleted.
+- *What should be deleted first when the disk is full?* Default: original recordings of posted clips, then
+  posted clips. The other choice deletes whole posted clips, oldest first.
+- *Which automatic cleanups do you want?* Default: both (delete posted clips after the keep time, and delete
+  the oldest posted clips at the cap). Temporary files are always cleaned.
 
-The app opens in a dark theme. Settings > Appearance switches to light.
+**Speech recognition** (it writes the captions)
+
+- *Where should speech recognition run?* The processor, or an NVIDIA graphics card if one is found.
+- *How accurate should it be?* Bigger models hear better but need more memory and time. Default with an
+  NVIDIA card: large from 10 GB of video memory, medium from 6 GB, small below. Without one: small with
+  16 GB of RAM and 8 cores or more, tiny under 6 GB of RAM, base otherwise.
+- *Which number precision?* A technical setting: float16 on a graphics card, int8 on a processor.
+- *How many streams may be recorded at the same time?* Default: half your processor cores or one per 4 GB of
+  RAM, whichever is lower, between 1 and 8.
+
+**Posting**
+
+- *Where do you want to post clips?* YouTube Shorts, TikTok, Instagram Reels, or nowhere (files only).
+  Default: nowhere. Picking a destination here does not connect it.
+- *Should clips be posted automatically?* Only shown when you picked a destination. Default: **automatic**,
+  which posts each finished clip to every destination you have connected, confirmed and switched on.
+  **Manual** holds every clip under "Waiting for your approval" on the Clips page until you press Post.
+  With no destination there is nothing to post, so the question is skipped.
+
+**Notifications and start at login**
+
+- *How should Live Clipper tell you about new clips and problems?* None, browser notifications (only while
+  the app is open in a tab), a webhook (ntfy, Discord or any address that accepts JSON), or both. Default:
+  browser. The webhook address is stored in the encrypted vault.
+- *Start Live Clipper automatically when you log in?* Default: no. It uses Task Scheduler on Windows, a launch
+  agent on macOS and a user service on Linux.
+
+The last page lists the platform keys for the platforms you picked. You can type them in later on Sources and
+Destinations, or let the agent that installed Live Clipper fill them in: see
+[Let your agent set up keys](agent-setup.md).
+
+## A safe first test
+
+Automatic posting is the default, but nothing is posted until you connect an account, tick that you have the
+right to post and switch the destination on. For a first test that cannot post anything:
+
+1. Choose **Manual** posting (in setup, or later under Destinations > Posting mode). To get the posting
+   question in setup, pick any destination; picking does not connect it.
+2. On Destinations, switch on **Use the test destination**. It is a stand-in on your computer and posts
+   nowhere.
+3. On Channels, add a channel you own or have permission to clip, and switch monitoring on.
+4. When the channel goes live and a moment qualifies, the clip appears on the Clips page under "Waiting for
+   your approval". Open it to watch the preview, edit it if you like, then press **Post to** and the test
+   destination. Its line under "Where it was posted" then says published, on this computer only.
+
+How long the first clip takes depends on the stream: the app needs the channel to be live and a moment that
+passes the format's checks. See [Monitoring](monitoring.md) and [Posting](posting.md).
+
+## Appearance
+
+The app opens in a dark theme. **Settings > Appearance** switches to light, and the choice is kept.
 
 ## The tour
 
-After the wizard, a short tour points out the main parts of the app. You can click Skip tour (or press Escape) at any time.
-
-- Whether you finished the tour or skipped it is remembered. It does not come back after a restart or an
-  update.
-- To see it again, open Settings and choose Replay tutorial. That is the only way to replay it.
+After the setup, a short tour points out the main parts of the app. Press **Skip tour** (or Escape) at any
+time. Finished or skipped, the tour does not come back after a restart or an update. To see it again, open
+**Settings** and press **Replay tutorial**.

@@ -357,7 +357,7 @@ summary::-webkit-details-marker { display: none; }
 .review dd > span:first-child { flex: 1 1 200px; color: var(--muted); overflow-wrap: anywhere; }
 
 /* guide (rendered markdown) */
-.md { max-width: 72ch; }
+.md { max-width: 72ch; overflow-wrap: break-word; } /* long inline code and addresses wrap on phones */
 .md h2:first-child { font-size: 24px; margin: 0 0 12px; }
 .md h2 { margin: 24px 0 8px; }
 .md h3, .md h4, .md h5 { margin: 18px 0 6px; font-size: var(--fs-body); }

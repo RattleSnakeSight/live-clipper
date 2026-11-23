@@ -1,7 +1,7 @@
 # Editing
 
 Open any clip to trim it, change the framing, fix captions and re-render. Edits apply to that clip only.
-The original recording stays until storage cleanup removes it (see Troubleshooting for the cleanup order),
+The original recording stays until storage cleanup removes it (see [Troubleshooting](troubleshooting.md) for the cleanup order),
 so you can keep re-editing a clip while its original is still around.
 
 ## What you can change
@@ -16,7 +16,8 @@ so you can keep re-editing a clip while its original is still around.
   title shows. These replace the preset for this clip alone. The form starts from the clip's current values and
   only the values you change are sent. Each field explains itself.
 
-Then click Render again. The app makes a new video from the original recording with your changes. A clip whose original is gone (expired or discarded) can no longer be edited.
+Then click Render again. The app makes a new video from the original recording with your changes. A clip
+whose original is gone (expired or discarded) can no longer be edited.
 
 ## Rules of the editor
 
@@ -27,11 +28,13 @@ Then click Render again. The app makes a new video from the original recording w
 
 ## The manual review queue
 
-In manual posting mode every finished clip waits in the review queue ("Waiting for your approval" on the Clips page). For each clip:
+In manual posting mode every finished clip waits in the review queue ("Waiting for your approval" on the
+Clips page). In automatic mode only clips held by a rule or by the gameplay check wait there. For each clip:
 
 1. Watch the preview.
 2. Edit it if you want, and render again.
 3. Click "Post to" and the destination, or Reject the clip (or Cancel its delivery) if you do not want it.
 
 Nothing is posted until you click Post. A clip that is held for review by a rule shows up in the same queue.
-Clips in the queue are never removed by storage cleanup.
+Clips in the queue are never removed by storage cleanup. How posting and its states work is on
+[Posting](posting.md).

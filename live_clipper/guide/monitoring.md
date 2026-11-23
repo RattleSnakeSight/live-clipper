@@ -11,7 +11,7 @@ You can add a channel by pasting its address:
 - YouTube: `youtube.com/@handle` or `youtube.com/channel/UC...`
 - A feed address from a creator who gives you one (rtmp, rtmps, srt, rtsp or an http(s) stream address).
 
-Only record channels you own or whose owner gave you permission. See Platforms.
+Only record channels you own or whose owner gave you permission. See [Platforms](platforms.md).
 
 ## Channel states
 
@@ -30,10 +30,10 @@ Common "needs action" messages:
 
 - The platform rejected your credentials, or a token expired or was revoked. Reconnect it on the Sources page.
 - A channel was not found. Check the address.
-- ffmpeg or Streamlink is missing. Install it (see Troubleshooting).
+- ffmpeg or Streamlink is missing. Install it (see [Troubleshooting](troubleshooting.md)).
 - YouTube says it is live but refuses playback to this computer ("Sign in to confirm you're not a bot"). Use a
   feed address from the creator, or try from a network YouTube accepts.
-- The platform's quota or rate limit ran out. The app waits and tries again. See Platforms.
+- The platform's quota or rate limit ran out. The app waits and tries again. See [Platforms](platforms.md).
 
 ## Watch modes
 
@@ -49,11 +49,11 @@ Each channel has one of two modes.
 ## Watching several streamers
 
 You can add as many channels as you like. How many record at the same moment is the "streams recorded at the
-same time" answer from the wizard. A channel over that limit shows Waiting until a slot frees up. Separately,
+same time" answer from setup. A channel over that limit shows Waiting until a slot frees up. Separately,
 the app works on at most 6 clips at once. Each recording uses processor, memory and disk.
 
 If free disk space gets low, the app stops starting new clips. If it gets critically low, recordings pause and
-resume once space is free again. See Troubleshooting for the cleanup order.
+resume once space is free again. See [Troubleshooting](troubleshooting.md) for the cleanup order.
 
 ## How moments are chosen
 
@@ -61,9 +61,24 @@ With the built-in GTA VI format, the app looks at chat bursts, what the streamer
 shows gameplay. A burst in chat counts only when enough different people take part, and it must be a clear step
 up from the channel's normal chat. Greetings and "starting soon" chatter are filtered out. A clip needs a setup
 and a payoff, and it must be fresh, not a repeat of an earlier clip. The format sets how sensitive this is
-(low, medium or high). See Formats and presets.
+(low, medium or high). See [Formats and presets](formats-and-presets.md).
 
 Each clip starts 18 seconds before the moment and ends 12 seconds after it by default.
+
+## Keep the computer on
+
+Live Clipper can only record while it runs, and it runs on your computer. Nothing records while the
+computer is off, asleep or hibernating, or while you are logged out, and the app does not keep the computer
+awake by itself. If you want streams caught around the clock:
+
+- Set your power settings so the computer does not sleep while plugged in, at least during the hours your
+  streamers are live.
+- Turn on start at login (Settings, or `live-clipper service install`) so the app comes back after a restart.
+- Leave the browser closed if you like: the app keeps working in the background. Browser notifications need
+  an open tab.
+
+A stream that went live while the computer slept is not recorded afterwards. The app resumes watching when the
+computer wakes up.
 
 ## Crash recovery
 
@@ -76,7 +91,7 @@ After a crash or restart:
   from live streams go first.
 - The app never makes a duplicate of a clip that was already finished.
 - Uploads that were in flight are checked against the platform before anything is uploaded again (see
-  Posting).
+  [Posting](posting.md)).
 - A clip that lost its source before it could be finished is marked failed, with the reason.
 
 Use `live-clipper status` to see whether the app is running and `live-clipper logs` for recent lines.

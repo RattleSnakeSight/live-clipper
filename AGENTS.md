@@ -7,11 +7,12 @@ Guidance for coding agents (Claude Code, Codex, Qwen Code and others) working wi
 Follow `skills/live-clipper/SKILL.md` (the same file ships inside the package as
 `live_clipper/skill/SKILL.md`; edit one, copy to the other, a test checks they match). In short:
 
-1. Check Python 3.11+ and ffmpeg. Ask before installing anything.
+1. Check Git, Python 3.11+ and FFmpeg with ffprobe. Ask before installing anything.
 2. `pipx install git+https://github.com/RattleSnakeSight/live-clipper` (fallback
    `python -m pip install --user git+https://github.com/RattleSnakeSight/live-clipper`), or run
    `scripts/install.sh` / `scripts/install.ps1`.
-3. `live-clipper start`, then let the user answer the setup wizard in the browser.
+3. `live-clipper start`, then let the user answer "Set up Live Clipper" in the browser. Automatic posting is
+   the app's default; for a first test suggest Manual posting and the test destination.
 4. Problems: `live-clipper doctor`, `live-clipper status`, `live-clipper logs`.
 
 Install the skill for your agent in one of two ways:
@@ -22,8 +23,9 @@ Install the skill for your agent in one of two ways:
   `python scripts/install-skill.py --agent claude`. This uses no network.
 
 Do not connect accounts, enable automatic posting or post anything for the user, and never read, print or
-pass key values yourself. Platform keys: with the user's consent, pair the key helper
-(`live-clipper agent pair --agent claude|codex`, then `live-clipper agent serve`). The user asks for keys in
+pass key values yourself. Platform keys: with the user's consent, Claude Code and Codex can pair the key helper
+(`live-clipper agent pair --agent claude|codex`, then `live-clipper agent serve`); other agents leave key entry
+to the user. The user asks for keys in
 the app; the helper reads only that platform's named keys from the place the user chose and saves them. See
 SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
 
@@ -32,7 +34,10 @@ SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
 - `live_clipper/` is the app (flat modules). `registry.py` lists the services that plug into the core.
 - `live_clipper/agent_setup.py` (requests, pairing, saving) and `live_clipper/agent_helper.py` (the helper
   behind `live-clipper agent serve`) are the agent-assisted key setup.
-- `live_clipper/guide/` is the in-app user guide (Markdown, shipped as package data).
+- `live_clipper/guide/` is the in-app user guide (Markdown, shipped as package data, listed in
+  `GUIDE_PAGES` in `setup_service.py`). The app renders it with `web/js/md.js`: link sibling pages as
+  `[Title](page.md)` without anchors, no `<url>` autolinks, HTML or images, and no code blocks inside lists.
+  `tests/test_docs.py` checks this and that the README and Install page tester prompts match.
 - `live_clipper/web/` is the browser UI.
 - `docs/ARCHITECTURE.md` is the plug-in contract; `docs/CONTRACTS.md` is the contract between subsystems;
   `docs/DEVIATIONS.md` records where behavior differs from the design it was ported from.
@@ -47,12 +52,15 @@ SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
 
 ```
 python -m venv .venv
-.venv/bin/pip install -e .[dev]      # Windows: .venv\Scripts\pip
+.venv/bin/python -m pip install -e ".[dev,ui]"   # Windows: .venv\Scripts\python
+.venv/bin/python -m playwright install chromium
 ruff check .
-pytest -q
+python -m pytest -q
 ```
 
-Both commands must pass before you commit. ffmpeg on PATH is needed by some tests.
+Both checks must pass before you commit. FFmpeg with the `ass` and `drawtext` filters is needed by some tests;
+browser tests need the `ui` extra and Chromium. Missing parts make those tests skip, not fail. Details and a map
+of where to change what: CONTRIBUTING.md.
 
 ## Rules for contributors
 

@@ -1,7 +1,13 @@
 # Architecture
 
 Live Clipper is one local Python app. Subsystems (monitor, select, edit, publish, web UI) plug into a small
-core. This page is the contract between them.
+core. This page is the contract between them. For a map of which module does what, see "Where to change
+what" in [CONTRIBUTING.md](../CONTRIBUTING.md); the subsystem contracts are in [CONTRACTS.md](CONTRACTS.md).
+
+The pipeline in one line: the monitor records a live channel into a rolling buffer and reads its chat; the
+selector turns chat bursts, speech and the picture into scored moments; the editor cuts, captions and renders
+the clip; the publisher delivers it to each destination, or holds it for review. The browser UI talks to all of
+them through the local API.
 
 ## Process model
 

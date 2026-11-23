@@ -5,7 +5,8 @@ layout, captions and length.
 
 Live Clipper ships one of each: the GTA VI format and the Default vertical clip preset. You can edit them,
 copy them, import one from a file or export yours to share. Rules can then change a format or preset for a
-particular streamer, platform, game or title. A setting you change on a single clip always wins.
+particular streamer, platform, game or title. A setting you change on a single clip always wins. Which channels use a format, and the watch modes, are on
+[Monitoring](monitoring.md); changing one clip is on [Editing](editing.md).
 
 ## Which setting wins
 
@@ -88,17 +89,29 @@ text is the same one the app serves at `/api/formats/schema`, `/api/rules/schema
 (a JSON Schema), so it never drifts from what the app checks. Fields that hold lists or nested tables
 (for example title templates) are edited as JSON and show the explanation of the whole table.
 
+## Make your own format
+
+The GTA VI format is the starting point for any game or topic. To clip something else:
+
+1. Open **Formats**, find the GTA VI format and press **Duplicate**. The copy is yours to change.
+2. Press **Edit** on the copy. Give it a name, and change at least these parts: Labels (the name used in
+   titles), Match (the title and category patterns that mean "this stream is on topic") and Keywords (game
+   terms streamers say).
+3. Press **Make active** to use it for every channel that does not pick a format, or pick it for one channel
+   only on that channel's page.
+
+A channel set to "Only when the title matches" records only while its title matches the format it uses.
+
 ## Import, export, replace
 
 You never need to write code.
 
-- Export saves a format or preset as a file you can share or back up (`.selection-format.json` or
-  `.preset.json`).
-- Import reads such a file. A format file with only some parts is fine: the missing parts come from the
-  built-in default. If a format with the same ID already exists, the app does not overwrite it silently. It
-  asks, and you choose to replace it.
-- Replace means importing over an existing ID on purpose.
-- Duplicate copies one, so you can experiment. Reset restores a built-in one. Activate makes a format the one
-  in use.
-- The app checks every file and tells you which part is wrong and where, for example a bad pattern or a
+- **Export** downloads a format or preset as a `.json` file named after its ID, to share or keep as a backup.
+- **Import** reads such a file. A format file with only some parts is fine: the missing parts come from the
+  built-in default. If a format with the same ID already exists, the app asks before it replaces it.
+- **Duplicate** makes an editable copy. **Reset** puts a built-in one back as shipped. **Delete** removes one of
+  yours; channels that used it fall back to the built-in one.
+- The app checks every imported file and says which part is wrong and where, for example a bad pattern or a
   missing language.
+- The Rules list has its own Import and Export, for the whole list at once. Importing rules replaces all of
+  them, after you confirm.

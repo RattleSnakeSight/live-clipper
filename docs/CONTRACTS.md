@@ -8,6 +8,9 @@ directly with those signatures. The event bus is for the UI, notifications, stor
 
 ## Ownership (branch → files)
 
+The branch names are from the first build (see the history in PROGRESS.md); the table still says which
+subsystem owns which files.
+
 | Branch | Owns |
 |---|---|
 | `select` | detector, candidates, moments, editorial, gameplay, winners, titles, language_policy, freshness, formats (selection formats + rules), `formats/*.json` |

@@ -1,192 +1,172 @@
 # Live Clipper
 
-Live Clipper watches the streamers you pick, around the clock. It finds the moments worth keeping, cuts them
-into vertical clips and posts them to your own channels. It runs on your computer and costs nothing.
+Live Clipper watches the livestreams you choose, finds the moments worth keeping, and cuts them into vertical
+clips with captions. You review the clips, or let it post them to your own YouTube Shorts, TikTok or
+Instagram Reels accounts. It runs on your own computer and is free.
 
-It is for people who clip streams as a side project or a small channel: you choose the streamers, you decide
-what gets posted, and you do not hand your accounts to a service.
+It is made for people who clip streams on the side or run a small clip channel: you pick the streamers, you
+decide what gets posted, and your accounts stay with you. It ships with a format tuned for Grand Theft Auto VI
+streams, which you can copy and change for any other game or topic.
 
-- Free and open source (MIT).
-- Self-hosted. There is no hosted backend and no account with us.
-- No telemetry. The app talks to the platforms you connect, and reads its newest version number from GitHub
-  to check for updates (nothing about you is sent). See the [privacy page](live_clipper/guide/privacy.md).
-- Logins are kept in an encrypted file on your machine. The web interface listens on 127.0.0.1 only.
+- **Free and open source** (MIT). No paid tier, no hosted service, no account with us.
+- **Local.** The app is a page served by your computer on 127.0.0.1. Clips, settings and logins stay on your
+  machine; logins are kept in an encrypted file.
+- **No telemetry.** It talks to the platforms you connect, and reads its newest version number from GitHub to
+  check for updates. Nothing about you is sent. See [Privacy](live_clipper/guide/privacy.md).
+
+## What you need
+
+- Windows, macOS or Linux, on a computer that stays on and awake while your streamers are live. The app does
+  not record while the computer sleeps.
+- Python 3.11 or newer, Git, and FFmpeg with ffprobe (with the `ass` and `drawtext` filters for captions; on
+  macOS use Homebrew's `ffmpeg-full`).
+- Disk space for recordings and clips. Setup asks for a folder and a size cap.
+- For captions, speech recognition runs on your computer. A recent processor works; an NVIDIA graphics card is
+  faster. The model downloads the first time a clip is captioned.
+
+Live Clipper costs nothing. Watching and recording work without any keys, for streams that Streamlink can
+play or feeds a creator gives you. Precise live status, chat on Kick
+and YouTube, and posting need free developer applications that you register yourself on each platform; their
+approval and limits are up to each platform.
+
+## What it works with
+
+| Platform | Watch (live status, chat, recording) | Post |
+|---|---|---|
+| Twitch | Official API or a stream probe; chat read-only, anonymous or signed in | No |
+| Kick | Official API or a stream probe; chat only through a public https address (webhooks) | No |
+| YouTube | Official Data API (daily quota) or the live page; chat uses quota | Shorts, through your own Google app |
+| TikTok | No | Drafts or private posts, through your own TikTok app; public posts need TikTok's audit |
+| Instagram | No | Reels, through your own Meta app and a professional account |
+
+A creator can also give you a feed address (rtmp, rtmps, srt, rtsp or http) to record. Details, limits and the
+keys each platform needs: [Platforms](live_clipper/guide/platforms.md) and
+[Posting](live_clipper/guide/posting.md).
+
+Being allowed to watch a channel is not permission to record it or repost it. Ask each streamer before you
+clip and post their stream, and follow each platform's terms.
 
 ## Get started
 
-### 1. Ask your coding agent to install it
+### With a coding agent
 
-Claude Code, Codex, Qwen Code and similar agents can do the install and walk you through it. Paste this:
+Claude Code, Codex, Qwen Code or a similar agent that runs terminal commands can install Live Clipper and walk
+you through a first test. Paste this prompt:
 
-```
-Install Live Clipper from https://github.com/RattleSnakeSight/live-clipper on this computer, open it in my browser, and walk me through my first test.
+```text
+Install Live Clipper for me from https://github.com/RattleSnakeSight/live-clipper and walk me through a safe first test.
 
-1. Check for Git, Python 3.11 or newer, pipx, FFmpeg and ffprobe. On macOS use an FFmpeg build with libass and freetype. Explain any missing prerequisites and help me install them for my OS.
-2. Run: pipx install git+https://github.com/RattleSnakeSight/live-clipper
-   If it is already installed with pipx, use: pipx upgrade live-clipper
-3. If you are Claude Code, run: live-clipper skill install --agent claude
-   If you are Codex, run: live-clipper skill install --agent codex
-   If skill discovery needs a new agent session, tell me how to reopen it and continue the setup.
-4. Run these commands:
-   live-clipper version
-   live-clipper doctor
-   live-clipper start
-   If the command is missing from PATH, run pipx ensurepath and reopen the terminal. Confirm that the local browser shows the setup wizard.
-5. Guide me through storage, hardware settings, platform accounts and the tour. For this first test, help me select manual posting. I will sign in myself in the browser. Help me add a channel I own or have permission to clip, enable monitoring, and find the resulting clip for review. Leave publishing to me.
-6. Ask me whether you should set up my platform keys. If I agree, pair yourself (`live-clipper agent pair --agent claude` or `--agent codex`) and keep `live-clipper agent serve` running; I will press "Ask my agent" in the app. Never read or print the key values yourself.
+1. Check for Git, Python 3.11 or newer, pipx, FFmpeg and ffprobe. Tell me what is missing and ask before you install anything.
+2. Install it: pipx install git+https://github.com/RattleSnakeSight/live-clipper
+   If it is already installed, run: pipx reinstall live-clipper
+3. Install your skill for it: live-clipper skill install --agent claude (Codex: --agent codex, Qwen Code: --agent qwen).
+   If the skill only loads in a new session, tell me and continue after I reopen you.
+4. Run live-clipper version and live-clipper doctor. Every doctor line should say [ok]; "Port 8765: in use" is fine.
+5. Run live-clipper start. It prints "Live Clipper: http://127.0.0.1:<port>/?t=..." and my browser opens "Set up Live Clipper".
+6. I answer the setup myself. For this first test, suggest Manual posting and the test destination, so nothing is posted without my click. I sign in to every platform myself.
+7. Help me add one channel that I own or have permission to clip, and switch monitoring on. Success: a clip appears under Clips > "Waiting for your approval", and "Post to" the test destination shows it as published on this computer only.
+8. Offer to set up my platform keys. Only if I agree, and only if you are Claude Code or Codex: run live-clipper agent pair --agent claude (or --agent codex), keep live-clipper agent serve running, and I press "Ask my agent" in the app. Never read, print or ask me for key values. If I say no, I type the keys in myself.
 ```
 
-The agent can also clone the repository and run `python scripts/install-skill.py --agent claude`. Either way
-it then follows [the skill](live_clipper/skill/SKILL.md). Agents working on the code read [AGENTS.md](AGENTS.md).
+Any agent that runs commands can install the app. Only Claude Code and Codex can pair the key helper, which
+fills in platform keys you ask for without the keys passing through the chat. Creating developer apps,
+signing in and approving access always stay with you. See
+[Let your agent set up keys](live_clipper/guide/agent-setup.md).
 
-### 2. Run one command
+### By hand
 
-```
-live-clipper start
-```
-
-### 3. Finish in the browser
-
-Your browser opens on 127.0.0.1. Finish the setup wizard, connect your accounts, paste a streamer link,
-choose how to monitor it, and switch it on.
-
-## Install without an agent
-
-With pipx:
-
-```
+```text
 pipx install git+https://github.com/RattleSnakeSight/live-clipper
 live-clipper doctor
 live-clipper start
 ```
 
-Or use the install scripts from a clone: `sh scripts/install.sh` (macOS, Linux) or `scripts/install.ps1`
-(Windows PowerShell). They check Python, FFmpeg and pipx, and ask before installing anything.
+[Install](live_clipper/guide/install.md) lists the prerequisite commands per system, a pip fallback, and the
+install scripts in `scripts/`.
 
-## Requirements
+### First run
 
-- Python 3.11 or newer.
-- FFmpeg and ffprobe on your PATH.
-- A computer that can stay on. Speech recognition runs locally; the setup wizard picks defaults from your
-  hardware. A recent CPU works, a GPU makes it faster.
-- Disk space for recordings and clips. The wizard asks for a storage folder and a size cap.
+`live-clipper start` opens your browser at `http://127.0.0.1:8765` (or another free port) on "Set up Live
+Clipper". Every question has a default for your computer. Then a short tour shows the app; you can skip it and
+replay it from Settings. The app opens in a dark theme; Settings > Appearance switches to light.
 
-## Platforms
-
-| Platform | Live status | Chat | Capture | Posting |
-|---|---|---|---|---|
-| Twitch | official API (Helix) or stream probe | IRC read-only, or EventSub with your token | Streamlink | not a posting target |
-| Kick | official API, or stream probe | webhooks only (needs a public HTTPS address) | Streamlink | not a posting target |
-| YouTube | official Data API, or stream probe | live chat API (uses quota) | Streamlink (YouTube may refuse some networks) | Shorts upload (your own Google app) |
-| TikTok | not applicable | not applicable | not applicable | Content Posting API (your own TikTok app) |
-| Instagram | not applicable | not applicable | not applicable | Reels via Graph API (your own Meta app) |
-
-All of the above is written and tested against recorded and fake responses and local test streams. None of
-it has been run against a real account on the real services yet. See [Status](#status).
-
-Being allowed to watch a channel is not permission to record it or repost it. Ask each streamer before you
-clip and post their stream. You are responsible for following their rules and each platform's terms.
-
-Details are in the [platforms guide](live_clipper/guide/platforms.md) and the [posting guide](live_clipper/guide/posting.md).
-
-## Let your agent set up keys
-
-The agent that installed Live Clipper can also fill in your platform keys, without the keys passing through
-the AI chat. It pairs a small helper with your copy of the app (`live-clipper agent pair`, then
-`live-clipper agent serve`). You pick the platform and where the keys are (environment variables, a file you
-choose or a credential manager entry) and press "Ask my agent"; the helper reads only that platform's named
-keys from that place and the app saves them. It cannot create developer apps, sign in or approve access for
-you, and typing the keys in yourself always works. Revoke it in Settings > Agent setup. Details:
-[Let your agent set up keys](live_clipper/guide/agent-setup.md).
-
-## Appearance
-
-The app opens in a dark theme. Settings > Appearance switches to light; the choice is kept.
+Posting is **automatic** by default, but nothing is posted until you connect an account, confirm you have the
+right to post and switch it on. For your first test, choose **Manual** posting and the **test destination**,
+which posts nowhere: finished clips then wait on the Clips page for you to review. See
+[First run](live_clipper/guide/first-run.md).
 
 ## Guide
 
-The same pages open inside the app.
+The same pages open inside the app under Guide.
 
-- [Install](live_clipper/guide/install.md)
-- [First run](live_clipper/guide/first-run.md)
-- [Monitoring](live_clipper/guide/monitoring.md)
-- [Editing](live_clipper/guide/editing.md)
-- [Formats and presets](live_clipper/guide/formats-and-presets.md)
-- [Platforms](live_clipper/guide/platforms.md)
-- [Posting](live_clipper/guide/posting.md)
-- [Let your agent set up keys](live_clipper/guide/agent-setup.md)
-- [Privacy](live_clipper/guide/privacy.md)
-- [Troubleshooting](live_clipper/guide/troubleshooting.md)
-- [Updating](live_clipper/guide/updating.md)
-- [Uninstalling](live_clipper/guide/uninstalling.md)
+- [Install](live_clipper/guide/install.md): prerequisites, install routes, commands.
+- [First run](live_clipper/guide/first-run.md): the setup questions, a safe first test, theme and tour.
+- [Platforms](live_clipper/guide/platforms.md): Twitch, Kick and YouTube keys, permissions and limits.
+- [Monitoring streams](live_clipper/guide/monitoring.md): channels, states, watch modes, keeping the computer on.
+- [Formats and presets](live_clipper/guide/formats-and-presets.md): what becomes a clip and how it looks; your own format.
+- [Editing clips](live_clipper/guide/editing.md): trim, captions, framing, the review queue.
+- [Posting](live_clipper/guide/posting.md): YouTube Shorts, TikTok, Instagram Reels, delivery states, retries.
+- [Let your agent set up keys](live_clipper/guide/agent-setup.md): the key helper and its limits.
+- [Troubleshooting](live_clipper/guide/troubleshooting.md): checks, common problems, cleanup order.
+- [Updating](live_clipper/guide/updating.md): updates, Update pending, offline behaviour.
+- [Uninstalling](live_clipper/guide/uninstalling.md): what is removed and what stays.
+- [Privacy](live_clipper/guide/privacy.md): what is stored, what is sent, and when.
 
-## Update
+## Updates
 
-```
+```text
 live-clipper update
 ```
 
-Your data stays where it is. See the [updating guide](live_clipper/guide/updating.md).
-
-Live Clipper runs only when it is the newest version. At every start and every open it checks, and when a
-newer version is out it shows **Update pending** and pauses watching, clipping and posting until you update.
-Without an internet connection at start it waits and retries instead of running. Versions up to 0.2.0 do not
-have this check: update them once with `live-clipper update`.
+Your data stays where it is. Live Clipper runs only when it is the newest version: at every start and every
+open it checks GitHub, and when a newer version is out it shows **Update pending** and pauses watching,
+clipping and posting until you update. Without an answer (for example offline at start) it shows **Can't
+check for updates** and retries instead of running. Versions up to 0.2.0 do not have this check, so update
+them once by hand with `live-clipper update`. See [Updating](live_clipper/guide/updating.md).
 
 ## Uninstall
 
-```
+```text
 live-clipper uninstall            # keeps your clips and settings
 live-clipper uninstall --purge-data
 pipx uninstall live-clipper
 ```
 
-`--purge-data` deletes every clip and setting, and asks first. See the [uninstall guide](live_clipper/guide/uninstalling.md).
-
-## Troubleshooting
-
-- `live-clipper doctor` checks Python, FFmpeg, disk space, the data folder and the port.
-- `live-clipper status` says whether the app is running and on which address.
-- `live-clipper logs` prints recent log lines (`-f` to follow). Tokens are masked, but read a log before you share it.
-- `live-clipper` not found after install: run `python -m pipx ensurepath` and open a new terminal.
-
-More in the [troubleshooting guide](live_clipper/guide/troubleshooting.md).
+`--purge-data` deletes the data folder, after asking. Access you granted on each platform stays until you
+remove it there. See [Uninstalling](live_clipper/guide/uninstalling.md).
 
 ## Status
 
-Verified with automated tests on Linux, macOS and Windows (Python 3.11 and 3.13), on every change:
+Version 0.3.0. Automated tests run on Linux, macOS and Windows with Python 3.11 and 3.13 on every change:
 
-- Monitoring: channel states, retries, reconnects and crash recovery, using local test streams and fake
-  platform responses. Live-status clients for Twitch, Kick and YouTube against recorded API responses.
-- Clip selection: same decisions as the design this was ported from, on identical synthetic inputs.
-- Cutting and editing: cut windows and output files (size, codec, frame rate, audio) checked with ffprobe.
-- End to end on real FFmpeg: a local test stream with a chat spike becomes one rendered clip that is posted to
-  the built-in test destination (automatic mode) or held for review (manual mode). Custom formats, rules and
-  per-clip overrides change the rendered file. Killing the worker mid-way does not duplicate clips or posts.
+- Monitoring: channel states, retries, reconnects and crash recovery, with local test streams and recorded
+  or fake platform responses.
+- Clip selection, cutting, captions and editing: output files checked with ffprobe; custom formats, rules
+  and per-clip changes change the rendered file.
+- End to end on real FFmpeg: a local test stream with a chat spike becomes one rendered clip, posted to the
+  test destination (automatic mode) or held for review (manual mode). Killing the worker mid-way does not
+  duplicate clips or posts.
 - Posting: upload, retry, rate-limit, expired and revoked sign-in paths against fake platform responses.
-- The browser app: setup wizard, guided tour (finish, skip, restart, replay), help text on every control.
+- The browser app: setup, tour, help text on every control, the update screens, both themes.
 
 Not verified yet:
 
-- Any real platform account: live status, chat, capture and posting have not been run against real
-  Twitch, Kick, YouTube, TikTok or Instagram accounts. That needs your own developer apps and sign-in.
-- Speech-to-text captions with a real downloaded model are tested on request (`LIVE_CLIPPER_ASR_TEST=1`),
-  not on every change; the default test run uses a fixed transcript. The opt-in run passed on Windows.
-- Captions in a second language need converted translation models that the app does not download yet.
-  Original-language captions work; a second-language render reports that the model is missing.
+- Real platform accounts. Live status, chat, recording and posting have not been run against real Twitch,
+  Kick, YouTube, TikTok or Instagram accounts; that needs your own developer apps and sign-ins.
+- Captions with a real downloaded speech model are tested on request, not on every change.
+- Captions in a second language need converted translation models that the app does not download.
+- Kick's livestreams endpoint that the app uses is marked deprecated by Kick.
 
-## Development
+Release notes and history: [PROGRESS.md](PROGRESS.md). Design and code layout:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-```
-python -m venv .venv
-.venv/bin/pip install -e .[dev]      # Windows: .venv\Scripts\pip
-ruff check .
-pytest -q
-```
+## Contributing
 
-Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security problems as described in
-[SECURITY.md](SECURITY.md). Conduct rules are in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Fixes, features and documentation are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup on each
+system, the checks to run and where to change what. Report security problems privately as described in
+[SECURITY.md](SECURITY.md). Conduct rules: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Coding agents read
+[AGENTS.md](AGENTS.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
