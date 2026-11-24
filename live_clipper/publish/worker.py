@@ -699,7 +699,8 @@ class Publisher:
                 self._set(did, "queued", f"daily upload quota reached ({limit}); waiting for the provider day to reset",
                           next_attempt_at=at)
                 return None
-            hold = self.cadence.check(d, dest, now) if self.cadence and dest["provider"] != TEST else None
+            hold = self.cadence.check(d, dest, now, self.video_path(clip)) \
+                if self.cadence and dest["provider"] != TEST else None
             if hold:
                 kind, when, why = hold
                 self._set(did, "disallowed" if kind == "duplicate" else "queued", why, next_attempt_at=when)

@@ -142,6 +142,12 @@ def test_a_database_patched_by_hand_keeps_uploading_and_honours_its_outside_clai
     assert first["status"] == "published" and len(videos(sb)) == 1
     row = db.execute("SELECT * FROM local_english_claims WHERE owner=?", (f"native:{first['id']}",)).fetchone()
     assert (row["network"], row["creator"], row["pending"], row["occupies"]) == ("youtube", f"channel:{alpha}", 0, 1)
+    assert len(row["digest"]) == 64                                        # the file's hash, as the old table keeps it
+    # the same file under another clip and moment is refused on this network by that hash
+    twin = s.clip(alpha, at=s.clock.t + 9000)
+    twin["path"] = s.w.store.clip(first["clip_id"])["path"]
+    s.clock.t += GAP + 120
+    assert s.send(twin)[0]["status"] == "disallowed" and len(videos(sb)) == 1
     # an outside publisher's pending claim for another moment of the streamer holds this account's next moment
     db.execute("INSERT INTO local_english_claims VALUES('outside:7','tiktok',?,'m-other',9001,'',?,1,1)",
                (f"channel:{alpha}", s.clock.t))

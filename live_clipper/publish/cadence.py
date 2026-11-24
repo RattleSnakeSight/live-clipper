@@ -10,6 +10,7 @@ the table exists its rows count as posts and it is kept in step. This module nev
 """
 from __future__ import annotations
 
+import hashlib
 import time
 
 from .. import moments
@@ -26,9 +27,9 @@ class Cadence:
     def _legacy(self) -> bool:
         return bool(self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (LEGACY,)).fetchone())
 
-    def check(self, d: dict, dest: dict, now: float) -> tuple[str, float, str] | None:
+    def check(self, d: dict, dest: dict, now: float, media=None) -> tuple[str, float, str] | None:
         """None: this upload may start now. Otherwise ("duplicate" | "wait", when to look again, why).
-        Call inside the claim's transaction, right before the delivery becomes `uploading`."""
+        Call inside the claim's transaction, right before the delivery becomes `uploading`. media: the file."""
         cid, did = d["clip_id"], d["id"]
         clip = moments.clip_meta(self.clips, cid)
         if not clip:                                   # a clip the clip store never saw has no streamer or moment
@@ -37,10 +38,19 @@ class Cadence:
         same = set(moments.moment_clips(self.clips, cid))
         account = self.clips.q1("SELECT * FROM destinations WHERE id=?", dest["id"])
         held, _ = moments._occupancy(self.clips, moments.keys_for(account), dest["id"])
+        legacy = self._legacy()
         outside = self.db.execute(f"SELECT owner, network, moment, clip_id, post_time, pending FROM {LEGACY} WHERE "
                                   "creator=? AND occupies=1 AND owner NOT LIKE 'native:%'", (creator,)).fetchall() \
-            if self._legacy() else []
-        if any(r["clip_id"] in same and r["id"] != did and moments.sent_evidence(r) for r in held) or any(
+            if legacy else []
+        # the old table also knows files by their hash: the same file never goes to one network twice
+        digest = ""
+        if legacy and media:
+            with open(media, "rb") as f:
+                digest = hashlib.file_digest(f, "sha256").hexdigest()
+        same_file = legacy and digest and self.db.execute(
+            f"SELECT 1 FROM {LEGACY} WHERE network=? AND digest=? AND occupies=1 AND owner<>?",
+            (dest["provider"], digest, f"native:{did}")).fetchone()
+        if same_file or any(r["clip_id"] in same and r["id"] != did and moments.sent_evidence(r) for r in held) or any(
                 r["network"] == dest["provider"] and (r["moment"] == moment or r["clip_id"] in same) for r in outside):
             return "duplicate", 0.0, "this account already has this moment of the streamer; one post per moment per account"
         events = moments.creator_events(self.clips, cid, exclude=(("d", did),)) + [
@@ -51,11 +61,11 @@ class Cadence:
         if free > now:
             at = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(free))
             return "wait", free, f"two hours between different moments of the same streamer; this one can go at {at}"
-        if self._legacy():                             # the old trigger and an outside publisher read this row
+        if legacy:                                     # the old trigger and an outside publisher read this row
             self.db.execute(f"INSERT INTO {LEGACY}(owner, network, creator, moment, clip_id, digest, post_time, occupies, "
-                            "pending) VALUES(?,?,?,?,?,'',?,1,1) ON CONFLICT(owner) DO UPDATE SET occupies=1, pending=1, "
-                            "post_time=max(post_time, excluded.post_time)",
-                            (f"native:{did}", dest["provider"], creator, moment, cid, now))
+                            "pending) VALUES(?,?,?,?,?,?,?,1,1) ON CONFLICT(owner) DO UPDATE SET occupies=1, pending=1, "
+                            "digest=excluded.digest, post_time=max(post_time, excluded.post_time)",
+                            (f"native:{did}", dest["provider"], creator, moment, cid, digest, now))
         return None
 
     def settle(self, d: dict) -> None:
