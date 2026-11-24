@@ -28,10 +28,22 @@ Known limits:
 - Second-language captions need converted translation models that the app does not download.
 - Kick chat needs a public https address for webhooks; without one, Kick chat is unavailable.
 - Kick marks the livestreams endpoint the app uses as deprecated.
+- Instagram: Meta sets up newly created apps with "Unified Login". The Instagram connection was written for
+  the earlier Instagram Login and Facebook Login setups and has not been tried with a newly created Meta app.
+- Metricool, an outside scheduling service used by the maintainers' own tested setup for Instagram and
+  TikTok, is not part of the app. The app names it and offers nothing to connect for it.
 - The app does not keep the computer awake; nothing records while it sleeps.
 
 ## Releases
 
+- **Not released yet** (on top of 0.3.0). Sources and Destinations are rebuilt around "Watch a stream" and
+  "Post my clips": one way to connect at a time, each field with the provider's name for it and where to
+  find it, the installation's own callback and webhook addresses with Copy, and four numbered steps per
+  destination. A saved key and a verified account are separate states. A sign-in that lands on a different
+  account than the one posting was switched on for switches posting off for that destination and holds
+  unconfirmed uploads for your confirmation. Google's sign-in always asks which account to use. A refused channel lookup after a token refresh now shows its
+  reason instead of an error page. Platforms and Posting in the guide follow the same steps (checked
+  2026-11-23).
 - **0.3.0** (2026-11-22). Live Clipper checks for a newer version at every start and open and pauses its work
   while an update is pending. It shows "Can't check for updates" and retries when no answer comes. Versions up
   to 0.2.0 do not check and must be updated once by hand.

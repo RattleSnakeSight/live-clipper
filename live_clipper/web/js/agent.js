@@ -26,15 +26,16 @@ export async function agentOverview(fresh = false) {
 // What the helper can and cannot do, said once wherever the panel appears.
 const ABOUT = 'The AI agent that installed Live Clipper (Claude Code or Codex) runs a small helper on this computer. '
   + 'When you ask, the helper reads only the keys named below, only from the place you choose, and saves them '
-  + 'here. It cannot create a developer app, approve a sign-in or accept terms for you; those stay with you.';
+  + 'here. It cannot create a developer app, approve a sign-in or accept terms for you; those stay with you, '
+  + 'in your browser.';
 
-// Where the customer types the keys instead: right below the panel (Sources, Destinations), on that page
+// Where the customer types the keys instead: in the fields above the panel (Sources, Destinations), on that page
 // (Settings), or there once setup is finished (the wizard keeps its answers but cannot be left half done).
 function manualHint(target, manual) {
   const [kind, platform] = target.split(':');
   const href = kind === 'source' ? '#/sources' : '#/destinations';
   const page = kind === 'source' ? 'Sources' : 'Destinations';
-  if (manual === 'below') return h('p', { class: 'small muted' }, 'You can always enter the keys yourself below.');
+  if (manual === 'below') return h('p', { class: 'small muted' }, 'You can always enter the keys yourself in the fields above.');
   if (manual === 'after-setup') {
     return h('p', { class: 'small muted' }, `You can always enter the keys yourself on ${page} once setup is finished. `
       + 'Your setup answers are already saved.');
@@ -45,13 +46,13 @@ function manualHint(target, manual) {
 }
 
 // target: "source:twitch" | "destination:tiktok" ...; onDone runs after keys were saved.
-// manual: 'below' | 'link' | 'after-setup' (see manualHint).
-export async function agentPanel(target, onDone = () => {}, manual = 'below') {
+// manual: 'below' | 'link' | 'after-setup' (see manualHint). level: the heading that fits where the panel sits.
+export async function agentPanel(target, onDone = () => {}, manual = 'below', level = 'h3') {
   const box = h('section', { class: 'agent-panel', 'aria-label': 'Ask my agent', dataset: { target } });
   const info = await agentOverview();
   const spec = info && info.targets.find((t) => t.target === target);
   if (!info || !spec) return null;
-  box.append(h('h3', {}, 'Let your agent set this up'), h('p', { class: 'small muted' }, ABOUT));
+  box.append(h(level, {}, 'Let your agent set this up'), h('p', { class: 'small muted' }, ABOUT));
   if (!info.paired) {
     box.append(h('p', { class: 'note info' }, 'No agent is paired with this Live Clipper yet. Ask the agent that '
       + 'installed it to pair (`live-clipper agent pair`).'), manualHint(target, manual));

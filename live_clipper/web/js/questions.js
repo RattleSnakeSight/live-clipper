@@ -52,9 +52,16 @@ export function questionField(q, value, { big = false } = {}) {
   const errId = `${id}-err`;
   const titleId = `${id}-title`;
   const Title = (inner) => (big ? h('h2', { id: titleId }, inner) : h('div', { id: titleId, class: 'label' }, inner));
-  const helpEl = h('p', { class: 'help', id: helpId }, q.help);
+  // q.note: something to know before answering (who posts where, what needs no account). A box in the wizard, a
+  // second help line in Settings. q.intent names which of the two reasons to connect an account the question starts.
+  const noteId = `${id}-note`;
+  const noteEl = q.note ? h('p', { class: big ? 'note info' : 'help', id: noteId }, q.note) : null;
+  const eyebrow = big && q.intent ? h('p', { class: 'eyebrow', id: `${id}-intent` }, q.intent) : null;
+  const helpEl = [h('p', { class: 'help', id: helpId }, q.help), noteEl];
   const errEl = h('p', { class: 'error', id: errId, role: 'alert' });
   const described = `${helpId} ${errId}`;
+  // the intent and the note are read once, with the group, not again on every option
+  const groupDescribed = `${eyebrow ? `${id}-intent ` : ''}${helpId}${q.note ? ` ${noteId}` : ''} ${errId}`;
   let read;
   let control;
   let first;
@@ -63,7 +70,7 @@ export function questionField(q, value, { big = false } = {}) {
     const inputs = opts.map((o) => h('input', {
       type, name: id, value: o.value, checked: chosen.includes(o.value), help: q.help, 'aria-describedby': described,
     }));
-    control = h('div', { role: type === 'radio' ? 'radiogroup' : 'group', 'aria-labelledby': titleId, 'aria-describedby': described },
+    control = h('div', { role: type === 'radio' ? 'radiogroup' : 'group', 'aria-labelledby': titleId, 'aria-describedby': groupDescribed },
       opts.map((o, i) => h('label', { class: 'choice' }, inputs[i], h('span', {}, o.label))));
     first = inputs.find((i) => i.checked) || inputs[0];
     return inputs;
@@ -107,7 +114,7 @@ export function questionField(q, value, { big = false } = {}) {
   const el = isSwitch
     ? h('div', { class: 'field', dataset: { qid: q.id } },
       h('div', { class: 'switch-row' }, h('div', { class: 'text' }, labelled, helpEl), control), errEl)
-    : h('div', { class: `${big ? 'question' : 'field'}${short ? ' short' : ''}`, dataset: { qid: q.id } }, labelled, helpEl, control, errEl);
+    : h('div', { class: `${big ? 'question' : 'field'}${short ? ' short' : ''}`, dataset: { qid: q.id } }, eyebrow, labelled, helpEl, control, errEl);
   return {
     el,
     read,

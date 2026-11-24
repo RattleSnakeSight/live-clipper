@@ -82,3 +82,76 @@ def test_tester_prompt_is_the_same_in_readme_and_install_page():
                    "Manual posting", "test destination", "permission to clip", "live-clipper agent pair",
                    "Never read, print or ask me for key values"):
         assert needed in readme, needed
+
+
+# ---- the account instructions in the app and in the guide say the same thing ------------------------------
+
+OFFICIAL_HOSTS = {
+    "console.cloud.google.com", "developers.google.com", "support.google.com", "myaccount.google.com",
+    "dev.twitch.tv", "www.twitch.tv", "kick.com", "developers.tiktok.com", "developers.facebook.com",
+    "help.metricool.com",
+}
+
+
+def _links(node):
+    """Every {"label", "url"} link and every bare docs URL inside the instruction data."""
+    if isinstance(node, dict):
+        if set(node) == {"label", "url"}:
+            yield node["url"]
+        else:
+            for k, v in node.items():
+                if k != "scopes":  # permission names that look like addresses
+                    yield from _links(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _links(v)
+    elif isinstance(node, str) and node.startswith("http") and " " not in node:
+        yield node
+
+
+def test_instruction_links_go_to_the_providers_own_sites():
+    from urllib.parse import urlsplit
+
+    from live_clipper.publish.requirements import REQUIREMENTS
+    from live_clipper.sources.guide import GUIDE
+
+    urls = set(_links(GUIDE)) | set(_links({k: v for k, v in REQUIREMENTS.items()}))
+    urls = {u for u in urls if "{port}" not in u}  # the app's own callback addresses are not links
+    assert len(urls) > 15
+    for u in urls:
+        parts = urlsplit(u)
+        assert parts.scheme == "https" and parts.hostname in OFFICIAL_HOSTS, u
+
+
+def test_the_guide_names_what_the_account_pages_show():
+    from live_clipper.publish.requirements import AS_OF, REQUIREMENTS
+    from live_clipper.setup_service import METRICOOL_NOTE
+    from live_clipper.sources import guide
+
+    platforms, posting = text(GUIDE_DIR / "platforms.md"), text(GUIDE_DIR / "posting.md")
+    flat = lambda s: re.sub(r"\s+", " ", s.replace("**", ""))  # noqa: E731
+    platforms, posting = flat(platforms), flat(posting)
+    assert AS_OF == guide.AS_OF and f"on {AS_OF}" in platforms and f"on {AS_OF}" in posting  # dated
+    for p in guide.GUIDE.values():  # every way to connect, its button and its fields, by the names on screen
+        for r in p["routes"]:
+            assert r["title"] in platforms, r["title"]
+            if r["method"]:
+                assert r["button"] in platforms, r["button"]
+    for provider in ("youtube", "tiktok", "instagram"):
+        req = REQUIREMENTS[provider]
+        assert req["sign_in"]["button"] in posting, req["sign_in"]["button"]
+        for m in req["methods"]:
+            assert m["button"] in posting, m["button"]
+            for f in m["fields"]:
+                assert f["label"] in posting, f["label"]
+    for label in ("Keys saved, not signed in", "Could not verify", "Sign in again", "Use a different channel"):  # noqa: E501
+        assert label in posting, label
+    # Metricool: named in the README summary, at the setup question and in the posting guide, as not included
+    readme, first_run = flat(text(ROOT / "README.md")), flat(text(GUIDE_DIR / "first-run.md"))
+    assert "Metricool" in METRICOOL_NOTE and "not included in this installation" in METRICOOL_NOTE
+    assert "Metricool, an outside scheduling service, is not part of Live Clipper" in readme
+    assert "Metricool" in first_run and "not part of this installation" in first_run
+    assert "It is not available in this installation." in posting
+    for word in ("Connected", "Scheduled", "Awaiting confirmation", "Published"):
+        assert f"| {word} |" in posting, word
+    assert "An API key can never upload." in platforms and "An API key is not enough here." in posting

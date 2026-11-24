@@ -77,9 +77,9 @@ export function choiceGroup({ name = nextId('g'), legend, help, type = 'radio', 
   const errId = `${name}-err`;
   const inputs = options.map((o) => h('input', {
     type, name, value: o.value, checked: chosen.has(String(o.value)), help: o.hint ? `${o.hint}` : help,
-    'aria-describedby': helpId,
+    'aria-describedby': help ? helpId : errId,
   }));
-  const el = h('fieldset', { 'aria-describedby': `${helpId} ${errId}` },
+  const el = h('fieldset', { 'aria-describedby': help ? `${helpId} ${errId}` : errId },
     h('legend', {}, legend), help ? h('p', { class: 'help', id: helpId }, help) : null,
     options.map((o, i) => h('label', { class: 'choice' }, inputs[i],
       h('span', {}, o.label, o.hint ? h('small', {}, o.hint) : null))),

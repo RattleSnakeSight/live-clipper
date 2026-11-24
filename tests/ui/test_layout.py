@@ -163,6 +163,8 @@ def test_settings_theme_choice_applies_and_is_saved(seeded_server, make_page):
 def test_ask_my_agent_request_waits_and_can_be_cancelled(seeded_server, make_page):
     page = make_page()
     page.goto(seeded_server.url + "/#/destinations")
+    # the helper is an option of the keys step, one click away from the fields it fills
+    page.locator("#dest-tiktok").get_by_text("Or let my agent fill these in").click()
     panel = page.locator("#dest-tiktok .agent-panel")
     expect(panel).to_contain_text("Paired with Claude Code")
     expect(panel).to_contain_text("TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET")
@@ -195,7 +197,7 @@ def test_manual_fallback_points_to_the_right_form(seeded_server, fresh_server, m
 
     # the wizard cannot be left half done: it says where to go once finished, and keeps the answers
     page.goto(fresh_server.url + "/#/setup/review")
-    keys = page.locator("#wizard-keys")
+    keys = page.locator("#wizard-accounts")
     keys.locator("summary").first.click()
     panel = keys.locator(".agent-panel").first
     panel.get_by_role("button", name="Ask my agent").click()

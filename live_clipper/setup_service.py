@@ -160,6 +160,13 @@ def _opts(*pairs: tuple[str, str]) -> list[dict]:
 
 
 POST_DESTS = ["youtube", "tiktok", "instagram"]
+# shown where the posting decision is made; the destination cards say the same (publish/requirements.py)
+METRICOOL_NOTE = (
+    "The maintainers' own tested setup publishes Instagram and TikTok clips through Metricool, an outside scheduling "
+    "service. That connection is not included in this installation: here Instagram and TikTok post directly through "
+    "your own Meta or TikTok developer app. YouTube Shorts posts directly through Google. Watching streams, the test "
+    "destination and YouTube never need Metricool."
+)
 WEBHOOK_METHODS = ["webhook", "both"]
 
 
@@ -169,9 +176,12 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
         hw["gpu"]["kind"], "No supported GPU found, so the processor does the work.")
     webhook_on = {"id": "notify.method", "in": WEBHOOK_METHODS}
 
-    def q(id, title, help, type, default=None, options=None, validation=None, show_if=None):
+    def q(id, title, help, type, default=None, options=None, validation=None, show_if=None, intent="", note=""):
+        # intent: which of the two reasons to connect an account this question starts ("Watch a stream",
+        # "Post my clips"); note: something to know before answering, shown under the help text
         return {"id": id, "title": title, "help": help, "type": type, "default": default,
-                "options": options or [], "validation": validation or {}, "show_if": show_if or []}
+                "options": options or [], "validation": validation or {}, "show_if": show_if or [],
+                "intent": intent, "note": note}
 
     return [
         q("setup.usage", "How will you use Live Clipper?",
@@ -187,7 +197,10 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
         q("platforms.enabled", "Which platforms do you want to watch?",
           "Pick the sites where the streams you clip are broadcast. Sources shows these first.", "multiselect",
           ["twitch"],
-          _opts(("twitch", "Twitch"), ("kick", "Kick"), ("youtube", "YouTube")), {"min_items": 1}),
+          _opts(("twitch", "Twitch"), ("kick", "Kick"), ("youtube", "YouTube")), {"min_items": 1},
+          intent="Watch a stream",
+          note="No account is needed to start watching: you paste a channel link. Keys from your own free "
+               "developer application add precise live status and chat, and you can add them later on Sources."),
         q("storage.dir", "Where should clips and recordings be stored?",
           "Pick a folder on a drive with plenty of free space.", "path", default_dir, validation={"required": True}),
         q("storage.cap_gb", "How much disk space may Live Clipper use (GB)?",
@@ -224,7 +237,8 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
           "Destinations shows these first. Nothing is posted until you connect and turn on an account there.",
           "multiselect", ["none"],
           _opts(("youtube", "YouTube Shorts"), ("tiktok", "TikTok"), ("instagram", "Instagram Reels"),
-                ("none", "Nowhere, I only want the files")), {"min_items": 1}),
+                ("none", "Nowhere, I only want the files")), {"min_items": 1},
+          intent="Post my clips", note=METRICOOL_NOTE),
         q("posting.mode", "Should clips be posted automatically?",
           "Automatic posts each finished clip to every account you connected and turned on. Manual means every "
           "clip waits for your approval.", "select", "auto",

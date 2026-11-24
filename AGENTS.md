@@ -39,6 +39,10 @@ SKILL.md section 4 and the in-app guide page "Let your agent set up keys".
   `[Title](page.md)` without anchors, no `<url>` autolinks, HTML or images, and no code blocks inside lists.
   `tests/test_docs.py` checks this and that the README and Install page tester prompts match.
 - `live_clipper/web/` is the browser UI.
+- `live_clipper/sources/guide.py` and `live_clipper/publish/requirements.py` hold what the Sources and
+  Destinations pages tell a customer about each way to connect: portal steps, one entry per field, error
+  recovery. Portal labels come from the providers' own pages and carry the date they were read (`AS_OF`);
+  mark what could not be confirmed with `verified=False`. The guide pages Platforms and Posting repeat them.
 - `docs/ARCHITECTURE.md` is the plug-in contract; `docs/CONTRACTS.md` is the contract between subsystems;
   `docs/DEVIATIONS.md` records where behavior differs from the design it was ported from.
 - `live_clipper/skill/` is the agent skill as shipped; `skills/live-clipper/` is its copy for clones; `scripts/` holds the install scripts.

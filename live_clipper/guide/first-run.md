@@ -17,7 +17,8 @@ The setup cannot be skipped: the other pages open once it is finished. To change
 - *Do you have permission to clip and post their streams?* Only shown for "other streamers". You must answer
   yes to continue, and you should only clip streamers who said yes.
 - *Which platforms do you want to watch?* Twitch, Kick, YouTube; at least one. Default: Twitch. The Sources
-  page lists these first.
+  page lists these first. This is the "Watch a stream" question. Watching needs no account: you paste a
+  channel link, and keys can be added later.
 
 **Storage**
 
@@ -45,7 +46,11 @@ The setup cannot be skipped: the other pages open once it is finished. To change
 **Posting**
 
 - *Where do you want to post clips?* YouTube Shorts, TikTok, Instagram Reels, or nowhere (files only).
-  Default: nowhere. Picking a destination here does not connect it.
+  Default: nowhere. Picking a destination here does not connect it. This is the "Post my clips" question,
+  and it says who does the posting: YouTube Shorts posts directly through Google, and Instagram and TikTok
+  post directly through your own Meta or TikTok developer app. Metricool, the outside scheduling service
+  the maintainers' own tested setup used for Instagram and TikTok, is not part of this installation; see
+  [Posting](posting.md).
 - *Should clips be posted automatically?* Only shown when you picked a destination. Default: **automatic**,
   which posts each finished clip to every destination you have connected, confirmed and switched on.
   **Manual** holds every clip under "Waiting for your approval" on the Clips page until you press Post.
@@ -59,9 +64,22 @@ The setup cannot be skipped: the other pages open once it is finished. To change
 - *Start Live Clipper automatically when you log in?* Default: no. It uses Task Scheduler on Windows, a launch
   agent on macOS and a user service on Linux.
 
-The last page lists the platform keys for the platforms you picked. You can type them in later on Sources and
-Destinations, or let the agent that installed Live Clipper fill them in: see
+The last page shows "Accounts for what you picked", in two groups: **Watch a stream** and **Post my clips**.
+For each platform it says what the connection is for, whether it needs an account, and where you set it up
+after setup: on Sources and on Destinations, with the steps next to the fields. Connecting can wait until
+setup is finished. The agent that installed Live Clipper can fill in keys from there: see
 [Let your agent set up keys](agent-setup.md).
+
+## Connecting accounts afterwards
+
+Sources ("Watch a stream") and Destinations ("Post my clips") each show the other at the top, with how many
+connections each has, so you can do one without the other.
+
+- To watch, you need nothing. [Platforms](platforms.md) explains what an API key or a developer application
+  adds, and where every value is found.
+- To post, each destination card walks through four steps and opens only the next one: developer app keys,
+  sign-in, checking the account, switching posting on. [Posting](posting.md) has the same steps, with what
+  to do when a sign-in fails.
 
 ## A safe first test
 

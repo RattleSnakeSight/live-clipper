@@ -118,6 +118,7 @@ GUIDE = {
     "updating": ("Updating", "# Updating\n\nYour data folder is kept when you update.\n\n```\npip install --upgrade live-clipper\n```\n"),
 }
 PROVIDERS = ("youtube", "tiktok", "instagram", "test")
+CHANNEL = {"account_id": "UC0000000000000000000000", "account_url": "https://www.youtube.com/channel/UC0000000000000000000000"}
 TEST_LABEL = requirements_for("test")["label"]
 
 
@@ -127,7 +128,7 @@ def _destinations(port: int) -> dict:
         req = requirements_for(prov, port)
         per_day = (req.get("quotas") or {}).get("per_day")
         out[i] = {"id": i, "provider": prov, "label": req["label"], "test": prov == "test", "account": None,
-                  "status": "disconnected", "status_detail": "", "enabled": False, "rights_acknowledged": False,
+                  "account_id": "", "account_url": "", "status": "disconnected", "status_detail": "", "enabled": False, "rights_acknowledged": False,
                   "rights_ack_at": None, "credentials_set": [], "app_credentials_set": [], "settings": {},
                   "requirements": req, "quota": {"used_today": 0, "limit": per_day} if per_day else None}
     return out
@@ -265,8 +266,10 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     db["clips"], db["deliveries"] = _seed_clips() if seed else ({}, {})
     if seed:
         db["destinations"][1].update(status="connected", account="@example_clips", app_credentials_set=["client_id"],
-                                     rights_acknowledged=True, rights_ack_at=NOW, enabled=True)
+                                     rights_acknowledged=True, rights_ack_at=NOW, enabled=True, **CHANNEL)
         db["destinations"][4].update(status="connected", account="test", enabled=True)
+    for d in db["destinations"].values():  # a test can start a destination in any state: {"destinations": {provider: {...}}}
+        d.update((store.get("destinations") or {}).get(d["provider"], {}))
     ids = {"channel": 100, "delivery": 100}
 
     app = FastAPI()
@@ -564,6 +567,9 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         else:
             if not (body.get("client_id") and body.get("client_secret")):
                 raise HTTPException(422, "client_id and client_secret are required")
+            if body["client_secret"] == "wrong-secret":  # the platform refuses it, as the real route reports it
+                raise HTTPException(400, {"detail": f"{p.capitalize()} rejected the client ID or secret",
+                                          "fix": f"Check the Client ID and secret in Sources > {p.capitalize()}"})
             db["sources"][p] = {"client_id": body["client_id"], "client_secret": body["client_secret"],
                                 "access_token": "app-token"}
         return source(p)
@@ -731,7 +737,8 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         d = dest(did)
         if d["test"]:
             raise HTTPException(400, "the test destination has no credentials")
-        d["app_credentials_set"] = sorted({*d["app_credentials_set"], *(k for k, v in body.items() if v)})
+        kept = {k for k in d["app_credentials_set"] if body.get(k) != ""}  # an empty value removes a saved one
+        d["app_credentials_set"] = sorted({*kept, *(k for k, v in body.items() if v)})
         return {"app_credentials_set": d["app_credentials_set"]}
 
     @app.put("/api/destinations/{did}/settings")
@@ -757,13 +764,16 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
             return {"action": "verified", "ok": True, "account": "test"}
         if not d["app_credentials_set"]:
             raise HTTPException(400, "enter this app's client ID (and secret) first, or use the token form")
-        d.update(status="connected", account="@example_clips")  # the fake skips the browser round trip
+        if d["status"] == "connected":  # a check of a connected account: the provider is asked again, nothing is posted
+            return {"action": "verified", "ok": True, "account": d["account"]}
+        d.update(status="connected", account="@example_clips",  # the fake skips the browser round trip
+                 **(CHANNEL if d["provider"] == "youtube" else {}))
         return {"action": "authorize", "authorize_url": f"https://example.com/oauth/{d['provider']}/authorize"}
 
     @app.post("/api/destinations/{did}/disconnect")
     def disconnect_destination(did: int):
         d = dest(did)
-        d.update(status="disconnected", account=None, enabled=False)
+        d.update(status="disconnected", account=None, enabled=False, account_id="", account_url="")
         return _dest_view(d)
 
     @app.put("/api/destinations/{did}/enabled")

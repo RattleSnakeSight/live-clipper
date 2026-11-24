@@ -203,3 +203,16 @@ def test_storage_folder_nonempty_gets_app_subfolder(tmp_path):
     empty.mkdir()
     assert setup_service._check_dir(str(empty)) == (str(empty), None)
     assert (chosen / "thesis.docx").read_text() == "mine"
+
+
+def test_the_two_account_questions_carry_their_intent_and_note():
+    qs = {q["id"]: q for q in build_questions(hw(), "/data/media")}
+    watch, post = qs["platforms.enabled"], qs["posting.destinations"]
+    assert watch["intent"] == "Watch a stream" and "No account is needed" in watch["note"]
+    assert post["intent"] == "Post my clips"
+    # where the posting decision is made: who posts to each destination, and that Metricool is not included
+    for said in ("Metricool, an outside scheduling service", "not included in this installation",
+                 "YouTube Shorts posts directly through Google", "never need Metricool"):
+        assert said in post["note"], said
+    assert all(q["intent"] == "" and q["note"] == "" for q in qs.values() if q not in (watch, post))
+    assert [o["value"] for o in post["options"]] == ["youtube", "tiktok", "instagram", "none"]  # answers kept

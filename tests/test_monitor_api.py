@@ -196,3 +196,32 @@ def test_twitch_device_sign_in(client):
     assert r["user_code"] == "ABCD-EFGH" and r["verification_uri"] == "https://www.twitch.tv/activate"
     pend = {s["platform"]: s for s in client.get("/api/sources").json()}["twitch"]
     assert pend["pending"]["user_code"] == "ABCD-EFGH"
+
+
+def test_sources_say_what_each_way_to_connect_needs(client):
+    srcs = {s["platform"]: s for s in client.get("/api/sources").json()}
+    for name, s in srcs.items():
+        assert s["about"]["what"] and s["about"]["without"] and s["route"] == "" and s["how"] == ""
+        first = s["routes"][0]
+        assert first["id"] == "none" and first["method"] is None and first["fields"] == []  # no account
+        for r in s["routes"][1:]:
+            assert r["method"] in ("credentials", "device", "oauth") and r["button"] and r["steps"]
+            assert "Nothing is posted" in r["after"] or "nothing is posted" in r["after"], (name, r["id"])
+            for f in r["fields"]:
+                assert f["label"] and f["why"] and f["where"], (name, r["id"], f["name"])
+            needs_address = r["method"] == "oauth" or (name, r["id"]) == ("kick", "credentials")
+            assert bool(r["callback"]) == needs_address
+    # each way asks only for its own fields
+    ways = {(n, r["id"]): [f["name"] for f in r["fields"]] for n, s in srcs.items() for r in s["routes"]}
+    assert ways[("twitch", "device")] == ["client_id"] and ways[("youtube", "api_key")] == ["api_key"]
+    assert ways[("youtube", "oauth")] == ["client_id", "client_secret"]
+    optional = [f for f in srcs["youtube"]["routes"][2]["fields"] if not f["required"]]
+    assert [f["name"] for f in optional] == ["client_secret"]  # Google's desktop sign-in works without it
+    assert "cannot upload" in srcs["youtube"]["routes"][1]["summary"]  # an API key is not the posting sign-in
+    # Kick chat: the local address a tunnel forwards to, from this installation's own setting
+    assert srcs["kick"]["chat_setup"]["listener"] == "http://127.0.0.1:8788/webhooks/kick"
+    assert "chat_setup" not in srcs["twitch"]
+
+    yt = client.post("/api/sources/youtube/connect", json={"api_key": "KEY"}).json()
+    assert yt["route"] == "api_key" and yt["how"].startswith("Connected with an API key")
+    assert "KEY" not in str(yt)

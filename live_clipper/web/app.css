@@ -87,7 +87,8 @@
 *, *::before, *::after { box-sizing: border-box; }
 /* components set their own display, which would otherwise show an element that carries `hidden` */
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; }
+/* a card opened by its link, or reached with Shift+Tab, is not hidden under the top bar or the phone tab bar */
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--bar) + 12px); scroll-padding-bottom: calc(var(--tabbar) + 12px); }
 body {
   margin: 0; background: var(--ground); color: var(--text);
   font: var(--fs-body)/1.5 var(--font); min-height: 100dvh;
@@ -98,7 +99,7 @@ h2 { font-size: var(--fs-section); font-weight: 600; }
 h3 { font-size: var(--fs-body); font-weight: 600; }
 p { margin: 0; text-wrap: pretty; }
 a { color: var(--link); text-underline-offset: 2px; }
-a:hover { color: var(--accent-hover); }
+a:hover { color: var(--accent-ink); }
 code, pre, kbd { font-family: var(--mono); font-size: 0.92em; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sr-only { position: absolute; left: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -173,12 +174,57 @@ main:focus, main:focus-visible { outline: none; }
 .narrow { max-width: 720px; }
 /* Ask my agent */
 .agent-panel { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 12px 14px; margin: 12px 0; background: var(--accent-soft); }
-.agent-panel > h3 { margin-bottom: 4px; }
+.agent-panel > :is(h3, h4, h5) { margin-bottom: 4px; }
 .agent-panel > p + p, .agent-panel > p + form { margin-top: 8px; }
 .agent-status:not(:empty) { margin-top: 12px; }
 .agent-status p { margin-top: 4px; }
-#wizard-keys { margin: 12px 0 16px; }
-#wizard-keys details + details { margin-top: 4px; }
+#wizard-accounts { margin: 12px 0 16px; }
+#wizard-accounts h4 { margin-top: 14px; }
+
+/* account connections (Sources = watch a stream, Destinations = post my clips) */
+.panel { overflow-wrap: break-word; } /* provider error codes and scope names are long single words */
+.panel > header .pill, .routes .pill { white-space: normal; border-radius: 12px; } /* an account name can be long */
+h4, h5 { font-size: var(--fs-small); font-weight: 600; line-height: 1.25; margin: 0; }
+.route-panel h4, .step-body h4, .more h4, .callback h4, #wizard-accounts h4 { color: var(--muted); margin-bottom: 4px; }
+.intents { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: var(--gap); }
+.intent {
+  display: grid; gap: 4px; justify-items: start; padding: 12px 14px; min-height: var(--tap); background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-card); color: var(--text); text-decoration: none;
+}
+.intent:hover { background: var(--raised); color: var(--text); }
+.intent[aria-current="page"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 4px 0 0 var(--accent); }
+.intent .small { color: var(--muted); }
+.eyebrow { font-size: var(--fs-small); font-weight: 600; color: var(--accent-ink); margin-bottom: 4px; }
+.wizard .question > p.note { margin: 0 0 12px; }
+.connect > fieldset { margin-top: 8px; }
+.route-panel {
+  display: grid; gap: 14px; min-width: 0; margin-top: 12px; padding: 14px; background: var(--ground);
+  border: 1px solid var(--border); border-radius: var(--radius-control);
+}
+.route-panel > * { min-width: 0; }
+.facts { gap: 2px 16px; }
+.where { color: var(--muted); }
+.where strong { color: var(--text); font-weight: 600; }
+.callback .copy-row { margin: 4px 0; }
+.setup-steps { list-style: none; margin: 14px 0 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-control); }
+.setup-steps > li + li { border-top: 1px solid var(--border); }
+.step > summary { padding: 4px 12px; }
+.step > summary .grow { flex: 1; min-width: 0; }
+.step[data-state="later"] > summary strong { color: var(--muted); }
+.step-body { padding: 4px 14px 16px; min-width: 0; }
+
+.more { margin-top: 12px; }
+.more > summary { color: var(--link); font-weight: 600; }
+.more > * + * { margin-top: 10px; }
+.more ul, .routes ul ul { margin: 0; padding-left: 20px; }
+.recover { margin: 0; }
+.recover dt { font-weight: 600; margin-top: 10px; }
+.recover dd { margin: 2px 0 0; }
+.routes { margin: 14px 0 0; }
+.routes .rows > li { align-items: flex-start; flex-wrap: wrap; }
+.routes .grow { flex: 1 1 260px; }
+.routes .grow > * + * { margin-top: 4px; }
+.identity { border-left: 3px solid var(--accent-track); padding-left: 12px; }
 /* the API reference at /api/docs */
 main.api-docs { margin: 0 auto; max-width: 960px; }
 .api-docs .field { margin: 16px 0; }

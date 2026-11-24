@@ -269,6 +269,15 @@ class YouTubeAdapter(DestinationAdapter):
     async def account(self, creds: dict) -> dict:
         async with self.client() as c:
             r = await c.get(f"{API}/channels", params={"part": "snippet", "mine": "true"}, headers=self._h(creds))
+        if r.status_code == 403:                 # say why, so the Destinations page can name the fix (never a token)
+            try:
+                reasons = sorted({str(e["reason"]) for e in r.json()["error"].get("errors", []) if e.get("reason")})
+            except Exception:
+                reasons = []
+            if "accessNotConfigured" in reasons:
+                raise ValueError("YouTube Data API v3 is not enabled for this client's Google Cloud project "
+                                 "(accessNotConfigured)")
+            raise ValueError(f"YouTube refused the channel lookup (HTTP 403 {', '.join(reasons)})".replace(" )", ")"))
         r.raise_for_status()
         items = r.json().get("items") or []
         if not items:
@@ -307,7 +316,8 @@ class YouTubeAdapter(DestinationAdapter):
         return AUTH + "?" + urlencode({
             "client_id": app["client_id"], "redirect_uri": redirect_uri, "response_type": "code",
             "scope": " ".join(SCOPES), "access_type": "offline", "include_granted_scopes": "true",
-            "prompt": "consent", "state": state, "code_challenge": code_challenge, "code_challenge_method": "S256"})
+            # select_account: Google always asks which account (and channel), so the wrong one can be corrected
+            "prompt": "select_account consent", "state": state, "code_challenge": code_challenge, "code_challenge_method": "S256"})
 
     async def exchange_code(self, app: dict, code: str, redirect_uri: str, code_verifier: str) -> dict:
         async with self.client() as c:

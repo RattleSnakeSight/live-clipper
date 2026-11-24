@@ -19,6 +19,8 @@ import time
 
 import httpx
 
+from . import guide
+
 log = logging.getLogger(__name__)
 PLATFORMS = ("twitch", "kick", "youtube")
 STREAM_PROBE = "stream probe (no official API connected)"
@@ -251,6 +253,8 @@ def describe(
 ) -> dict:
     """GET /api/sources entry: what is connected and what each permission enables."""
     connected = has_live_status_creds(platform, creds)
+    g = guide.for_platform(platform)
+    route, how = guide.how_connected(platform, creds) if connected else ("", "")
     problem = (hub.problem.get(platform) if hub else None) or None
     live = {
         "available": connected,
@@ -301,7 +305,18 @@ def describe(
         "chat": chat,
         "capture": {"tool": "Streamlink + FFmpeg (third-party)", "note": RIGHTS_NOTE},
         "fields": sorted(k for k, v in creds.items() if v not in (None, "")),
+        # what the Sources page tells the customer: what this is for and each way to connect (guide.py)
+        "about": g["about"],
+        "routes": g["routes"],
+        "route": route,
+        "how": how,
     }
+    if "chat_setup" in g:  # the local address a tunnel forwards Kick's chat webhooks to
+        port = getattr(settings, "kick_webhook_port", 8788)
+        out["chat_setup"] = {
+            **g["chat_setup"],
+            "listener": f"http://127.0.0.1:{port}/webhooks/kick" if port else "",
+        }
     if pending:
         out["pending"] = pending
     return out

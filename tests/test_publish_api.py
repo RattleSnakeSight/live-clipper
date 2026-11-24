@@ -447,3 +447,180 @@ def test_confirm_posted_stores_the_post_url_and_rejects_a_bad_one(app):
     r = c.post(f"/api/publish/deliveries/{did}/confirm-posted", json={"url": "https://example.com/p/1"})
     assert r.status_code == 200 and r.json()["url"] == "https://example.com/p/1" and r.json()["status"] == "published"
     assert c.get(f"/api/publish/deliveries/{did}").json()["url"] == "https://example.com/p/1"
+
+
+# ---- connecting an account: what the customer is shown, and what connecting must never do -----------------
+
+def recording_youtube(svc, channel="UC_example", title="Example Clips", status=200, reason=""):
+    """A fake Google that records every request it gets."""
+    seen = []
+
+    def channels(req):
+        if status != 200:
+            return httpx.Response(status, json={"error": {"errors": [{"reason": reason}]}})
+        return httpx.Response(200, json={"items": [{"id": channel, "snippet": {"title": title}}]})
+
+    def handler(req):
+        seen.append((req.method, str(req.url)))
+        if req.method == "POST" and "oauth2.googleapis.com/token" in str(req.url):
+            return httpx.Response(200, json={"access_token": ATOKEN, "refresh_token": RTOKEN, "expires_in": 3599})
+        if req.method == "GET" and "/youtube/v3/channels" in str(req.url):
+            return channels(req)
+        return httpx.Response(404, json={})
+    svc.pub.factories["youtube"] = lambda settings, sandbox_dir: YouTubeAdapter(settings, httpx.MockTransport(handler))
+    svc.pub._adapters.clear()
+    return seen
+
+
+def sign_in(c):
+    _, q = start_oauth(c)
+    return c.get("/api/oauth/youtube/callback", params={"code": CODE, "state": q["state"]})
+
+
+def test_connecting_and_checking_never_upload_and_keep_every_posting_choice(app):
+    ctx, svc, c = app
+    yt = prep_youtube(c, svc)
+    c.put("/api/publish/mode", json={"mode": "manual"})
+    c.put(f"/api/destinations/{yt}/settings", json={"privacy": "unlisted", "daily_limit": 3})
+    seen = recording_youtube(svc)
+    url, q = start_oauth(c)
+    assert q["prompt"] == "select_account consent"            # Google always asks which account or channel
+    assert sign_in(c).status_code == 200
+    d = c.get(f"/api/destinations/{yt}").json()
+    assert d["status"] == "connected" and d["account"] == "Example Clips"
+    assert d["account_id"] == "UC_example" and d["account_url"] == "https://www.youtube.com/channel/UC_example"
+    assert d["enabled"] is False and d["rights_acknowledged"] is False   # connecting switches nothing on
+    assert d["settings"]["privacy"] == "unlisted" and d["settings"]["daily_limit"] == 3
+    assert c.get("/api/publish/mode").json()["mode"] == "manual"
+
+    c.put(f"/api/destinations/{yt}/acknowledge", json={"acknowledged": True})
+    c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True})
+    r = c.post(f"/api/destinations/{yt}/connect").json()                  # "Check connection"
+    assert r["action"] == "verified" and r["ok"] and r["account"] == "Example Clips"
+    d = c.get(f"/api/destinations/{yt}").json()
+    assert d["enabled"] and d["rights_acknowledged"] and d["settings"]["privacy"] == "unlisted"
+    assert c.get("/api/publish/mode").json()["mode"] == "manual"
+    # the provider only ever saw the code exchange and the "which channel is this" question
+    assert {(m, u.split("?")[0]) for m, u in seen} == {("POST", "https://oauth2.googleapis.com/token"),
+                                                        ("GET", "https://www.googleapis.com/youtube/v3/channels")}
+    assert not any("upload" in u or "/videos" in u for _, u in seen)
+    assert c.get("/api/publish/deliveries").json()["deliveries"] == []   # and connecting queued nothing
+
+
+def test_a_sign_in_on_another_channel_switches_posting_off_until_it_is_checked(app):
+    ctx, svc, c = app
+    yt = prep_youtube(c, svc)
+    recording_youtube(svc)
+    sign_in(c)
+    c.put(f"/api/destinations/{yt}/acknowledge", json={"acknowledged": True})
+    c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True})
+    sign_in(c)                                                            # the same channel again: nothing changes
+    d = c.get(f"/api/destinations/{yt}").json()
+    assert d["enabled"] and d["rights_acknowledged"] and d["account"] == "Example Clips"
+
+    recording_youtube(svc, channel="UC_other", title="Other Channel")     # the wrong account was picked at Google
+    assert "Connected as Other Channel" in sign_in(c).text
+    d = c.get(f"/api/destinations/{yt}").json()
+    assert d["status"] == "connected" and d["account"] == "Other Channel" and d["account_id"] == "UC_other"
+    assert d["enabled"] is False and d["rights_acknowledged"] is True     # off, and only that
+    assert "different account" in d["status_detail"] and "Example Clips" in d["status_detail"]
+    assert "nothing was sent" in d["status_detail"]
+    # switching it on again is the customer's decision, and then it stays on
+    assert c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True}).json()["enabled"] is True
+    sign_in(c)
+    assert c.get(f"/api/destinations/{yt}").json()["enabled"] is True
+
+
+@pytest.mark.parametrize("status, reason, said", [
+    (403, "accessNotConfigured", "accessNotConfigured"),
+    (403, "forbidden", "HTTP 403 forbidden"),
+])
+def test_a_refused_channel_lookup_names_the_cause_and_its_next_action(app, status, reason, said):
+    ctx, svc, c = app
+    yt = prep_youtube(c, svc)
+    recording_youtube(svc, status=status, reason=reason)
+    assert sign_in(c).status_code == 502
+    d = c.get(f"/api/destinations/{yt}").json()
+    assert d["status"] == "error" and said in d["status_detail"] and ATOKEN not in json.dumps(d)
+    assert d["account_id"] == "" and d["enabled"] is False
+    fixes = [f for f in d["requirements"]["recover"] if any(m.lower() in d["status_detail"].lower() for m in f["match"])]
+    assert bool(fixes) == (reason == "accessNotConfigured")
+    if fixes:
+        assert "Enable" in fixes[0]["action"] and fixes[0]["link"]["url"].startswith("https://console.cloud.google.com/")
+
+
+def test_every_destination_says_what_each_field_is_and_who_posts(app):
+    ctx, svc, c = app
+    ds = {d["provider"]: d for d in c.get("/api/destinations").json()["destinations"]}
+    for provider, d in ds.items():
+        req = d["requirements"]
+        assert req["what"] and req["cost"] and set(req["step_titles"]) >= {"app_credentials", "connect", "enable"}
+        assert req["sign_in"]["button"] and req["identity"]["check"] and req["recover"]
+        for m in req["methods"]:
+            assert m["button"] and m["after"] and m["fields"]
+            for f in m["fields"]:
+                assert f["label"] and f["why"] and f["where"], (provider, f["name"])
+                assert f["secret"] or f["name"] in ("client_id", "client_key")   # everything else is masked
+        for s in [*req["developer_app_steps"], *[s for m in req["methods"] for s in m["steps"]]]:
+            assert not s["link"] or s["link"]["url"].startswith("https://")
+    # YouTube: only the client ID is required, the secret is asked as optional, and an API key is not enough
+    yt = ds["youtube"]["requirements"]
+    assert [(f["name"], f["required"]) for f in yt["methods"][0]["fields"]] == [("client_id", True), ("client_secret", False)]
+    assert "cannot upload" in yt["key_note"] and "Metricool is not needed" in yt["what"] and "routes" not in yt
+    assert not yt["methods"][0]["register_redirect"]                           # Desktop clients register nothing
+    # Instagram and TikTok: this app posts itself; Metricool is named, not available here, and asks for nothing
+    for provider in ("tiktok", "instagram"):
+        native, outside = ds[provider]["requirements"]["routes"]
+        assert (native["id"], native["available"]) == ("native", True)
+        assert (outside["id"], outside["available"]) == ("metricool", False)
+        assert "Metricool" in outside["title"] and "nothing to connect or enter" in outside["summary"]
+        assert "not sent twice" in " ".join(outside["needs"])
+        assert not any(k in outside for k in ("fields", "button", "methods"))
+    assert not any("metricool" in f["name"] for d in ds.values() for m in d["requirements"]["methods"] for f in m["fields"])
+    # the address shown is the one this installation really sends, also after an override
+    ig = ds["instagram"]["id"]
+    c.put(f"/api/destinations/{ig}/settings", json={"redirect_uri": "https://example.com/oauth/ig"})
+    assert c.get(f"/api/destinations/{ig}").json()["requirements"]["redirect_uri"] == "https://example.com/oauth/ig"
+
+
+def test_a_changed_account_holds_unconfirmed_uploads_and_strands_nothing(app):
+    """The account changed under a destination that was on: an upload the old account may already have waits for
+    the user's word, a clip that was only queued waits for the switch, and nothing stays stuck afterwards."""
+    ctx, svc, c = app
+    yt = prep_youtube(c, svc)
+    recording_youtube(svc)
+    sign_in(c)
+    c.put(f"/api/destinations/{yt}/acknowledge", json={"acknowledged": True})
+    c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True})
+    c.put("/api/publish/mode", json={"mode": "manual"})                 # deliveries are created held: no upload runs
+    ids = [svc.pub.enqueue_clip(make_clip(ctx))[0] for _ in range(3)]
+    queued, uploading, uncertain = ids
+    paused = lambda frm: [{"t": 1.0, "from": frm, "to": "paused", "detail": "sign-in expired"}]  # noqa: E731
+    svc.store.update("deliveries", queued, status="paused", history=paused("queued"))
+    svc.store.update("deliveries", uploading, status="paused", history=paused("uploading"))
+    svc.store.update("deliveries", uncertain, status="uncertain", reconcile=1, next_attempt_at=time.time() + 3600)
+
+    seen = recording_youtube(svc, channel="UC_other", title="Other Channel")
+    page = sign_in(c)
+    assert "different account than before" in page.text and "switched off" in page.text
+    state = lambda i: c.get(f"/api/publish/deliveries/{i}").json()  # noqa: E731
+    assert state(queued)["status"] == "blocked"
+    for i in (uploading, uncertain):                                    # never checked against the new account
+        d = state(i)
+        assert d["status"] == "needs_confirmation" and "Example Clips" in d["history"][-1]["detail"]
+    assert not any("upload" in u or "/videos" in u or "playlistItems" in u for _, u in seen)
+
+    on = c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True}).json()
+    assert on["enabled"] and "different account" not in on["status_detail"]   # the note goes with the decision
+    assert state(queued)["status"] not in ("paused", "blocked", "needs_confirmation")   # it is on its way again
+    assert state(uploading)["status"] == state(uncertain)["status"] == "needs_confirmation"
+    assert not any("upload" in u for _, u in seen if "UC_" in u)
+
+
+def test_an_optional_secret_left_empty_is_removed_not_kept(app):
+    ctx, svc, c = app
+    yt = dest_id(c, "youtube")
+    c.put(f"/api/destinations/{yt}/credentials", json={"client_id": "cid-old", "client_secret": CSECRET})
+    r = c.put(f"/api/destinations/{yt}/credentials", json={"client_id": "cid-new", "client_secret": ""})
+    assert r.json() == {"app_credentials_set": ["client_id"]}           # a new client never keeps the old secret
+    assert ctx.secrets.get("publish/app/youtube") == {"client_id": "cid-new"}

@@ -35,9 +35,15 @@ approval and limits are up to each platform.
 |---|---|---|
 | Twitch | Official API or a stream probe; chat read-only, anonymous or signed in | No |
 | Kick | Official API or a stream probe; chat only through a public https address (webhooks) | No |
-| YouTube | Official Data API (daily quota) or the live page; chat uses quota | Shorts, through your own Google app |
-| TikTok | No | Drafts or private posts, through your own TikTok app; public posts need TikTok's audit |
-| Instagram | No | Reels, through your own Meta app and a professional account |
+| YouTube | Official Data API (daily quota) or the live page; chat uses quota | Shorts, directly through Google with your own Google Cloud project |
+| TikTok | No | Drafts or private posts, directly through your own TikTok app; public posts need TikTok's audit |
+| Instagram | No | Reels, directly through your own Meta app and a professional account |
+
+Metricool, an outside scheduling service, is not part of Live Clipper. The maintainers' own tested setup
+published Instagram and TikTok clips through it with an extra helper program this repository does not
+include; a stock install posts to those two directly, with the limits above, and asks for no Metricool
+account. Watching streams, the test destination and YouTube never need it. See
+[Posting](live_clipper/guide/posting.md).
 
 A creator can also give you a feed address (rtmp, rtmps, srt, rtsp or http) to record. Details, limits and the
 keys each platform needs: [Platforms](live_clipper/guide/platforms.md) and
@@ -100,12 +106,12 @@ which posts nowhere: finished clips then wait on the Clips page for you to revie
 The same pages open inside the app under Guide.
 
 - [Install](live_clipper/guide/install.md): prerequisites, install routes, commands.
-- [First run](live_clipper/guide/first-run.md): the setup questions, a safe first test, theme and tour.
-- [Platforms](live_clipper/guide/platforms.md): Twitch, Kick and YouTube keys, permissions and limits.
+- [First run](live_clipper/guide/first-run.md): the setup questions, connecting accounts, a safe first test.
+- [Platforms](live_clipper/guide/platforms.md): watching Twitch, Kick and YouTube; where each key is found.
 - [Monitoring streams](live_clipper/guide/monitoring.md): channels, states, watch modes, keeping the computer on.
 - [Formats and presets](live_clipper/guide/formats-and-presets.md): what becomes a clip and how it looks; your own format.
 - [Editing clips](live_clipper/guide/editing.md): trim, captions, framing, the review queue.
-- [Posting](live_clipper/guide/posting.md): YouTube Shorts, TikTok, Instagram Reels, delivery states, retries.
+- [Posting](live_clipper/guide/posting.md): connecting YouTube Shorts, TikTok and Instagram Reels step by step, Metricool, delivery states, retries.
 - [Let your agent set up keys](live_clipper/guide/agent-setup.md): the key helper and its limits.
 - [Troubleshooting](live_clipper/guide/troubleshooting.md): checks, common problems, cleanup order.
 - [Updating](live_clipper/guide/updating.md): updates, Update pending, offline behaviour.

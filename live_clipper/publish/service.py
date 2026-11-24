@@ -205,14 +205,24 @@ class PublishService:
         is_test = d["provider"] == TEST
         s = {k: v for k, v in (d["settings"] or {}).items() if k in SETTING_KEYS}
         lim = quota.daily_limit(d)
+        req = requirements_for(d["provider"], self.ctx.port)
+        if not is_test:
+            req["redirect_uri"] = self._redirect_uri(d)       # the address this installation really sends
+        # the account the provider reported at the last check (public identifiers, never a token)
+        acct_id = str(((d["settings"] or {}).get("account_info") or {}).get("account_id") or "") \
+            if d["status"] == "connected" else ""
+        acct_url = {"youtube": f"https://www.youtube.com/channel/{acct_id}" if acct_id else "",
+                    "instagram": f"https://www.instagram.com/{d['account']}/"
+                    if re.fullmatch(r"[\w.]{1,30}", d["account"] or "") and acct_id else ""}.get(d["provider"], "")
         return {"id": d["id"], "provider": d["provider"], "label": TEST_LABEL if is_test else d["label"],
-                "test": is_test, "account": d["account"], "status": d["status"],
+                "test": is_test, "account": d["account"], "account_id": acct_id, "account_url": acct_url,
+                "status": d["status"],
                 "status_detail": self.secrets.redact(d["status_detail"]), "enabled": bool(d["enabled"]),
                 "rights_acknowledged": bool(d["rights_ack_at"]), "rights_ack_at": d["rights_ack_at"],
                 "credentials_set": self.secrets.fields("dest", d["id"]),
                 "app_credentials_set": [k for k in self.secrets.fields("app", d["provider"]) if k in CRED_FIELDS],
                 "settings": s, "setup": self._setup(d),
-                "requirements": requirements_for(d["provider"], self.ctx.port),
+                "requirements": req,
                 "quota": {"used_today": quota.used(self.store, d), "limit": lim} if lim else None}
 
     def delivery_view(self, d: dict, dest: dict | None = None) -> dict:
@@ -300,7 +310,9 @@ class PublishService:
         res = await self.pub.connect(dest["id"])
         if not res.get("ok"):
             return _page("Signed in, but not verified", self.secrets.redact(res.get("detail", ""))[:300], 502)
-        return _page("Connected", f"Connected as {res.get('account') or 'your account'}.")
+        return _page("Connected", f"Connected as {res.get('account') or 'your account'}." + (
+            " This is a different account than before, so posting to this destination was switched off. Check the "
+            "account in Live Clipper, then switch posting on again." if res.get("moved") else ""))
 
     # ---- routes ----------------------------------------------------------
     def _routes(self) -> None:
@@ -381,7 +393,10 @@ class PublishService:
                         raise HTTPException(409, "connect the destination before enabling it")
                     if not d["rights_ack_at"]:
                         raise HTTPException(409, "acknowledge that you have the streamer's permission first")
-                self.store.update("destinations", dest_id, enabled=1)
+                # switched on (again): the card goes back to the account's own note
+                note = ((d["settings"] or {}).get("account_info") or {}).get("notes", "")
+                self.store.update("destinations", dest_id, enabled=1,
+                                  **({"status_detail": note} if d["status"] == "connected" else {}))
                 self.pub.unblock_allowed()
             else:
                 self.store.update("destinations", dest_id, enabled=0)

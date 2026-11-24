@@ -192,10 +192,17 @@ def test_guide_renders_offline_markdown_safely(seeded_server, make_page):
     assert not page.js_errors
 
 
+def open_settings(page, provider):
+    """The optional settings of a destination are one click away, under its setup steps."""
+    inside = page.locator(f"form[data-settings={provider}]")
+    page.locator(f"#dest-{provider} details").filter(has=inside).locator("> summary").click()
+    return page.locator(f"#dest-{provider} form[data-settings={provider}]")
+
+
 def test_destination_settings_form_validates_inline_and_saves(seeded_server, make_page):
     page = make_page()
     page.goto(seeded_server.url + "/#/destinations")
-    form = page.locator("#dest-instagram form[data-settings=instagram]")
+    form = open_settings(page, "instagram")
     form.get_by_label("Login type").select_option("facebook")
     form.get_by_label("Public video folder address (https)").fill("http://example.com/clips")
     form.get_by_role("button", name="Save settings").click()
@@ -210,17 +217,17 @@ def test_destination_settings_form_validates_inline_and_saves(seeded_server, mak
     assert saved == {"login": "facebook", "video_base_url": "https://example.com/clips",
                      "share_to_feed": False}
     page.reload()
-    form = page.locator("#dest-instagram form[data-settings=instagram]")
+    form = open_settings(page, "instagram")
     expect(form.get_by_label("Login type")).to_have_value("facebook")
     expect(form.get_by_label("Public video folder address (https)")).to_have_value("https://example.com/clips")
     # YouTube and TikTok have their own fields; an empty field clears the setting
-    yt = page.locator("#dest-youtube form[data-settings=youtube]")
+    yt = open_settings(page, "youtube")
     yt.get_by_label("Who can watch uploads").select_option("unlisted")
     yt.get_by_role("button", name="Save settings").click()
     expect(page.locator("#toasts")).to_contain_text("Settings saved")
     yt_saved = page.request.get(seeded_server.url + "/api/destinations/1").json()["settings"]
     assert yt_saved == {"privacy": "unlisted"}
-    tiktok = page.locator("#dest-tiktok form[data-settings=tiktok]")
+    tiktok = open_settings(page, "tiktok")
     expect(tiktok.get_by_label("How clips are sent")).to_be_visible()
     assert not page.js_errors
 

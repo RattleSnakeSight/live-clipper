@@ -487,14 +487,15 @@ class Publisher:
                             f"({','.join('?' * len(ACTIVE))})", dest["id"], *ACTIVE)
         msg = (f"{dest['provider']} access for '{dest['label']}' expired or was revoked and could not be refreshed"
                f"{refresh_hint(dest, self.refresh_errors.get(dest['id'], ''))}. Reconnect the account "
-               f"(Destinations > {dest['label']} > Connect) to resume {len(rows)} held deliveries.")
+               f"(Destinations > {dest['label']}: sign in again in step 2, or paste a new token in step 1) to resume "
+               f"{len(rows)} held deliveries.")
         self.store.update("destinations", dest["id"], status="needs_reconnect", status_detail=self.secrets.redact(msg))
         for r in rows:
             self._set(r["id"], "paused", "destination needs reconnect: " + detail)
         self.log(msg, "warn")
         if dest["provider"] != TEST:
             self.notify(f"Reconnect {dest['label']}", f"Posting to {dest['provider']} is on hold: access expired or "
-                                                      f"was revoked. Open Destinations and click Connect.")
+                                                      f"was revoked. Open Destinations and sign in again.")
 
     # ---- auth ------------------------------------------------------------
     def _gen(self, dest_id: int) -> int | None:
@@ -934,25 +935,61 @@ class Publisher:
                 new = await self._refresh(dest, adapter, creds, gen) if creds.get("refresh_token") else None
             except _Superseded:
                 return {"ok": False, "detail": "credentials changed during verification; verify again"}
-            if not new:
-                msg = self.secrets.redact(f"could not verify account: {type(e).__name__}: {e}"
-                                          f"{refresh_hint(dest, self.refresh_errors.get(dest_id, ''))}")
+            info, why = None, e
+            if new:
+                try:
+                    info = await adapter.account(new)
+                except Exception as again:           # refused with a fresh token too (e.g. the API is disabled)
+                    why = again
+            if info is None:
+                msg = self.secrets.redact(f"could not verify account: {type(why).__name__}: {why}"
+                                          f"{'' if new else refresh_hint(dest, self.refresh_errors.get(dest_id, ''))}")
                 self.store.update("destinations", dest_id, status="error", status_detail=msg)
                 return {"ok": False, "detail": msg}
-            info = await adapter.account(new)
         with self.store._lock:
             cur = self.store.q1("SELECT * FROM publish_destinations WHERE id=?", dest_id)
             if not cur or int((cur["settings"] or {}).get("cred_gen", 0) or 0) != gen:
                 return {"ok": False, "detail": "credentials changed during verification; verify again"}
             ai = {k: v for k, v in info.items() if k not in ("account", "ok")}
             ai["verified_gen"] = gen
+            # a sign-in that lands on another account than the one posting was switched on for never inherits
+            # "on": the user checks the new account first (nothing is sent meanwhile, nothing else changes)
+            was = str((cur["settings"].get("account_info") or {}).get("account_id") or "")
+            now = str(ai.get("account_id") or was)
+            moved = bool(cur["enabled"] and was and now != was and dest["provider"] != TEST)
+            detail = info.get("notes", "")
+            if moved:
+                old = f"{cur['account'] or 'unnamed'} (id {was})"
+                detail = (f"This sign-in belongs to a different account ({info.get('account') or 'unnamed'}, id {now}) "
+                          f"than the one posting was switched on for ({old}). Posting was switched off and nothing "
+                          f"was sent. Check the account, then switch posting on again.")
             self.store.update("destinations", dest_id, account=str(info.get("account", "")),
                               settings={**cur["settings"], "account_info": ai}, status="connected",
-                              status_detail=info.get("notes", ""))
-        n = self.resume_destination(dest_id)
+                              status_detail=detail, **({"enabled": 0} if moved else {}))
+        held = self._hold_unconfirmed(dest_id, old) if moved else 0
+        n = self.resume_destination(dest_id)          # a destination that is off gets its paused deliveries blocked
+        if moved:
+            self.block_destination(dest_id)
         self.log(f"destination '{dest['label']}' connected as {info.get('account')}"
-                 + (f"; resumed {n} deliveries" if n else ""))
-        return {"ok": True, **info}
+                 + (f"; a different account than before: posting switched off, {held} unconfirmed uploads held for "
+                    f"confirmation" if moved else f"; resumed {n} deliveries" if n else ""))
+        return {"ok": True, "moved": moved, **info}
+
+    def _hold_unconfirmed(self, dest_id: int, old: str) -> int:
+        """The destination now belongs to another account. An upload the previous account may already have is never
+        checked against, or sent to, the new one on its own: the user looks at the previous account and confirms."""
+        n = 0
+        for d in self.store.q("SELECT id, status, reconcile, history FROM publish_deliveries WHERE destination_id=? "
+                              "AND status IN ('uploading','processing','uncertain','paused')", dest_id):
+            prev = d["status"]
+            if prev == "paused":
+                prev = next((h["from"] for h in reversed(d["history"]) if h["to"] == "paused"), "queued")
+            if prev in ("uploading", "processing", "uncertain") or d["reconcile"]:
+                self._set(d["id"], "needs_confirmation", f"the destination's account changed while this upload was "
+                          f"not confirmed | Check {old}; then use 'Confirm posted' or 'Confirm not posted'.",
+                          next_attempt_at=0)
+                n += 1
+        return n
 
     def disconnect(self, dest_id: int) -> None:
         """Forget the tokens (app credentials stay), disable the destination, hold unfinished deliveries."""

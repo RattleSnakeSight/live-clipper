@@ -1,18 +1,56 @@
 // First-run wizard. Every answer is saved as soon as you press Next, so a reload resumes at the first
 // unanswered question.
 
-import { ApiError, get, post, put } from '../api.js';
+import { ApiError, get, list, post, put } from '../api.js';
 import { answerLabel, checkValue, effective, isVisible, questionField } from '../questions.js';
 import { btn, clear, fmtBytes, h } from '../ui.js';
+import { PLATFORMS } from '../labels.js';
 import { agentPanel } from '../agent.js';
 import { markSetupDone } from '../app.js';
 import { maybeStartTour } from '../tour.js';
 
-const KEY_LABELS = {
-  'source:twitch': 'Watch Twitch', 'source:kick': 'Watch Kick', 'source:youtube': 'Watch YouTube',
-  'destination:youtube': 'Post to YouTube Shorts', 'destination:tiktok': 'Post to TikTok',
-  'destination:instagram': 'Post to Instagram Reels',
-};
+// The accounts behind the two answers "which platforms to watch" and "where to post": what each connection is
+// for, whether it needs an account, and where it is set up once setup is finished. Nothing is connected here.
+async function accountsBox(answers, questions) {
+  const watch = answers['platforms.enabled'] || [];
+  const post_ = (answers['posting.destinations'] || []).filter((p) => p !== 'none');
+  const [sources, dests] = await Promise.all([
+    get('/sources').then((d) => list(d, 'sources')).catch(() => []),
+    get('/destinations').then((d) => list(d, 'destinations')).catch(() => [])]);
+  const agent = (target) => {
+    const slot = h('details', { class: 'more' }, h('summary', { help: 'Show or hide the agent helper for these keys.' }, 'Let my agent fill in the keys'));
+    agentPanel(target, () => {}, 'after-setup', 'h5').then((p) => { if (p) slot.append(p); else slot.remove(); });
+    return slot;
+  };
+  const item = (name, what, need, where, target) => h('li', {},
+    h('div', { class: 'grow' }, h('div', { class: 'title' }, name), h('p', {}, what),
+      h('p', { class: 'small muted' }, need), h('p', { class: 'small' }, where), agent(target)));
+  const watchRows = watch.map((p) => {
+    const s = sources.find((x) => x.platform === p) || {};
+    const about = s.about || {};
+    const name = PLATFORMS[p] || p;
+    return item(name, about.what || '', about.without || '',
+      s.connected ? 'Already connected.' : `After setup: on the Sources page, under ${name}. Or just add a channel on the Channels page.`, `source:${p}`);
+  });
+  const postRows = post_.map((p) => {
+    const d = dests.find((x) => x.provider === p) || {};
+    const r = d.requirements || {};
+    return item(d.label || p, r.what || '', `Account: ${r.account || 'your own account'}`,
+      d.status === 'connected' ? `Already connected${d.account ? ` as ${d.account}` : ''}.`
+        : `After setup: on the Destinations page, under ${d.label || p}. Four steps, shown one at a time.`, `destination:${p}`);
+  });
+  if (!watchRows.length && !postRows.length) return null;
+  // who posts to Instagram and TikTok, said once more when either was picked (the note of that question)
+  const outside = post_.some((p) => p === 'instagram' || p === 'tiktok')
+    ? (questions.find((q) => q.id === 'posting.destinations') || {}).note : '';
+  return h('section', { id: 'wizard-accounts', class: 'panel', 'aria-labelledby': 'wa-title' },
+    h('h3', { id: 'wa-title' }, 'Accounts for what you picked'),
+    h('p', { class: 'small muted' }, 'Connecting can wait until setup is finished, and nothing is ever posted until you connect an account, '
+      + 'confirm your rights and switch a destination on. Each connection is set up on its own page, with the steps next to the fields.'),
+    watchRows.length ? [h('h4', {}, 'Watch a stream'), h('ul', { class: 'rows' }, watchRows)] : null,
+    postRows.length ? [h('h4', {}, 'Post my clips'), h('ul', { class: 'rows' }, postRows)] : null,
+    outside ? h('p', { class: 'note info', id: 'wizard-metricool' }, h('strong', {}, 'Who posts to Instagram and TikTok: '), outside) : null);
+}
 
 export async function render(main, params) {
   const [qd, st, hw] = await Promise.all([
@@ -114,24 +152,13 @@ export async function render(main, params) {
         errors[q.id] ? h('span', { class: 'error' }, errors[q.id]) : null),
     ]));
     const errCount = Object.keys(errors).length;
-    // keys for the platforms picked above: the installing agent can look them up now, or later on Sources
-    const targets = [...(answers['platforms.enabled'] || []).map((p) => `source:${p}`),
-      ...(answers['posting.destinations'] || []).filter((p) => ['youtube', 'tiktok', 'instagram'].includes(p))
-        .map((p) => `destination:${p}`)];
-    const keysBox = targets.length ? h('section', { id: 'wizard-keys', class: 'panel', 'aria-labelledby': 'wk-title' },
-      h('h3', { id: 'wk-title' }, 'Platform keys'),
-      h('p', { class: 'small muted' }, 'Optional now, and always possible later on Sources and Destinations. '
-        + 'The AI agent that installed Live Clipper can look your keys up for you; you choose where.')) : null;
-    for (const t of targets) {
-      const slot = h('details', {}, h('summary', { help: 'Show or hide the agent request for this platform.' }, KEY_LABELS[t] || t));
-      keysBox.append(slot);
-      agentPanel(t, () => {}, 'after-setup').then((p) => { if (p) slot.append(p); else slot.remove(); });
-    }
+    const accounts = h('div', {});
+    accountsBox(answers, questions).then((box) => { if (box) accounts.append(box); }).catch(() => {});
     clear(root, header(vis.length + 1, vis.length + 1),
       h('h2', { tabindex: -1, id: 'review-title' }, 'Check your answers'),
-      keysBox,
       errCount ? h('p', { class: 'note bad', role: 'alert' },
         errors._ || `${errCount} answer${errCount > 1 ? 's need' : ' needs'} a change before setup can finish.`) : null,
+      accounts,
       list,
       h('nav', { 'aria-label': 'Setup steps' },
         btn('Back', 'Go back to the last question.', () => showQuestion(vis.length - 1)), finish));

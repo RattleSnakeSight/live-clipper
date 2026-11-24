@@ -63,6 +63,7 @@ The update check never contacts GitHub in tests: `tests/conftest.py` points it a
 | Which moments become clips, titles | `detector.py`, `candidates.py`, `moments.py`, `editorial.py`, `titles.py`, `formats.py`, `formats/` |
 | Cutting, captions, rendering, presets | `clipper.py`, `render.py`, `postprocess.py`, `captions/`, `presets.py`, `presets/` |
 | Posting and destinations | `live_clipper/publish/` (setup steps shown in the app: `publish/requirements.py`) |
+| Account instructions on Sources and Destinations | `sources/guide.py` and `publish/requirements.py` (the words), `web/js/connect.js` (how they are drawn); keep `guide/platforms.md` and `guide/posting.md` in step, a test compares them |
 | Storage cleanup, notifications | `maintenance.py`, `notifications.py` |
 | Setup questions, in-app guide list | `setup_service.py` |
 | Update check | `update_gate.py` |

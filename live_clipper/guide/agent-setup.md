@@ -11,6 +11,20 @@ This only fills in keys. Creating developer applications, signing in, approving 
 consent screen and accepting terms stay with you, in your browser: see [Platforms](platforms.md) and
 [Posting](posting.md) for each step.
 
+## What the helper fills in, and what you do yourself
+
+| | The helper can do it | You do it in your browser |
+|---|---|---|
+| Create a developer application or a Google Cloud project | No | Yes |
+| Copy a Client ID, secret or API key out of a platform's site | No. You put the values in a place you choose first. | Yes |
+| Put those values into Live Clipper | Yes, from the place you chose | Or type them in |
+| Sign in, pick the account or channel, press Allow | No | Yes |
+| Tick the rights acknowledgement and switch posting on | No | Yes |
+
+On Sources and Destinations the helper sits under **Or let my agent fill these in**, next to the fields it
+fills. It never fills in a pasted Instagram token, a sign-in or a Metricool value: Live Clipper has no
+Metricool field at all.
+
 ## How it works
 
 1. **Pairing.** The agent asks you, then runs `live-clipper agent pair --agent claude` (or `codex`). That pairs
@@ -18,8 +32,9 @@ consent screen and accepting terms stay with you, in your browser: see [Platform
    agent is paired.
 2. **The helper.** The agent starts `live-clipper agent serve`. It is a plain program, not an AI: it waits for
    your requests and does exactly what is described below, nothing else.
-3. **Your request.** On Sources, Destinations, Settings > Agent setup, or the last page of setup, open
-   **Let your agent set this up**, pick where the keys are and press **Ask my agent**:
+3. **Your request.** On Sources or Destinations open **Or let my agent fill these in** under the fields; on
+   the last page of setup open **Let my agent fill in the keys**; or use Settings > Agent setup. Pick where
+   the keys are and press **Ask my agent**:
    - **Environment variables**: the helper reads only the names shown, for example `TWITCH_CLIENT_ID` and
      `TWITCH_CLIENT_SECRET`, from the environment it was started in.
    - **A file I choose**: give the full path of a file with `KEY=VALUE` lines or a JSON object. Only the names
@@ -32,14 +47,18 @@ consent screen and accepting terms stay with you, in your browser: see [Platform
 
 ## Names the helper looks for
 
-| Platform | Names |
-|---|---|
-| Twitch (watching) | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` |
-| Kick (watching) | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` |
-| YouTube (watching) | `YOUTUBE_API_KEY` |
-| YouTube Shorts (posting) | `YOUTUBE_CLIENT_ID`, optional `YOUTUBE_CLIENT_SECRET` |
-| TikTok (posting) | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` |
-| Instagram Reels (posting) | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` |
+| Platform | Names | The fields they fill |
+|---|---|---|
+| Twitch (watching) | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | Client ID and secret |
+| Kick (watching) | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | Client ID and secret |
+| YouTube (watching) | `YOUTUBE_API_KEY` | API key (public data) |
+| YouTube Shorts (posting) | `YOUTUBE_CLIENT_ID`, optional `YOUTUBE_CLIENT_SECRET` | Client ID and Client secret of your Desktop app client |
+| TikTok (posting) | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | Client key and Client secret |
+| Instagram Reels (posting) | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` | Instagram app ID and Instagram app secret |
+
+For watching, the helper's keys are checked with the platform as they are saved, so the card says
+"Connected". For posting they are only stored: the card says "Keys saved, not signed in" until you sign in
+yourself.
 
 ## What the agent does not do
 

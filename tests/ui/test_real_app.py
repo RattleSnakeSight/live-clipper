@@ -334,25 +334,45 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     expect(page).to_have_url(f"{app.url}/#/channels")
     assert app.api(f"/channels/{cid}")["watch_mode"] == "topic_gated"
 
-    # sources: the stream probe is named, and every connect form is there
+    # sources: the stream probe is named; each way to connect shows its own action and nothing else
     page.goto(f"{app.url}/#/sources")
     twitch = page.locator("#source-twitch")
     expect(twitch).to_contain_text("Stream probe (no official API connected)")
+    expect(twitch.locator("input[type=password]")).to_have_count(0)  # "no account" asks for nothing
+    twitch.get_by_label("Sign in with a code").check()
     expect(twitch.get_by_role("button", name="Get a Twitch code")).to_be_visible()
-    expect(page.locator("#source-kick")).to_contain_text(f"http://localhost:{app.port}/api/oauth/source/kick/callback")
-    expect(page.locator("#source-youtube").get_by_role("button", name="Save YouTube key")).to_be_visible()
+    expect(twitch.get_by_role("button", name="Save Twitch keys")).to_have_count(0)
+    kick = page.locator("#source-kick")
+    kick.locator("summary").filter(has_text="Connect Kick").click()
+    kick.get_by_label("Sign in with Kick").check()
+    expect(kick).to_contain_text(f"http://localhost:{app.port}/api/oauth/source/kick/callback")
+    expect(kick).to_contain_text("http://127.0.0.1:8788/webhooks/kick")  # where a tunnel forwards Kick chat
+    youtube = page.locator("#source-youtube")
+    youtube.locator("summary").filter(has_text="Connect YouTube").click()
+    youtube.get_by_label("API key (public data)").check()
+    expect(youtube.get_by_role("button", name="Save YouTube key")).to_be_visible()
+    expect(youtube).to_contain_text("cannot upload")
 
-    # destinations: requirements with the exact local redirect addresses
+    # destinations: the steps with the exact local redirect addresses; Metricool is named and asks for nothing
     page.goto(f"{app.url}/#/destinations")
     dests = (("youtube", "YouTube Shorts"), ("tiktok", "TikTok"), ("instagram", "Instagram Reels"))
+    page.locator("#dest-instagram").get_by_label("Sign in with your Meta app").check()
     for provider, label in dests:
         sec = page.locator(f"#dest-{provider}")
-        expect(sec.get_by_role("heading", name=label)).to_be_visible()
+        expect(sec.get_by_role("heading", name=label, exact=True)).to_be_visible()
         expect(sec).to_contain_text(f"http://127.0.0.1:{app.port}/api/oauth/{provider}/callback")
         expect(sec).to_contain_text("What fails without each step")
+        expect(sec.locator("details.step[open]")).to_have_count(1)  # only the next step is open
+    for provider in ("tiktok", "instagram"):
+        route = page.locator(f"#routes-{provider} li[data-route=metricool]")
+        expect(route).to_contain_text("Not available in this installation")
+        expect(route.locator("input, button, select, textarea")).to_have_count(0)
+    expect(page.locator("#dest-youtube")).to_contain_text("Metricool is not needed")
     expect(page.get_by_label("Automatic")).to_be_checked()
     # destination settings go through the real publish API, with its per-field errors shown inline
     ig = page.locator("#dest-instagram form[data-settings=instagram]")
+    settings = page.locator("form[data-settings=instagram]")
+    page.locator("#dest-instagram details").filter(has=settings).locator("> summary").click()
     ig.get_by_label("Public video folder address (https)").fill("http://example.com/clips")
     ig.get_by_role("button", name="Save settings").click()
     expect(ig.locator(".field").filter(has_text="Public video folder address").locator(".error")).to_contain_text("https://")
@@ -464,6 +484,7 @@ def test_dark_default_light_choice_and_agent_key_setup_on_the_real_app(make_app,
     keys = tmp_path / "tiktok.env"
     keys.write_text(f"TIKTOK_CLIENT_KEY={key}\nTIKTOK_CLIENT_SECRET={secret}\n", encoding="utf-8")
     page.goto(f"{app.url}/#/destinations")
+    page.locator("#dest-tiktok").get_by_text("Or let my agent fill these in").click()
     panel = page.locator('#dest-tiktok .agent-panel')
     expect(panel).to_contain_text("Paired with Codex")
     panel.get_by_label("A file I choose").check()

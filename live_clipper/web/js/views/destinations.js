@@ -1,21 +1,16 @@
-// Destinations: posting mode, step-by-step setup per destination (from GET /api/destinations requirements),
-// connect/disconnect, rights acknowledgement and enable. The test destination posts nothing.
+// Destinations ("Post my clips"): posting mode, then one card per destination that walks through its setup one
+// step at a time (GET /api/destinations carries the instructions: live_clipper/publish/requirements.py).
+// Connecting or checking an account never posts anything. The test destination posts nothing at all.
 
 import { ApiError, get, list, post, put } from '../api.js';
 import { busy, choiceGroup, clear, confirmDialog, h, selectField, setError, switchField, textField, titleRow, toast } from '../ui.js';
 import { agentPanel } from '../agent.js';
+import { announceChanges, copyRow, extLink, focusCard, guidedField, intentSwitch, moreDetails, nextAction, recoverList, redraw,
+  refreshOnReturn, rememberRoute, rememberedRoute, savedNames, signInNote, stepList, swapPanel } from '../connect.js';
 
 const STATUS = {
-  connected: ['Connected', 'pos'], disconnected: ['Not connected', 'neutral'], needs_reconnect: ['Reconnect needed', 'warn'],
-  error: ['Error', 'neg'], unverified: ['Checking', 'accent'],
-};
-const STEP_NAMES = {
-  app_credentials: 'Developer app keys saved', connect: 'Account connected',
-  rights_acknowledgement: 'Posting rights confirmed', enable: 'Turned on',
-};
-const CRED_FIELDS = {
-  tiktok: [['client_key', 'Client key', false], ['client_secret', 'Client secret', true]],
-  default: [['client_id', 'Client ID', false], ['client_secret', 'Client secret', true]],
+  connected: ['Connected', 'pos'], disconnected: ['Not connected', 'neutral'], needs_reconnect: ['Sign in again', 'warn'],
+  error: ['Could not verify', 'neg'], unverified: ['Checking the account', 'accent'],
 };
 
 // Settings the publish API accepts per provider (PUT /destinations/{id}/settings). kind: select | text | number |
@@ -69,7 +64,7 @@ function settingsForm(d, refresh) {
   const save = h('button', { type: 'submit', class: 'btn', help: 'Check and save these settings for this destination.' }, 'Save settings');
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
   const form = h('form', { class: 'stack', novalidate: true, 'aria-label': `${d.label} settings`, dataset: { settings: d.provider } },
-    h('h3', {}, 'Settings'), h('p', { class: 'small muted' }, 'Leave a field on Default or empty to use the built-in behaviour.'),
+    h('p', { class: 'small muted' }, 'Leave a field on Default or empty to use the built-in behaviour.'),
     h('div', { class: 'inline-fields' }, fields.map(([, f]) => f.el)), h('div', {}, save), out);
   form.addEventListener('submit', busy(save, async (e) => {
     e.preventDefault();
@@ -97,11 +92,12 @@ function settingsForm(d, refresh) {
   return form;
 }
 
-export async function render(main) {
+export async function render(main, params) {
   const modeBox = h('section', { id: 'posting-mode', class: 'panel', 'aria-labelledby': 'pm-title' });
   const list_ = h('div', { class: 'stack', style: 'margin-top: var(--gap)' });
-  main.append(titleRow('Destinations', 'The accounts clips are posted to. Nothing is posted until a destination is connected, confirmed and turned on.'),
-    modeBox, list_);
+  const intents = h('div', {});
+  main.append(titleRow('Destinations', 'Post my clips: the accounts clips are posted to. Nothing is posted until a destination is connected, confirmed and turned on.'),
+    intents, modeBox, list_);
 
   async function loadMode() {
     const m = await get('/publish/mode');
@@ -119,19 +115,29 @@ export async function render(main) {
 
   // the destinations picked during setup come first
   const chosen = await get('/setup/state').then((s) => (s.answers || {})['posting.destinations'] || []).catch(() => []);
-  async function load() {
+  const seen = new Map();
+  let last = '';
+  // force: the customer did something, so draw again. Otherwise only when the answer changed, so nothing they
+  // opened or focused is disturbed by a look that found nothing new.
+  async function load(force = true) {
     const [rows, test] = await Promise.all([
       get('/destinations').then((d) => list(d, 'destinations')),
       get('/publish/test-mode').catch(() => null)]);
+    const sig = JSON.stringify([rows, test]);
+    if (!force && sig === last) return;
+    last = sig;
     const real = rows.filter((d) => !d.test);
     const mine = real.filter((d) => chosen.includes(d.provider));
     const other = real.filter((d) => !chosen.includes(d.provider));
-    // the long requirements start open only for a destination picked in setup that is not connected yet
-    clear(list_, testCard(rows.find((d) => d.test), test, load),
-      mine.length ? h('h2', { class: 'group-label' }, 'Picked during setup') : null, mine.map((d) => card(d, load, true)),
-      mine.length && other.length ? h('h2', { class: 'group-label' }, 'Other destinations') : null, other.map((d) => card(d, load, false)));
+    redraw(list_, [testCard(rows.find((d) => d.test), test, load),
+      mine.length ? h('h2', { class: 'group-label' }, 'Picked during setup') : null, mine.map((d) => card(d, load)),
+      mine.length && other.length ? h('h2', { class: 'group-label' }, 'Other destinations') : null, other.map((d) => card(d, load))]);
+    clear(intents, await intentSwitch('post', { dests: rows }));
+    announceChanges(seen, real.map((d) => [d.label, `${statusOf(d)[0]}${d.status === 'connected' && d.account ? ` as ${d.account}` : ''}, posting ${d.enabled ? 'on' : 'off'}`]));
   }
   await Promise.all([loadMode().catch((e) => clear(modeBox, h('p', { class: 'error' }, e.message))), load()]);
+  focusCard(params && params[0] ? `dest-${params[0]}` : null);
+  return refreshOnReturn(list_, load);
 }
 
 function testCard(dest, test, refresh) {
@@ -147,145 +153,211 @@ function testCard(dest, test, refresh) {
     h('p', { style: 'margin-bottom: 12px' }, 'Use it to try the whole flow safely. It never counts as a real post and needs no account.'), sw.el);
 }
 
-function list2(items) {
-  return h('ul', {}, items.map((s) => h('li', {}, typeof s === 'string' ? s : s.text,
-    s.verified === false ? h('span', { class: 'small muted' }, ' (not confirmed by the provider\'s docs)') : null)));
+// A saved key is not a connection: only "Connected" means the provider confirmed which account this is.
+function statusOf(d) {
+  if (d.status === 'disconnected' && (d.app_credentials_set || []).length) return ['Keys saved, not signed in', 'neutral'];
+  return STATUS[d.status] || [d.status, 'neutral'];
 }
 
-function requirements(d) {
+// Who sends the clip to this destination. A route that is not part of this installation shows no fields and no
+// button: there is nothing here to connect.
+function routes(d) {
+  const rs = (d.requirements || {}).routes || [];
+  if (!rs.length) return null;
+  return h('div', { class: 'routes', id: `routes-${d.provider}` },
+    h('h3', {}, `Who posts to ${d.label}`),
+    h('ul', { class: 'rows' }, rs.map((r) => h('li', { dataset: { route: r.id } },
+      h('div', { class: 'grow' }, h('div', { class: 'title' }, r.title), h('p', {}, r.summary),
+        (r.needs || []).length ? h('ul', { class: 'small' }, r.needs.map((n) => h('li', {}, n))) : null,
+        r.guide ? h('p', { class: 'small' }, h('a', { href: `#/guide/${r.guide.page}`, help: `Open the guide page ${r.guide.label}.` }, r.guide.label),
+          r.link ? [' · ', extLink(r.link)] : null) : null),
+      h('span', { class: `pill ${r.available ? 'pos' : 'neutral'}` }, r.available ? 'Available here' : 'Not available in this installation')))));
+}
+
+function advanced(d) {
   const r = d.requirements || {};
   const scopes = Array.isArray(r.scopes) ? r.scopes : Object.entries(r.scopes || {}).flatMap(([k, v]) => v.map((s) => `${s} (${k.replace('_', ' ')})`));
-  const copy = h('button', { type: 'button', class: 'btn small', help: 'Copy this address to paste into the developer app settings.' }, 'Copy');
-  copy.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(r.redirect_uri); toast('Address copied.'); } catch {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(copy.previousElementSibling);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      toast('Press Ctrl+C (or Cmd+C) to copy the selected address.');
-    }
-  });
-  const fails = Object.entries(r.fails_without || {});
-  return h('div', { class: 'split', style: 'margin: 12px 0' },
-    h('div', { class: 'stack' },
-      h('div', {}, h('h3', {}, 'Account you need'), h('p', {}, r.account || '-')),
-      h('div', {}, h('h3', {}, 'Cost'), h('p', {}, r.free ? 'Free' : 'May cost money; check the provider.')),
-      (r.developer_app_steps || []).length ? h('div', {}, h('h3', {}, 'Set up your developer app'),
-        h('ol', { class: 'steps-list' }, r.developer_app_steps.map((s) => h('li', {}, s.text,
-          s.verified === false ? h('span', { class: 'small muted' }, ' (not confirmed by the provider\'s docs)') : null)))) : null,
-      r.redirect_uri ? h('div', {}, h('h3', {}, 'Redirect address to register'),
-        h('div', { class: 'copy-row' }, h('code', {}, r.redirect_uri), copy),
-        r.redirect_note ? h('p', { class: 'small muted', style: 'margin-top: 4px' }, r.redirect_note) : null) : null,
-      scopes.length ? h('div', {}, h('h3', {}, 'Permissions (scopes) to request'), list2(scopes)) : null),
-    h('div', { class: 'stack' },
-      (r.verification_audit || []).length ? h('div', {}, h('h3', {}, 'Verification and audit'), list2(r.verification_audit)) : null,
-      r.quotas ? h('div', {}, h('h3', {}, 'Limits'), h('p', {}, r.quotas.summary),
-        d.quota ? h('p', { class: 'small muted num' }, `Used today: ${d.quota.used_today} of ${d.quota.limit}`) : null) : null,
-      fails.length ? h('div', {}, h('h3', {}, 'What fails without each step'),
-        h('dl', { class: 'kv long' }, fails.map(([k, v]) => [h('dt', {}, k.replace(/_/g, ' ')), h('dd', {}, v)]))) : null,
-      r.tos_rights ? h('div', {}, h('h3', {}, 'Terms and rights'), h('p', {}, r.tos_rights)) : null,
-      (r.notes || []).length ? h('div', {}, h('h3', {}, 'Good to know'), list2(r.notes)) : null,
-      (r.docs || []).length ? h('div', {}, h('h3', {}, 'Official documentation'),
-        h('ul', {}, r.docs.map((u) => h('li', {}, h('a', { href: u, target: '_blank', rel: 'noopener noreferrer',
-          help: 'Opens the provider\'s documentation in a new tab.' }, u.replace(/^https?:\/\//, '')))))) : null,
-      r.as_of ? h('p', { class: 'small muted' }, `Checked against the provider docs on ${r.as_of}.`) : null));
+  const fails = Object.entries(r.fails_without || {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
+  const quota = r.quotas ? [r.quotas.summary, d.quota ? `Used today: ${d.quota.used_today} of ${d.quota.limit}.` : null].filter(Boolean) : [];
+  const docs = (r.docs || []).length ? h('div', {}, h('h4', {}, 'Official documentation'),
+    h('ul', {}, r.docs.map((u) => h('li', {}, extLink({ url: u, label: u.replace(/^https?:\/\//, '') })))),
+    r.as_of ? h('p', { class: 'small muted' }, `Checked against the provider's pages on ${r.as_of}.`) : null) : null;
+  return moreDetails('Limits, permissions and audit', [
+    { title: 'Limits', items: quota },
+    { title: 'Permissions the sign-in asks for (scopes)', items: scopes },
+    { title: 'Verification and audit', items: r.verification_audit || [] },
+    { title: 'What fails without each step', items: fails },
+    { title: 'Terms and rights', items: r.tos_rights ? [r.tos_rights] : [] },
+    { title: 'Good to know', items: [...(r.notes || []), r.redirect_note].filter(Boolean) }], docs);
 }
 
-function card(d, refresh, picked) {
-  const [label, tone] = STATUS[d.status] || [d.status, 'neutral'];
-  const out = h('div', { role: 'status', 'aria-live': 'polite' });
+// One numbered step. Only the next step starts open; finished ones can be reopened to change them.
+function step(n, total, title, state, body) {
+  const tag = { done: ['Done', 'pos'], next: ['Do this next', 'accent'], later: ['Not yet', 'neutral'] }[state];
+  return h('li', {}, h('h3', { class: 'sr-only' }, `Step ${n} of ${total}: ${title}`),
+    h('details', { class: 'step', open: state === 'next', dataset: { step: String(n), state } },
+      h('summary', { help: 'Show or hide this step.' },
+        h('span', { class: 'grow' }, h('strong', {}, `${n}. ${title}`)), h('span', { class: 'sr-only' }, ', '),
+        h('span', { class: `pill ${tag[1]}` }, tag[0])),
+      h('div', { class: 'step-body stack' }, body)));
+}
+
+function card(d, refresh) {
+  const r = d.requirements || {};
+  const [label, tone] = statusOf(d);
   const connected = d.status === 'connected';
-  const steps = (d.setup && d.setup.steps) || [];
+  const done = Object.fromEntries(((d.setup && d.setup.steps) || []).map((s) => [s.id, s.done]));
+  const next = ['app_credentials', 'connect', 'rights_acknowledgement', 'enable'].find((id) => !done[id]);
+  const state = (id) => (done[id] ? 'done' : id === next ? 'next' : 'later');
+  const titles = r.step_titles || {};
 
-  // developer app keys
-  const fields = (CRED_FIELDS[d.provider] || CRED_FIELDS.default).map(([name, lab, secret]) => textField({
-    label: lab, name, type: secret ? 'password' : 'text', autocomplete: 'off',
-    help: secret ? 'Stored encrypted on this computer and never shown again.' : 'Copy it from your developer app\'s credentials page.' }));
-  const saveKeys = h('button', { type: 'submit', class: 'btn', help: 'Save these keys in the encrypted store on this computer.' }, 'Save keys');
-  const keys = h('form', { class: 'stack', novalidate: true, 'aria-label': `${d.label} developer app keys` },
-    h('h3', {}, 'Developer app keys'),
-    (d.app_credentials_set || []).length ? h('p', { class: 'small muted' }, `Saved: ${d.app_credentials_set.join(', ')}. Enter new values to replace them.`) : null,
-    h('div', { class: 'inline-fields' }, fields.map((f) => f.el)), h('div', {}, saveKeys));
-  keys.addEventListener('submit', busy(saveKeys, async (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(fields.map((f) => [f.input.name, f.input.value.trim()]).filter(([, v]) => v));
-    if (!Object.keys(body).length) { clear(out, h('p', { class: 'error' }, 'Enter at least one key.')); return; }
-    try { await put(`/destinations/${d.id}/credentials`, body); toast('Keys saved.'); await refresh(); } catch (ex) { clear(out, h('p', { class: 'error' }, ex.message)); }
-  }));
-
-  // instagram token
-  let tokenForm = null;
-  if (d.provider === 'instagram') {
-    const tok = textField({ label: 'Long-lived access token', type: 'password', autocomplete: 'off',
-      help: 'From the Meta app dashboard, Instagram API setup, Generate token. Stored encrypted on this computer.' });
-    const send = h('button', { type: 'submit', class: 'btn', help: 'Check the token and connect the account.' }, 'Connect with token');
-    tokenForm = h('form', { class: 'stack', novalidate: true, 'aria-label': 'Instagram access token' }, h('h3', {}, 'Or paste a token'), tok.el, h('div', {}, send));
-    tokenForm.addEventListener('submit', busy(send, async (e) => {
-      e.preventDefault();
-      try { await post('/destinations/instagram/token', { access_token: tok.input.value.trim(), destination_id: d.id }); toast('Instagram connected.'); await refresh(); } catch (ex) {
-        tok.el.querySelector('.error').textContent = ex.message;
-      }
-    }));
+  // step 1: only the fields the chosen way to connect needs
+  const methods = r.methods || [];
+  const methodBox = h('div', {});
+  const showMethod = (id) => swapPanel(methodBox, () => methodPanel(d, methods.find((m) => m.id === id) || methods[0], refresh));
+  let methodChoice = null;
+  if (methods.length) {
+    const picked = rememberedRoute(`dest.${d.provider}`, methods);
+    if (methods.length > 1) {
+      methodChoice = choiceGroup({ legend: `How do you want to connect ${d.label}?`, name: `method-${d.id}`, value: picked,
+        options: methods.map((m) => ({ value: m.id, label: m.title, hint: m.pick })) });
+      methodChoice.el.classList.add('way');
+      methodChoice.inputs.forEach((i) => i.addEventListener('change', () => { rememberRoute(`dest.${d.provider}`, i.value); showMethod(i.value); }));
+    }
+    showMethod(picked);
   }
+  const keysStep = [
+    r.key_note ? h('p', { class: 'note info' }, r.key_note) : null,
+    h('dl', { class: 'kv long facts' }, h('dt', {}, 'Account'), h('dd', {}, r.account || '-'),
+      h('dt', {}, 'Cost'), h('dd', {}, r.cost || (r.free ? 'Free' : 'May cost money; check the provider.'))),
+    (r.developer_app_steps || []).length ? [h('h4', {}, `On ${r.portal}`), stepList(r.developer_app_steps, `Steps on ${r.portal}`)] : null,
+    methodChoice ? methodChoice.el : null, methodBox];
 
+  // step 2: sign in. Nothing is uploaded: the app only asks the provider which account this is.
+  const sign = r.sign_in || {};
+  const out = h('div', { role: 'status', 'aria-live': 'polite' }); // right under the button it answers
   const connect = h('button', { type: 'button', class: connected ? 'btn' : 'btn primary',
-    help: connected ? 'Check the connection again.' : 'Opens the provider\'s sign-in page in a new tab. Nothing is posted.' }, connected ? 'Check connection' : 'Connect');
+    help: connected ? 'Ask the provider again which account this is. Nothing is posted.' : 'Opens the provider\'s sign-in page in a new tab. Nothing is posted.' },
+  connected ? 'Check connection' : (sign.button || 'Connect'));
   connect.addEventListener('click', busy(connect, async () => {
+    clear(out);
     try {
-      const r = await post(`/destinations/${d.id}/connect`);
-      if (r.authorize_url) {
-        window.open(r.authorize_url, '_blank', 'noopener');
-        clear(out, h('p', { class: 'note info' }, 'Approve access in the new tab, then come back. This page updates by itself.'));
-        setTimeout(refresh, 4000);
+      const res = await post(`/destinations/${d.id}/connect`);
+      if (res.authorize_url) {
+        window.open(res.authorize_url, '_blank', 'noopener');
+        clear(out, signInNote(res.authorize_url));
       } else {
-        toast(r.ok === false ? (r.detail || 'Not connected.') : `Connected${r.account ? ` as ${r.account}` : ''}.`, r.ok === false);
+        toast(res.ok === false ? (res.detail || 'Not connected.') : `Checked: connected${res.account ? ` as ${res.account}` : ''}. Nothing was posted.`, res.ok === false);
         await refresh();
       }
     } catch (ex) { clear(out, h('p', { class: 'error' }, ex.message)); }
   }));
-  const disconnect = connected ? h('button', { type: 'button', class: 'btn danger', help: 'Forget this account. Posting to it stops.' }, 'Disconnect') : null;
-  if (disconnect) {
-    disconnect.addEventListener('click', async () => {
-      if (!await confirmDialog({ title: `Disconnect ${d.label}?`, body: 'Posting to this account stops until you connect again.', ok: 'Disconnect', danger: true })) return;
+  const signStep = [
+    h('p', {}, sign.summary),
+    (sign.asks || []).length ? [h('h4', {}, 'What the sign-in page asks you to allow'), h('ul', {}, sign.asks.map((a) => h('li', {}, a)))] : null,
+    r.redirect_uri && !methods.some((m) => m.register_redirect) ? copyRow(r.redirect_uri, { title: 'Address the sign-in returns to', why: sign.callback_why }) : null,
+    h('div', { class: 'row' }, connect), out,
+    (r.recover || []).length ? h('details', { class: 'more' },
+      h('summary', { help: 'Show or hide what to do when the sign-in page shows an error.' }, 'If the sign-in shows an error'),
+      recoverList(r.recover)) : null];
+
+  // step 3: the account the provider reported, before anything can be switched on
+  const identity = r.identity || {};
+  const change = identity.switch_label || 'Use a different account';
+  const switchBtn = connected ? h('button', { type: 'button', class: 'btn', help: `Disconnect so you can sign in with another one. ${identity.change || ''}` }, change) : null;
+  if (switchBtn) {
+    switchBtn.addEventListener('click', async () => {
+      if (!await confirmDialog({ title: `${change}: disconnect ${d.label}?`, body: `Posting to this account stops. Your keys, settings and rights confirmation are kept; after you connect again you switch posting on again yourself. ${identity.change || ''}`, ok: 'Disconnect', danger: true })) return;
       try { await post(`/destinations/${d.id}/disconnect`); await refresh(); } catch (ex) { toast(ex.message, true); }
     });
   }
-
-  const agentSlot = h('div', { class: 'agent-slot' });
-  agentPanel(`destination:${d.provider}`, refresh).then((p) => p && agentSlot.append(p));
-
   const ackId = `ack-${d.id}`;
-  const ack = h('input', { type: 'checkbox', id: ackId, checked: d.rights_acknowledged,
-    help: 'Required before posting: you own the clips or have the streamer\'s permission to post them here.' });
+  const ack = h('input', { type: 'checkbox', id: ackId, checked: d.rights_acknowledged, disabled: !connected && !d.rights_acknowledged,
+    'aria-describedby': `${ackId}-help` });
+  ack.dataset.help = 'Required before posting.';
   ack.addEventListener('change', async () => {
     try { await put(`/destinations/${d.id}/acknowledge`, { acknowledged: ack.checked }); await refresh(); } catch (ex) { toast(ex.message, true); ack.checked = !ack.checked; }
   });
+  const rightsStep = [
+    connected ? h('div', { class: 'identity' },
+      h('p', {}, `${identity.noun || 'Account'} the provider reported: `, h('strong', {}, d.account || 'unnamed account'),
+        d.account_url ? [' ', extLink({ url: d.account_url, label: identity.open || 'Open it to check' })] : null),
+      h('p', { class: 'small muted' }, identity.check),
+      h('div', { class: 'row', style: 'margin-top: 8px' }, switchBtn))
+      : h('p', { class: 'small muted' }, 'After you sign in, the account the provider reports is shown here so you can check it before anything is switched on.'),
+    h('label', { class: 'choice', for: ackId }, ack, h('span', {}, `I own these clips or have the streamer's permission to post them on ${connected && d.account ? d.account : 'this account'}.`)),
+    h('p', { class: 'help', id: `${ackId}-help` }, 'Required before posting. A streamer\'s permission does not override a platform\'s terms.')];
+
+  // step 4: on. Connecting never switches this on by itself.
   const why = !connected ? 'Connect the account first.' : !d.rights_acknowledged ? 'Confirm your posting rights first.' : null;
-  const enable = switchField({ label: 'Post to this destination', checked: d.enabled, disabled: Boolean(why) && !d.enabled, disabledReason: why,
-    help: 'When on, clips can be posted here, automatically or when you press Post.',
+  const enable = switchField({ label: `Post to ${connected && d.account ? d.account : 'this destination'}`, checked: d.enabled, disabled: Boolean(why) && !d.enabled, disabledReason: why,
+    help: 'When on, clips can be posted here, automatically or when you press Post. Connecting an account never switches this on.',
     onchange: async (e) => {
       try { await put(`/destinations/${d.id}/enabled`, { enabled: e.target.checked }); await refresh(); } catch (ex) { toast(ex.message, true); e.target.checked = !e.target.checked; }
     } });
 
+  // what the provider or the app last reported, with the next thing to do. A lasting state, so not an alert:
+  // the pill above already carries it and screen readers are told when it changes (announceChanges).
+  const fix = nextAction(r.recover, d.status_detail);
+  const calm = connected && !/different account/.test(d.status_detail || '');
+  const problem = d.status_detail ? h('div', { class: calm ? 'note info' : 'note', role: 'note', dataset: { problem: calm ? 'no' : 'yes' } },
+    h('p', {}, d.status_detail),
+    fix ? h('p', {}, h('strong', {}, 'What to do: '), fix.action, fix.link ? [' ', extLink(fix.link)] : null) : null) : null;
+
+  const settings = settingsForm(d, refresh);
   return h('section', { id: `dest-${d.provider}`, class: 'panel', 'aria-labelledby': `dn-${d.id}` },
     h('header', {}, h('h2', { id: `dn-${d.id}` }, d.label),
-      h('span', { class: `pill ${tone}` }, label, d.account ? ` as ${d.account}` : ''),
-      d.enabled ? h('span', { class: 'pill pos' }, 'On') : null),
-    d.status_detail ? h('p', { class: 'note', style: 'margin-bottom: 8px' }, d.status_detail) : null,
-    steps.length ? h('ol', { class: 'row', 'aria-label': 'Setup progress', style: 'list-style: none; padding: 0; margin: 0 0 8px' },
-      steps.map((s) => h('li', {}, h('span', { class: `pill ${s.done ? 'pos' : 'neutral'}` }, `${s.done ? 'Done' : 'To do'}: ${STEP_NAMES[s.id] || s.id}`)))) : null,
-    h('details', { open: picked && !connected },
-      h('summary', { help: 'Show or hide what this destination needs.' }, h('strong', {}, 'What you need and how to set it up')),
-      requirements(d)),
-    // in the order the setup steps above are done: keys, connect, rights, on. Optional settings come last.
-    agentSlot,
-    h('div', { class: 'split', style: 'margin-top: 12px' }, keys, tokenForm),
-    h('div', { class: 'row', style: 'margin-top: 16px' }, connect, disconnect),
-    out,
-    h('div', { class: 'stack', style: 'margin-top: 16px' },
-      h('label', { class: 'choice', for: ackId }, ack, h('span', {}, 'I own these clips or have the streamer\'s permission to post them on this account.')),
-      enable.el),
-    h('div', { style: 'margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border)' }, settingsForm(d, refresh)));
+      h('span', { class: `pill ${tone}` }, label, connected && d.account ? ` as ${d.account}` : ''),
+      h('span', { class: `pill ${d.enabled ? 'pos' : 'neutral'}` }, d.enabled ? 'Posting on' : 'Posting off')),
+    h('p', {}, r.what), routes(d), problem,
+    h('ol', { class: 'setup-steps', role: 'list', 'aria-label': `Setup steps for ${d.label}` },
+      step(1, 4, titles.app_credentials || 'Save your developer app keys', state('app_credentials'), keysStep),
+      step(2, 4, titles.connect || 'Sign in', state('connect'), signStep),
+      step(3, 4, titles.rights_acknowledgement || 'Check the account and confirm your rights', state('rights_acknowledgement'), rightsStep),
+      step(4, 4, titles.enable || 'Turn posting on', state('enable'), enable.el)),
+    advanced(d),
+    settings ? h('details', { class: 'more' }, h('summary', { help: 'Show or hide the optional settings for this destination.' }, 'Settings'), settings) : null);
 }
 
+// The fields of one way to connect. Keys are saved first; a token is checked with the provider at once.
+function methodPanel(d, m, refresh) {
+  const r = d.requirements || {};
+  const fields = m.fields.map(guidedField);
+  const save = h('button', { type: 'submit', class: 'btn primary', help: m.after }, m.button);
+  const out = h('div', { role: 'status', 'aria-live': 'polite' });
+  const saved = (d.app_credentials_set || []);
+  const form = h('form', { class: 'stack', novalidate: true, 'aria-label': `${d.label}: ${m.title}`, dataset: { method: m.id } },
+    h('h4', {}, 'Enter the values in Live Clipper'),
+    m.submit === 'credentials' && saved.length ? h('p', { class: 'small muted' }, `Saved on this computer: ${savedNames(saved, m.fields)}. Values are never shown; enter new ones to replace them.`) : null,
+    fields.map((f) => f.el), h('div', {}, save), h('p', { class: 'small muted' }, m.after), out);
+  form.addEventListener('submit', busy(save, async (e) => {
+    e.preventDefault();
+    clear(out);
+    fields.forEach((f) => setError(f.el, ''));
+    const missing = fields.find((f, i) => m.fields[i].required !== false && !f.input.value.trim());
+    if (missing) { setError(missing.el, 'This value is needed.'); missing.input.focus(); return; }
+    // an optional field left empty is sent empty, which removes its saved value (an old secret must not linger)
+    const body = Object.fromEntries(fields.map((f, i) => [f.input.name, f.input.value.trim(), m.fields[i]])
+      .filter(([, v, def]) => v || def.required === false).map(([k, v]) => [k, v]));
+    try {
+      if (m.submit === 'token') await post('/destinations/instagram/token', { ...body, destination_id: d.id });
+      else await put(`/destinations/${d.id}/credentials`, body);
+    } catch (ex) {
+      const errs = ex instanceof ApiError ? ex.fields : {};
+      const named = fields.filter((f) => errs[f.input.name]);
+      named.forEach((f) => setError(f.el, errs[f.input.name]));
+      if (named.length) named[0].input.focus();
+      else if (fields.length === 1) { setError(fields[0].el, ex.message); fields[0].input.focus(); } else clear(out, h('p', { class: 'error' }, ex.message));
+      return;
+    }
+    fields.forEach((f) => { f.input.value = ''; delete f.input.dataset.dirty; }); // sent; never kept on the page
+    toast(m.submit === 'token' ? `${d.label} connected. Nothing was posted.` : 'Keys saved. Next: sign in.');
+    try { await refresh(); } catch (ex) { toast(ex.message, true); }
+  }));
+  const agent = h('details', { class: 'more' }, h('summary', { help: 'Show or hide the agent helper for these keys.' }, 'Or let my agent fill these in'));
+  if (m.agent) agentPanel(`destination:${d.provider}`, refresh, 'below', 'h4').then((p) => { if (p) agent.append(p); else agent.remove(); });
+  return h('div', { class: 'route-panel' },
+    (m.steps || []).length ? stepList(m.steps, `Steps for ${m.title}`) : null,
+    m.register_redirect && r.redirect_uri ? copyRow(r.redirect_uri, { title: 'Redirect address to register', why: m.redirect_why }) : null,
+    form, m.agent ? agent : null);
+}

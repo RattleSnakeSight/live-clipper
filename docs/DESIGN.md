@@ -28,7 +28,8 @@ Each screen is built around the one decision made there:
 | Dashboard | What needs me now? | One row per thing that waits on you (clips to post, failed posts, parts that did not start). Below it, monitoring on the left (channels, problems first) and clip work on the right (recent clips, posting) |
 | Clips | Which clip do I post or fix? | The review queue, then the library |
 | One clip | Is it good, and where does it go? | The video, the decision, where it was posted; the editor beside them with Render again always in reach |
-| Destinations | What is left before this account can post? | Setup steps in order: keys, connect, rights, on. Requirements open only for a destination picked in setup |
+| Sources | How do I want to watch this platform? | What already works without an account, then one chosen way to connect: its portal steps, only its fields, the address to copy, one button. Limits and uncommon errors one click away |
+| Destinations | What is left before this account can post? | Who posts here, then four numbered steps (keys, sign-in, check the account and rights, on) with only the next one open. The account the provider reported is shown before the switch |
 | Settings | Which answer do I change? | One row per setting, the control on the right when it is short |
 
 ## Tokens
