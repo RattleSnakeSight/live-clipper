@@ -44,8 +44,8 @@ def topic_state(st: dict, category_counts: bool = True, fmt=None) -> str:
 
 
 async def streamlink_status(url: str, timeout: float = 40) -> dict:
-    from .capture import _streamlink_bin
-    p = await asyncio.create_subprocess_exec(_streamlink_bin(), "--json", url, stdout=asyncio.subprocess.PIPE,
+    from .capture import _streamlink_cmd
+    p = await asyncio.create_subprocess_exec(*_streamlink_cmd(), "--json", url, stdout=asyncio.subprocess.PIPE,
                                              stderr=asyncio.subprocess.PIPE)
     try:
         out, _ = await asyncio.wait_for(p.communicate(), timeout)

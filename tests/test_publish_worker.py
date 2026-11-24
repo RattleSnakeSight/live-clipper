@@ -281,11 +281,13 @@ def test_cancel_only_before_provider_involved(world):
 
 def test_daily_quota_defers_upload(world, sb):
     world.dest({"daily_limit": 1}, provider="youtube")
-    a, b = (world.pub.enqueue_clip(make_clip(world.ctx))[0] for _ in range(2))
+    a = world.pub.enqueue_clip(make_clip(world.ctx))[0]
+    time.sleep(0.01)
+    b = world.pub.enqueue_clip(make_clip(world.ctx))[0]
     world.drain(horizon=0)
-    assert world.row(a)["status"] == "published"
-    rb = world.row(b)
-    assert rb["status"] == "queued" and rb["next_attempt_at"] > time.time() and len(videos(sb)) == 1
+    assert world.row(b)["status"] == "published"           # the newest clip takes the day's last upload
+    ra = world.row(a)
+    assert ra["status"] == "queued" and ra["next_attempt_at"] > time.time() and len(videos(sb)) == 1
 
 
 def test_run_loop_processes_in_background(world, sb):

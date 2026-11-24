@@ -61,9 +61,11 @@ Connecting or checking an account never posts anything: the app only asks the pl
 sign-in belongs to. Connecting also leaves your posting mode, clip settings, acknowledgement and the
 posting switch as they were. One exception protects you: if a new sign-in lands on a different account than
 the one posting was switched on for, the app switches posting off for that destination and says so, and
-you switch it on again after checking the account. An upload that was still unconfirmed at that moment is
-not sent to the new account by itself: its line says "Check the account" and waits for you (see "How retries
-and duplicates work").
+you confirm the new account when you switch it on again. Clips that were waiting for the old account are
+never sent to the new one by themselves: an upload that was still unconfirmed says "Check the account", and a
+clip that was only queued says "Waiting for you" until you press Post. The same holds after "Use a different
+channel". On TikTok the account number belongs to your developer app, so after you replace the app's keys the
+same account can look like a different one; look, then switch posting on again.
 
 What the label on a card means:
 
@@ -313,8 +315,14 @@ Meta developer app described above.
 
 **It is not available in this installation.** That setup relies on an extra helper program on the same
 computer that passes each finished clip to Metricool. Live Clipper does not include that program, so it
-cannot hand clips to Metricool, and the app asks for no Metricool sign-in, key or other value. Whether the
-helper is ever packaged is a separate decision.
+cannot hand clips to Metricool, and the app asks for no Metricool sign-in, key or other value.
+
+Why it is not included (Metricool's own pages, read 2026-11-23): Live Clipper is free to use, and Metricool
+offers no free way for a program to do this. Its API, the route it documents for programs, is part of the
+Advanced and Custom plans only. Its connector for AI assistants (MCP) works on the Free plan but takes a
+video only from a public link, not from a file on your computer, and documents no confirmation that a post
+went public. Its terms prohibit reading data out of the Metricool website by script without Metricool's
+written authorization. If that changes, this page and the destination cards will say so.
 
 What you can do today:
 
@@ -409,7 +417,7 @@ page), and a post was confirmed by the platform (the clip's page, with a link).
 |---|---|
 | Waiting for you | Manual mode: press Post to send it. |
 | Waiting for captions | Posting starts when the captions are ready. |
-| Queued, Uploading, Processing | On its way. Processing means the platform is still working on it. |
+| Queued, Uploading, Processing | On its way. Queued can also mean it waits for the streamer's two hours or the day's upload limit; the line says which. Processing means the platform is still working on it. |
 | Posted | Public on the platform. The platform confirmed it; where the platform gives one, the line has a link to the post. |
 | Posted privately | Posted, but not public (for example TikTok "only me", or a private YouTube upload). |
 | Saved as draft | In your TikTok inbox. Finish it in the TikTok app. |
@@ -417,11 +425,23 @@ page), and a post was confirmed by the platform (the clip's page, with a link).
 | Check the account | The check could not settle it. You say whether the clip is on the platform (see below). |
 | Paused | The sign-in expired. Reconnect and it continues. |
 | Blocked | The destination is off, or the acknowledgement is not ticked. Nothing is sent. |
-| Not allowed | This channel may not post to this destination. |
+| Not allowed | This channel may not post to this destination, or the account already has this moment of the streamer. |
 | Failed | The platform refused it for good, or the retries ran out. The message says why. Fix the cause, then Retry. |
 | Cancelled | You cancelled it. |
 
 A post on the test destination also says published. It is marked as a test and is on your computer only.
+
+## How often a streamer's clips are posted
+
+- Different moments of the same streamer are posted at least two hours apart, counted across all your real
+  destinations. A clip that has to wait stays "Queued" and its line says when it can go.
+- The same moment goes to all its destinations at once: posting it to YouTube does not delay it on TikTok.
+- An account gets a moment once. A second cut of the same moment for the same account shows "Not allowed".
+- While an upload of one moment is still unconfirmed ("Checking" or "Check the account"), the streamer's
+  other moments wait. Settle it with Confirm posted or Confirm not posted.
+- When the two hours are over and several moments wait, the newest one goes first.
+- Different streamers do not hold each other back. Channels that are the same streamer on two platforms
+  count as one streamer when they share a simulcast group. The test destination is never held.
 
 ## How retries and duplicates work
 

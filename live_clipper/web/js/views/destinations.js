@@ -293,6 +293,13 @@ function card(d, refresh) {
   const enable = switchField({ label: `Post to ${connected && d.account ? d.account : 'this destination'}`, checked: d.enabled, disabled: Boolean(why) && !d.enabled, disabledReason: why,
     help: 'When on, clips can be posted here, automatically or when you press Post. Connecting an account never switches this on.',
     onchange: async (e) => {
+      // after a sign-in on another account, switching on again names the account it will post to
+      if (e.target.checked && /different account/.test(d.status_detail || '') && !await confirmDialog({
+        title: `Post to ${d.account || 'the new account'}?`, ok: 'Switch posting on',
+        body: `${d.label} is now connected to ${d.account || 'another account'}, not the account posting was switched on for before. Clips that were waiting for the old account stay where they are.` })) {
+        e.target.checked = false;
+        return;
+      }
       try { await put(`/destinations/${d.id}/enabled`, { enabled: e.target.checked }); await refresh(); } catch (ex) { toast(ex.message, true); e.target.checked = !e.target.checked; }
     } });
 

@@ -41,7 +41,12 @@ Known limits:
   find it, the installation's own callback and webhook addresses with Copy, and four numbered steps per
   destination. A saved key and a verified account are separate states. A sign-in that lands on a different
   account than the one posting was switched on for switches posting off for that destination and holds
-  unconfirmed uploads for your confirmation. Google's sign-in always asks which account to use. A refused channel lookup after a token refresh now shows its
+  unconfirmed uploads for your confirmation. Google's sign-in always asks which account to use.
+  Posting now keeps two hours between different moments of the same streamer across all real destinations,
+  posts a moment once per account, and takes the newest waiting clip first; the rules existed in the code but
+  the upload path never applied them. Streamlink is started through the Python interpreter instead of its
+  launcher, which Windows application control can refuse; a reader that cannot start is shown as an error and
+  retried. A refused channel lookup after a token refresh now shows its
   reason instead of an error page. Platforms and Posting in the guide follow the same steps (checked
   2026-11-23).
 - **0.3.0** (2026-11-22). Live Clipper checks for a newer version at every start and open and pauses its work

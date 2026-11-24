@@ -110,7 +110,7 @@ def f_streamlink_status() -> dict:
     try:
         for name, payload in list(cases.items()) + [("timeout", None)]:
             async def cse(*cmd, payload=payload, **kw):
-                calls.append(list(cmd[1:]))
+                calls.append(list(cmd[len(capmod._streamlink_cmd()):]))
                 return _FakeStatusProc(payload, hang=payload is None)
             ssmod.asyncio = _AsyncioShim(create_subprocess_exec=cse)
             out[name] = asyncio.run(ssmod.streamlink_status("https://www.twitch.tv/x",
@@ -305,7 +305,8 @@ def f_capture(tmp: Path) -> dict:
 
     def sc(*a, **k):
         prod, inp = capmod.source_command(*a, **k)
-        return [["streamlink", *prod[1:]] if prod else prod, inp]      # binary path differs per machine
+        # how Streamlink is started differs per machine and from the reference (docs/DEVIATIONS.md)
+        return [["streamlink", *prod[len(capmod._streamlink_cmd()):]] if prod else prod, inp]
     res["source_command"] = {
         "twitch": sc("twitch", "@Name", ""),
         "kick": sc("kick", "name", ""),

@@ -435,3 +435,28 @@ def test_keyboard_focus_stays_in_the_card_after_an_action(server, make_page):
     expect(four).to_be_focused()
     expect(four).to_contain_text("Do this next")
     assert not page.js_errors
+
+
+def test_switching_on_after_an_account_change_names_the_new_account_first(server, make_page):
+    moved = ("This sign-in belongs to a different account (@example_clips, id UC00) than the one posting was "
+             "switched on for (Old Channel (id UC_old)). Posting was switched off and nothing was sent. "
+             "Check the account, then switch posting on again.")
+    state = {"status": "connected", "account": "@example_clips", "enabled": False, "status_detail": moved,
+             "rights_acknowledged": True, "app_credentials_set": ["client_id"]}
+    srv = server(destinations={"youtube": state})
+    page = open_page(make_page, srv, "destinations/youtube")
+    card = page.locator("#dest-youtube")
+    expect(card.locator("[data-problem=yes]")).to_contain_text("different account")
+    sw = card.get_by_role("switch", name="Post to @example_clips")
+    sw.check()
+    dialog = page.get_by_role("dialog")
+    expect(dialog).to_contain_text("Post to @example_clips?")
+    expect(dialog).to_contain_text("stay where they are")
+    dialog.get_by_role("button", name="Cancel").click()
+    expect(sw).not_to_be_checked()
+    assert dest(srv, page, "youtube")["enabled"] is False
+    sw.check()
+    page.get_by_role("dialog").get_by_role("button", name="Switch posting on").click()
+    expect(page.locator("#dest-youtube header .pill").nth(1)).to_have_text("Posting on")
+    assert dest(srv, page, "youtube")["enabled"] is True
+    assert not page.js_errors

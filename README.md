@@ -155,10 +155,20 @@ Version 0.3.0. Automated tests run on Linux, macOS and Windows with Python 3.11 
 - Posting: upload, retry, rate-limit, expired and revoked sign-in paths against fake platform responses.
 - The browser app: setup, tour, help text on every control, the update screens, both themes.
 
+What has run against real platforms, and what has not:
+
+- **A hand-repaired 0.3.0 installation, 2026-11-23.** On the maintainers' own Windows computer, a copy of
+  0.3.0 with local repairs captured a live Kick stream and published the same English clip once each to
+  YouTube Shorts (directly), Instagram Reels and TikTok (both through Metricool, with a helper program that
+  is not in this repository). That is evidence for the workflow, not for this repository's code as it
+  stands: the repairs were local.
+- **This repository's code.** Not yet run against real Twitch, Kick, YouTube, TikTok or Instagram accounts
+  from a clean install. The posting rules, the sign-in steps and capture start are verified against fake
+  platform responses and local test streams only. Each route's status will be updated here as it is
+  verified from a clean install of a released commit.
+
 Not verified yet:
 
-- Real platform accounts. Live status, chat, recording and posting have not been run against real Twitch,
-  Kick, YouTube, TikTok or Instagram accounts; that needs your own developer apps and sign-ins.
 - Captions with a real downloaded speech model are tested on request, not on every change.
 - Captions in a second language need converted translation models that the app does not download.
 - Kick's livestreams endpoint that the app uses is marked deprecated by Kick.

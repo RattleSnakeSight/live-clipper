@@ -85,8 +85,9 @@ class Publisher:
     def __init__(self, store, settings, secrets, adapters: dict[str, Callable] | None = None,
                  clock: Callable[[], float] = time.time, max_attempts: int = 6, sandbox_dir=None,
                  notify: Callable[[str, str], None] | None = None,
-                 emit: Callable[[dict], None] | None = None):
+                 emit: Callable[[dict], None] | None = None, cadence=None):
         self.store, self.settings, self.secrets, self.clock = store, settings, secrets, clock
+        self.cadence = cadence                # publish.cadence.Cadence: streamer spacing and one post per moment
         self.sandbox_dir = sandbox_dir
         self.factories = {**default_factories(), **(adapters or {})}
         self.max_attempts = max_attempts
@@ -156,6 +157,8 @@ class Publisher:
                 fields["last_error"] = self.secrets.redact(fields["last_error"])[:500]
             self.store.update("deliveries", did, status=status, history=h[-HISTORY_MAX:], **fields)
             d.update(fields, status=status)
+            if self.cadence and status in TERMINAL:
+                self.cadence.settle(d)
         self._emit(d, detail)
 
     def _emit(self, d: dict, detail: str = "") -> None:
@@ -696,6 +699,11 @@ class Publisher:
                 self._set(did, "queued", f"daily upload quota reached ({limit}); waiting for the provider day to reset",
                           next_attempt_at=at)
                 return None
+            hold = self.cadence.check(d, dest, now) if self.cadence and dest["provider"] != TEST else None
+            if hold:
+                kind, when, why = hold
+                self._set(did, "disallowed" if kind == "duplicate" else "queued", why, next_attempt_at=when)
+                return None
             attempts = d["attempts"] + 1
             if limit:
                 quota.add(self.store, dest, now, 1)
@@ -810,7 +818,10 @@ class Publisher:
             "SELECT d.id, d.clip_id, d.destination_id, d.status, t.provider, t.enabled, t.rights_ack_at FROM publish_deliveries d JOIN "
             "publish_destinations t ON t.id=d.destination_id "
             "WHERE d.status IN ('queued','uncertain','processing') AND d.next_attempt_at<=? AND t.status='connected' "
-            "ORDER BY CASE d.status WHEN 'uncertain' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END, d.id", self.clock())
+            # open questions first; then the newest clip, so a streamer's fresh moment goes before an old one
+            # when the two-hour gap opens (a moment's other accounts are never held back by the gap)
+            "ORDER BY CASE d.status WHEN 'uncertain' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END, "
+            "d.created_at DESC, d.id", self.clock())
         blocked = {r["destination_id"] for r in self.store.q(
             "SELECT DISTINCT destination_id FROM publish_deliveries WHERE status='uncertain'")}
         out = []
@@ -954,41 +965,49 @@ class Publisher:
             ai["verified_gen"] = gen
             # a sign-in that lands on another account than the one posting was switched on for never inherits
             # "on": the user checks the new account first (nothing is sent meanwhile, nothing else changes)
-            was = str((cur["settings"].get("account_info") or {}).get("account_id") or "")
+            before = cur["settings"].get("account_info") or {}
+            was = str(before.get("account_id") or "")
             now = str(ai.get("account_id") or was)
-            moved = bool(cur["enabled"] and was and now != was and dest["provider"] != TEST)
+            changed = bool(was and now != was and dest["provider"] != TEST)
+            moved = changed and bool(cur["enabled"])
+            old = f"{before.get('name') or cur['account'] or 'unnamed'} (id {was})"
+            ai["name"] = str(info.get("account", ""))  # kept so a later change can name the account it left
             detail = info.get("notes", "")
             if moved:
-                old = f"{cur['account'] or 'unnamed'} (id {was})"
                 detail = (f"This sign-in belongs to a different account ({info.get('account') or 'unnamed'}, id {now}) "
                           f"than the one posting was switched on for ({old}). Posting was switched off and nothing "
                           f"was sent. Check the account, then switch posting on again.")
             self.store.update("destinations", dest_id, account=str(info.get("account", "")),
                               settings={**cur["settings"], "account_info": ai}, status="connected",
                               status_detail=detail, **({"enabled": 0} if moved else {}))
-        held = self._hold_unconfirmed(dest_id, old) if moved else 0
+        kept = self._keep_with_old_account(dest_id, old) if changed else 0
         n = self.resume_destination(dest_id)          # a destination that is off gets its paused deliveries blocked
-        if moved:
-            self.block_destination(dest_id)
         self.log(f"destination '{dest['label']}' connected as {info.get('account')}"
-                 + (f"; a different account than before: posting switched off, {held} unconfirmed uploads held for "
-                    f"confirmation" if moved else f"; resumed {n} deliveries" if n else ""))
+                 + (f"; a different account than before ({old}): {kept} waiting deliveries stay with the old account"
+                    + ("; posting switched off" if moved else "") if changed else f"; resumed {n} deliveries" if n else ""))
         return {"ok": True, "moved": moved, **info}
 
-    def _hold_unconfirmed(self, dest_id: int, old: str) -> int:
-        """The destination now belongs to another account. An upload the previous account may already have is never
-        checked against, or sent to, the new one on its own: the user looks at the previous account and confirms."""
+    def _keep_with_old_account(self, dest_id: int, old: str) -> int:
+        """The destination now belongs to another account. What was waiting for the old account is never sent to
+        the new one on its own: an upload the old account may already have waits for the user's word, and a clip
+        that was only queued waits for the user to press Post."""
         n = 0
-        for d in self.store.q("SELECT id, status, reconcile, history FROM publish_deliveries WHERE destination_id=? "
-                              "AND status IN ('uploading','processing','uncertain','paused')", dest_id):
+        for d in self.store.q("SELECT id, status, reconcile, history, blocked_from FROM publish_deliveries WHERE "
+                              "destination_id=? AND status IN ('queued','uploading','processing','uncertain','paused',"
+                              "'blocked')", dest_id):
             prev = d["status"]
             if prev == "paused":
                 prev = next((h["from"] for h in reversed(d["history"]) if h["to"] == "paused"), "queued")
+            if prev == "blocked":
+                prev = d["blocked_from"] or "queued"
             if prev in ("uploading", "processing", "uncertain") or d["reconcile"]:
                 self._set(d["id"], "needs_confirmation", f"the destination's account changed while this upload was "
                           f"not confirmed | Check {old}; then use 'Confirm posted' or 'Confirm not posted'.",
-                          next_attempt_at=0)
-                n += 1
+                          next_attempt_at=0, blocked_from="")
+            else:
+                self._set(d["id"], "held", f"this clip was waiting for {old}; the destination now posts to another "
+                          f"account | Press Post to send it there, or Cancel.", next_attempt_at=0, blocked_from="")
+            n += 1
         return n
 
     def disconnect(self, dest_id: int) -> None:

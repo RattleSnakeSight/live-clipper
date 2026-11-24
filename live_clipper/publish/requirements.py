@@ -67,7 +67,8 @@ def _routes(network: str, native_title: str, native_needs: list[str]) -> list[di
                     "this installation cannot hand clips to Metricool and there is nothing to connect or enter here.",
          "needs": [
              f"What it would take: your own Metricool account with your {network} account connected to a brand, and "
-             "a helper program that passes each finished clip to Metricool. Live Clipper does not include one.",
+             "a helper program that passes each finished clip to Metricool. Live Clipper does not include one: "
+             "Metricool's route for programs (its API) is on its paid Advanced and Custom plans only.",
              "What works today: post directly (above), or keep the clip files and upload them to Metricool "
              "yourself. If you upload by hand, leave posting to this destination switched off so the same clip is "
              "not sent twice.",
@@ -261,7 +262,9 @@ REQUIREMENTS: dict[str, dict] = {
             "noun": "TikTok account", "open": "", "switch_label": "Use a different account",
             "check": "Clips are sent to this account. Check the name before you switch posting on.",
             "change": "To choose another account, disconnect, switch account on tiktok.com in your browser, then "
-                      "sign in again.",
+                      "sign in again. TikTok reports a different account number for every developer app, so after "
+                      "you replace your app's keys the same account can look like a different one: posting is then "
+                      "switched off until you have looked and switched it on again.",
         },
         "recover": [
             _fix("TikTok shows a redirect error instead of a sign-in page",

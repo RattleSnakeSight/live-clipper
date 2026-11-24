@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import importlib.util
 import logging
 import os
 import shutil
@@ -24,12 +25,13 @@ if TYPE_CHECKING:                                   # owned by the edit subsyste
 log = logging.getLogger(__name__)
 
 
-def _streamlink_bin() -> str:
-    """Prefer the streamlink installed next to this interpreter (the project venv; streamlink.exe on Windows)."""
-    for cand in (Path(sys.executable).parent / "streamlink", Path(sys.executable).parent / "streamlink.exe"):
-        if cand.exists():
-            return str(cand)
-    return shutil.which("streamlink") or "streamlink"
+def _streamlink_cmd() -> list[str]:
+    """Streamlink as a module of this interpreter when it is installed here (the usual case), else from PATH.
+    Never the `streamlink.exe` launcher pip writes next to the interpreter: it is unsigned, and Windows
+    application control has refused to start it while the signed interpreter itself runs."""
+    if importlib.util.find_spec("streamlink"):
+        return [sys.executable, "-m", "streamlink"]
+    return [shutil.which("streamlink") or "streamlink"]
 
 
 def _reader_command(command: list[str]) -> list[str]:
@@ -78,7 +80,7 @@ def source_command(platform: str, name: str, source_url: str, *, realtime_file: 
         url = "streamlink:" + STREAMLINK_PLATFORMS[platform].format(name=name.lstrip("@") if platform != "youtube" else name if name.startswith("@") or name.startswith("channel/") else "@" + name)
     if url.startswith("streamlink:"):
         target = url[len("streamlink:"):]
-        prod = [_streamlink_bin(), "--stdout", "--loglevel", "warning", "--hls-live-edge", "2",
+        prod = [*_streamlink_cmd(), "--stdout", "--loglevel", "warning", "--hls-live-edge", "2",
                 "--stream-segment-threads", "2", "--retry-open", "1", target, "best"]
         return prod, ["-i", "pipe:0"]
     inp = []
@@ -185,9 +187,14 @@ class Capture:
             backoff = min(backoff * 2, 15.0)
 
     async def _run_once(self) -> bool:
-        self._run += 1
-        run_dir = self.buffers.channel_dir(self.channel_id) / f"run{self._run:04d}"
-        run_dir.mkdir(parents=True, exist_ok=True)
+        while True:                                 # never a folder an earlier worker wrote: its index is stale
+            self._run += 1
+            run_dir = self.buffers.channel_dir(self.channel_id) / f"run{self._run:04d}"
+            try:
+                run_dir.mkdir(parents=True)
+                break
+            except FileExistsError:
+                continue
         csv = run_dir / "segments.csv"
         try:
             prod, inp = source_command(self.platform, self.name, self.source_url, realtime_file=self.realtime_file)
@@ -220,7 +227,15 @@ class Capture:
             self.health.state, self.health.detail = "error", f"missing binary: {e.filename}"
             self.health.action_needed = f"Install {e.filename} on the worker"
             return False
-        except (OSError, asyncio.CancelledError):
+        except OSError as e:                        # the system refused to start a reader: say so and retry
+            await self._kill()
+            code = getattr(e, "winerror", None) or e.errno
+            self.health.state, self.health.detail = "error", f"a capture reader could not start: {e.strerror} ({code})"
+            self.health.action_needed = "Check that FFmpeg and Streamlink may run on this computer (on Windows: " \
+                                        "Smart App Control or antivirus events)"
+            self.log(self.health.detail, "error")
+            return False
+        except asyncio.CancelledError:
             await self._kill()
             raise
         epoch_started = False

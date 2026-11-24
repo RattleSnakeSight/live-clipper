@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from ..logging_setup import register_secret
 from . import quota
+from .cadence import Cadence
 from .requirements import requirements_for
 from .store import Store
 from .vault import CRED_FIELDS, OAUTH_TTL, Secrets
@@ -141,7 +142,8 @@ class PublishService:
         self.store = Store(ctx.db)
         self.secrets = Secrets(ctx.secrets)
         self.pub = Publisher(self.store, ctx.settings, self.secrets, sandbox_dir=ctx.paths.root / "sandbox",
-                             notify=ctx.notify, emit=lambda p: ctx.bus.publish("publish.delivery", p))
+                             notify=ctx.notify, emit=lambda p: ctx.bus.publish("publish.delivery", p),
+                             cadence=Cadence(ctx.db))
         for prov in PROVIDERS:
             if not self.store.q1("SELECT id FROM publish_destinations WHERE provider=?", prov):
                 self.pub.add_destination(prov, requirements_for(prov)["label"])

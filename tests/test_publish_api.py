@@ -604,7 +604,8 @@ def test_a_changed_account_holds_unconfirmed_uploads_and_strands_nothing(app):
     page = sign_in(c)
     assert "different account than before" in page.text and "switched off" in page.text
     state = lambda i: c.get(f"/api/publish/deliveries/{i}").json()  # noqa: E731
-    assert state(queued)["status"] == "blocked"
+    waiting = state(queued)                                             # never sent: it waits for a press on Post
+    assert waiting["status"] == "held" and "Example Clips" in waiting["history"][-1]["detail"]
     for i in (uploading, uncertain):                                    # never checked against the new account
         d = state(i)
         assert d["status"] == "needs_confirmation" and "Example Clips" in d["history"][-1]["detail"]
@@ -612,7 +613,7 @@ def test_a_changed_account_holds_unconfirmed_uploads_and_strands_nothing(app):
 
     on = c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True}).json()
     assert on["enabled"] and "different account" not in on["status_detail"]   # the note goes with the decision
-    assert state(queued)["status"] not in ("paused", "blocked", "needs_confirmation")   # it is on its way again
+    assert state(queued)["status"] == "held"                            # switching on redirects nothing by itself
     assert state(uploading)["status"] == state(uncertain)["status"] == "needs_confirmation"
     assert not any("upload" in u for _, u in seen if "UC_" in u)
 
@@ -624,3 +625,24 @@ def test_an_optional_secret_left_empty_is_removed_not_kept(app):
     r = c.put(f"/api/destinations/{yt}/credentials", json={"client_id": "cid-new", "client_secret": ""})
     assert r.json() == {"app_credentials_set": ["client_id"]}           # a new client never keeps the old secret
     assert ctx.secrets.get("publish/app/youtube") == {"client_id": "cid-new"}
+
+
+def test_clips_waiting_for_the_old_account_stay_put_after_use_a_different_channel(app):
+    ctx, svc, c = app
+    yt = prep_youtube(c, svc)
+    recording_youtube(svc)
+    sign_in(c)
+    c.put(f"/api/destinations/{yt}/acknowledge", json={"acknowledged": True})
+    c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True})
+    c.put("/api/publish/mode", json={"mode": "manual"})
+    did = svc.pub.enqueue_clip(make_clip(ctx))[0]
+    svc.store.update("deliveries", did, status="queued", next_attempt_at=time.time() + 3600)
+    c.post(f"/api/destinations/{yt}/disconnect")                        # "Use a different channel"
+    assert c.get(f"/api/publish/deliveries/{did}").json()["status"] == "blocked"
+    seen = recording_youtube(svc, channel="UC_other", title="Other Channel")
+    assert "switched off" not in sign_in(c).text                        # it was off already: nothing to switch off
+    d = c.get(f"/api/publish/deliveries/{did}").json()
+    assert d["status"] == "held" and "Example Clips (id UC_example)" in d["history"][-1]["detail"]
+    c.put(f"/api/destinations/{yt}/enabled", json={"enabled": True})
+    assert c.get(f"/api/publish/deliveries/{did}").json()["status"] == "held"   # only a press on Post sends it
+    assert not any("upload" in u for _, u in seen)
