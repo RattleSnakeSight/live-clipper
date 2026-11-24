@@ -7,8 +7,10 @@ Files this module does not know about are never deleted either, except temporary
 
 What the user's own presses do (immediately, not on a schedule): Reject removes that clip's files, and Clean up
 now also removes every fully posted clip and every clip the user rejected, found by its folder even when the
-app never tracked it. A clip that is waiting, in flight, shared, approved or not decided keeps its files. The
-rows that show what was sent (deliveries, claims, the clip row) always stay.
+app never tracked it. A clip that is waiting, in flight, shared, approved or not decided keeps its files, and so
+does a clip an outside sender (the shared claims table of a hand-patched installation) may still post or has
+claimed and not confirmed. Posting to the test destination alone never makes a clip removable. The rows that
+show what was sent (deliveries, claims, the clip row) always stay.
 
 Cleanup order when a pass runs (each step only while space is still needed, except steps 1 and 2, which
 always run):
@@ -185,20 +187,26 @@ class Maintenance:
                     return True
         return False
 
+    def external_holds(self, clip_id) -> bool:
+        return bool(self._external_hold(clip_id))
+
     # --- what a clip's deliveries say (publishing's own table, so it holds across restarts) ---
     def _deliveries(self, clip_id) -> list[dict]:
         try:
-            rows = self.ctx.db.execute("SELECT id, status, reconcile FROM publish_deliveries WHERE clip_id=?",
-                                       (int(clip_id) if str(clip_id).isdigit() else clip_id,)).fetchall()
+            rows = self.ctx.db.execute(
+                "SELECT d.id, d.status, d.reconcile, COALESCE(t.provider, '') FROM publish_deliveries d "
+                "LEFT JOIN publish_destinations t ON t.id=d.destination_id WHERE d.clip_id=?",
+                (int(clip_id) if str(clip_id).isdigit() else clip_id,)).fetchall()
         except sqlite3.OperationalError:               # no publishing tables in this database
             return []
-        return [{"id": r[0], "status": r[1], "reconcile": r[2]} for r in rows]
+        return [{"id": r[0], "status": r[1], "reconcile": r[2], "provider": r[3]} for r in rows]
 
     def _posted(self, clip_id) -> bool:
         """Every delivery of the clip is settled and at least one reached its platform."""
         rows = self._deliveries(clip_id)
         if rows:
-            return all(r["status"] in SETTLED for r in rows) and any(r["status"] in SENT for r in rows)
+            real = [r for r in rows if r["provider"] != "test"]   # the test destination posts nothing anywhere
+            return bool(real) and all(r["status"] in SETTLED for r in rows) and any(r["status"] in SENT for r in real)
         return self.posted_at(str(clip_id)) is not None
 
     def _rejected(self, clip_id) -> bool:
@@ -209,18 +217,37 @@ class Maintenance:
         return (((c.get("trigger") or {}).get("review") or {}).get("gameplay") or {}).get("state") == "rejected"
 
     def _in_flight(self, clip_id) -> bool:
-        """An upload of this clip may still need its file (or the publisher says so)."""
+        """An upload of this clip may still need its file (or the publisher or an outside sender says so)."""
         for r in self._deliveries(clip_id):
             if r["status"] not in SETTLED and (r["status"] != "failed" or r["reconcile"]):
                 return True
-        return self.publisher_holds(clip_id)
+        return self.publisher_holds(clip_id) or bool(self._external_hold(clip_id))
 
     def _removable(self, clip_id) -> bool:
         """May this clip's files be deleted now? Posted and settled, or rejected by the user with nothing waiting."""
         if self._posted(clip_id):
-            return not self.publisher_holds(clip_id)
+            return not (self.publisher_holds(clip_id) or self._external_hold(clip_id))
         return self._rejected(clip_id) and not self._in_flight(clip_id) and not any(
             r["status"] in UNSENT for r in self._deliveries(clip_id))
+
+    def _external_hold(self, clip_id) -> str:
+        """Why an outside sender may still need this clip ("" = no reason). Reads the shared claims table that a
+        hand-patched installation's separate sender writes before it submits: a claim it has not confirmed, or a
+        clip it may still pick up (selection still qualifies it and a social network has no settled claim)."""
+        if not str(clip_id).isdigit():
+            return ""
+        try:
+            rows = self.ctx.db.execute("SELECT network, pending FROM local_english_claims WHERE clip_id=?",
+                                       (int(clip_id),)).fetchall()
+        except sqlite3.OperationalError:               # no such table: nothing outside sends from this database
+            return ""
+        if any(r[1] for r in rows):
+            return "an outside sender has claimed this clip and has not confirmed the post"
+        from .store import Store
+        sel = ((Store(self.ctx.db).clip(int(clip_id)) or {}).get("trigger") or {}).get("selection") or {}
+        if (sel.get("en") or {}).get("decision") == "qualified" and not {"instagram", "tiktok"} <= {r[0] for r in rows}:
+            return "an outside sender may still post this clip to Instagram or TikTok"
+        return ""
 
     def _publisher(self):
         for svc in self.ctx.services:
@@ -260,8 +287,13 @@ class Maintenance:
         if self.ctx.db.execute("SELECT 1 FROM maintenance_clip WHERE unit_path=? AND clip_id<>? AND state='kept'",
                                (str(p), cid)).fetchone():
             return {"removed": False, "freed_bytes": 0, "kept_because": "the folder is shared with another clip"}
-        freed = _size(p) if p.exists() else 0
+        before = _size(p) if p.exists() else 0
         self._rm(p)
+        left = _size(p) if p.exists() else 0
+        freed = before - left
+        if p.exists():                                  # a file in use, or a refused delete: say so, keep the record
+            return {"removed": False, "freed_bytes": freed,
+                    "kept_because": "some files could not be deleted (they may be in use); the rest was removed"}
         if self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE clip_id=?", (cid,)).rowcount == 0:
             self.ctx.db.execute("INSERT OR IGNORE INTO maintenance_clip(clip_id, unit_path, created_at, state) "
                                 "VALUES(?,?,?,'deleted')", (cid, str(p), self.clock()))
@@ -271,10 +303,23 @@ class Maintenance:
                 "at": self.clock(), "why": why, "bytes": freed}})
         return {"removed": True, "freed_bytes": freed, "kept_because": ""}
 
+    def _mark_rejected(self, cid: str) -> None:
+        """The selection record says rejected for every language it holds: that is what a separate sender reads."""
+        if not cid.isdigit():
+            return
+        from .store import Store
+        s = Store(self.ctx.db)
+        sel = ((s.clip(int(cid)) or {}).get("trigger") or {}).get("selection") or {}
+        if sel:
+            s.merge_json("clips", int(cid), "trigger", {"selection": {
+                lg: {**(v if isinstance(v, dict) else {}), "decision": "rejected",
+                     "reasons": ["rejected by the user"]} for lg, v in sel.items()}})
+
     def reject_clip(self, clip_id) -> dict:
         """The user pressed Reject: what was only waiting is cancelled, then the clip's files are removed unless an
         upload may still need them. Returns {"removed", "freed_bytes", "kept_because"}."""
         cid, pub = str(clip_id), self._publisher()
+        self._mark_rejected(cid)                       # first, so an outside sender stops seeing it as qualified
         if pub is not None:
             for r in self._deliveries(cid):
                 if r["status"] in UNSENT and not r["reconcile"]:
@@ -283,8 +328,9 @@ class Maintenance:
                     except Exception:                  # in flight meanwhile: the check below keeps the files
                         log.warning("could not cancel delivery %s of rejected clip %s", r["id"], cid)
         if self._in_flight(cid) or any(r["status"] in UNSENT for r in self._deliveries(cid)):
-            return {"removed": False, "freed_bytes": 0, "kept_because": "an upload of this clip is still waiting or "
-                    "may have reached a platform; its files stay until that is settled"}
+            return {"removed": False, "freed_bytes": 0, "kept_because": self._external_hold(cid) or (
+                "an upload of this clip is still waiting or may have reached a platform; its files stay until that "
+                "is settled")}
         return self.release_clip(cid, "rejected")
 
     # --- scan and plan ---
@@ -466,14 +512,19 @@ class Maintenance:
                     if a.clip_id is not None and self.posted_at(a.clip_id) is None and not (
                             asked and self._removable(a.clip_id)):
                         continue  # not (or no longer) fully posted: protected
-                    if a.clip_id is not None and self.publisher_holds(a.clip_id):
-                        continue  # a provider may still read or resume an upload of this file
+                    if a.clip_id is not None and (self.publisher_holds(a.clip_id) or self.external_holds(a.clip_id)):
+                        continue  # a provider or an outside sender may still read or resume an upload of this file
                     if not self._inside(p, root):
                         continue
                     if a.action == "delete_original":
                         p.unlink(missing_ok=True)
                     elif a.action == "delete_clip":
+                        before = _size(p)
                         self._rm(p)
+                        if p.exists():
+                            errors.append(f"delete_clip {p.name}: some files could not be deleted")
+                            freed += before - _size(p)
+                            continue
                         self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE clip_id=? AND unit_path=?",
                                             (a.clip_id, str(p)))
                     elif a.action == "trash_clip":

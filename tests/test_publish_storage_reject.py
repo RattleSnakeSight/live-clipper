@@ -202,3 +202,95 @@ def test_the_real_buttons_through_the_app_reject_then_clean_up(sb, tmp_path):
         assert [x["clip_id"] for x in preview["actions"]] == [str(b)] and r.folder(b).exists()
         done = c.post("/api/storage/cleanup", json={"dry_run": False}).json()
         assert done["done"] == 1 and done["freed_bytes"] >= 5 * MB - 1024 and not r.folder(b).exists()
+
+
+# ---- the owner's setup: a separate sender (Metricool bridge) shares the claims table and may still need a clip
+def with_outside_sender(r):
+    from test_publish_cadence import LEGACY_SCHEMA
+    for stmt in LEGACY_SCHEMA:
+        r.db.execute(stmt)
+    from live_clipper.publish.cadence import Cadence
+    r.w.pub.cadence = Cadence(r.db)                            # the app as released: it writes its claim row
+
+
+def qualify(r, cid):
+    r.clips.merge_json("clips", cid, "trigger", {"selection": {"en": {"decision": "qualified", "reasons": []}}})
+
+
+def outside_claim(r, cid, network, pending, owner=None):
+    r.db.execute("INSERT INTO local_english_claims VALUES(?,?,?,?,?,?,?,1,?)",
+                 (owner or f"metricool:{cid}:{network}", network, f"channel:{r.channel}", f"m{cid}", cid, "ab" * 32,
+                  1000.0, pending))
+
+
+def test_a_clip_the_outside_sender_may_still_post_is_not_cleaned_because_youtube_succeeded(sb, tmp_path):
+    r = Rig(sb, tmp_path)
+    with_outside_sender(r)
+    cid = r.clip()
+    qualify(r, cid)
+    r.deliver(cid)
+    r.w.drain(horizon=0)                                       # native YouTube settled
+    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+    outside_claim(r, cid, "instagram", pending=0)              # Instagram settled, TikTok still open
+    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+    outside_claim(r, cid, "tiktok", pending=0)                 # both settled: nothing outside needs it any more
+    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 1 and not r.folder(cid).exists()
+
+
+def test_a_clip_the_outside_sender_has_claimed_and_not_confirmed_is_never_removed(sb, tmp_path):
+    r = Rig(sb, tmp_path)
+    with_outside_sender(r)
+    cid = r.clip()
+    r.deliver(cid)
+    r.w.drain(horizon=0)
+    outside_claim(r, cid, "tiktok", pending=1)                 # submitted, receipt not confirmed yet
+    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0
+    out = r.m.reject_clip(cid)
+    assert out["removed"] is False and "outside sender" in out["kept_because"] and r.folder(cid).exists()
+    assert r.m.cycle()["done"] == 0                            # nor does the background pass take it
+
+
+def test_reject_is_visible_to_the_outside_sender_before_it_can_submit(sb, tmp_path):
+    """The sender selects clips whose selection decision is qualified and whose file exists: Reject changes both."""
+    r = Rig(sb, tmp_path)
+    with_outside_sender(r)
+    cid = r.clip()
+    qualify(r, cid)
+    query = ("SELECT json_extract(trigger,'$.selection.en.decision') FROM monitor_clips WHERE id=?")
+    assert r.db.execute(query, (cid,)).fetchone()[0] == "qualified"
+    out = r.m.reject_clip(cid)
+    assert out["removed"] is True and r.db.execute(query, (cid,)).fetchone()[0] == "rejected"
+    assert not r.folder(cid).exists()
+
+
+def test_a_test_destination_success_never_makes_a_clip_removable(sb, tmp_path):
+    r = Rig(sb, tmp_path)
+    test_dest = r.w.dest()                                     # provider "test"
+    cid = r.clip()
+    c = make_clip(r.w.ctx, channel_id=str(r.channel))
+    c.update(clip_id=cid, path=str(r.folder(cid) / "final_en.mp4"))
+    did = r.w.pub._insert(c, r.w.store.q1("SELECT * FROM publish_destinations WHERE id=?", test_dest), "en", "auto", 1)
+    r.w.pub.store.save_clip(c)
+    r.w.drain(horizon=0)
+    assert r.w.row(did)["status"] == "published"
+    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+
+
+def test_a_delete_that_fails_part_way_reports_only_what_is_really_gone(sb, tmp_path, monkeypatch):
+    r = Rig(sb, tmp_path)
+    cid = r.clip(mb=6)
+    d = r.folder(cid)
+    real_rm = Maintenance._rm
+
+    def partial(self, p):                                      # one file is in use (the sender is reading it)
+        for f in sorted(p.iterdir()):
+            if f.name != "final_en.mp4":
+                f.unlink()
+    monkeypatch.setattr(Maintenance, "_rm", partial)
+    before = _size(d)
+    out = r.m.reject_clip(cid)
+    left = _size(d)
+    assert out["removed"] is False and out["freed_bytes"] == before - left > 0 and "in use" in out["kept_because"]
+    assert [row[0] for row in r.db.execute("SELECT state FROM maintenance_clip WHERE clip_id=?", (str(cid),))] == ["kept"]
+    monkeypatch.setattr(Maintenance, "_rm", real_rm)
+    assert r.m.reject_clip(cid)["removed"] is True and not d.exists()      # and a retry finishes the job
