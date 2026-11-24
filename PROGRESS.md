@@ -2,7 +2,7 @@
 
 Current state, release notes and the build history of Live Clipper.
 
-## Current state (0.3.0)
+## Current state (0.4.0)
 
 Live Clipper is a local app that watches Twitch, Kick and YouTube streams (and creator feeds), cuts vertical
 clips with captions, and posts them to YouTube Shorts, TikTok and Instagram Reels, automatically or after your
@@ -36,7 +36,7 @@ Known limits:
 
 ## Releases
 
-- **Not released yet** (on top of 0.3.0). Sources and Destinations are rebuilt around "Watch a stream" and
+- **0.4.0** (2026-11-24). Sources and Destinations are rebuilt around "Watch a stream" and
   "Post my clips": one way to connect at a time, each field with the provider's name for it and where to
   find it, the installation's own callback and webhook addresses with Copy, and four numbered steps per
   destination. A saved key and a verified account are separate states. A sign-in that lands on a different
@@ -46,7 +46,12 @@ Known limits:
   posts a moment once per account, and takes the newest waiting clip first; the rules existed in the code but
   the upload path never applied them. Streamlink is started through the Python interpreter instead of its
   launcher, which Windows application control can refuse; a reader that cannot start is shown as an error and
-  retried. A refused channel lookup after a token refresh now shows its
+  retried. A YouTube channel that reached its own upload limit (answered with HTTP 400) now waits and
+  retries instead of failing for good. A database from a hand-patched 0.3.0 installation keeps working: its
+  claims table is honoured, each native upload stores the file's SHA-256 in it (read before the claim, never
+  under the database lock), the same file or clip is not sent twice to one network, and an outside publisher's
+  rows still hold the streamer. Capture: live Kick video was received and decoded through Streamlink
+  on one Windows computer; long-run and many-streamer capture are not qualified. A refused channel lookup after a token refresh now shows its
   reason instead of an error page. Platforms and Posting in the guide follow the same steps (checked
   2026-11-23).
 - **0.3.0** (2026-11-22). Live Clipper checks for a newer version at every start and open and pauses its work

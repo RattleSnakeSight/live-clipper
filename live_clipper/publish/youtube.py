@@ -67,7 +67,8 @@ class YouTubeAdapter(DestinationAdapter):
             reasons = {e.get("reason") for e in r.json()["error"].get("errors", [])}
         except Exception:
             reasons = set()
-        if r.status_code == 403 and reasons & _QUOTA:
+        # the channel's own upload limit is answered with 400, the project's quota with 403: both pass with time
+        if (r.status_code == 403 and reasons & _QUOTA) or (r.status_code == 400 and "uploadLimitExceeded" in reasons):
             return PublishResult("rate_limited", retry_after=3600.0, detail=f"{what}: quota/limit {sorted(reasons)}")
         return http_result(r, what)
 

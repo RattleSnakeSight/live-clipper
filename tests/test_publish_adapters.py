@@ -101,6 +101,22 @@ def test_youtube_quota_403_is_rate_limited(tmp_path):
     assert res.state == "rate_limited" and res.retry_after == 3600.0
 
 
+def test_youtube_upload_limit_answered_with_400_is_waited_out_and_other_400s_stay_refusals(tmp_path):
+    # a channel that reached its upload limit gets HTTP 400 (not 403) with this reason: a limit, not a bad clip
+    body = {"error": {"code": 400, "message": "The user has exceeded the number of videos they may upload.",
+                      "errors": [{"domain": "youtube.video", "reason": "uploadLimitExceeded"}]}}
+    m = Mock({("POST", "upload/youtube/v3/videos"): lambda r: httpx.Response(400, json=body)})
+    res = run(YouTubeAdapter({}, transport=m.transport).upload(job(tmp_path), CREDS))
+    assert res.state == "rate_limited" and res.retry_after == 3600.0 and "uploadLimitExceeded" in res.detail
+    bad = {"error": {"code": 400, "errors": [{"domain": "youtube.video", "reason": "invalidTitle"}]}}
+    m = Mock({("POST", "upload/youtube/v3/videos"): lambda r: httpx.Response(400, json=bad)})
+    res = run(YouTubeAdapter({}, transport=m.transport).upload(job(tmp_path), CREDS))
+    assert res.state == "failed" and res.permanent
+    quota = {"error": {"code": 400, "errors": [{"reason": "quotaExceeded"}]}}      # only the upload limit uses 400
+    m = Mock({("POST", "upload/youtube/v3/videos"): lambda r: httpx.Response(400, json=quota)})
+    assert run(YouTubeAdapter({}, transport=m.transport).upload(job(tmp_path), CREDS)).state == "failed"
+
+
 def test_youtube_oauth_desktop_pkce_and_refresh():
     ad = YouTubeAdapter({})
     verifier = "v" * 64

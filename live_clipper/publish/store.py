@@ -1,6 +1,7 @@
 """Publishing tables (namespace `publish`) and a small query helper over the app database."""
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -63,6 +64,10 @@ class Store:
 
     def tx(self):
         return self.db.tx()
+
+    def atomic(self):
+        """A transaction for writes that belong together, or the one this thread already has open."""
+        return contextlib.nullcontext() if self.db.conn().in_transaction else self.db.tx()
 
     def update(self, table: str, row_id: int, **fields: Any) -> None:
         if "updated_at" not in fields and table == "deliveries":

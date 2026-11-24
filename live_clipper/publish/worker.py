@@ -94,6 +94,7 @@ class Publisher:
         self.notify, self.emit = notify or (lambda t, b: None), emit or (lambda p: None)
         self.refresh_errors: dict = {}
         self._adapters: dict[int, tuple[str, DestinationAdapter]] = {}
+        self._digests: dict[tuple, str] = {}  # file state -> SHA-256, see media_digest
         self._sems: dict[int, asyncio.Semaphore] = {}
         self._inflight: set[int] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -149,15 +150,15 @@ class Publisher:
             self._loop.call_soon_threadsafe(self._wake.set)
 
     def _set(self, did: int, status: str, detail: str = "", **fields) -> None:
-        with self.store._lock:
+        with self.store._lock, self.store.atomic():   # the delivery and what the cadence keeps of it: both or neither
             d = self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did)
             h = d["history"] + [{"t": round(self.clock(), 3), "from": d["status"], "to": status,
                                  "detail": self.secrets.redact(detail)[:300]}]
             if "last_error" in fields:
                 fields["last_error"] = self.secrets.redact(fields["last_error"])[:500]
             self.store.update("deliveries", did, status=status, history=h[-HISTORY_MAX:], **fields)
-            d.update(fields, status=status)
-            if self.cadence and status in TERMINAL:
+            d.update(fields, status=status, history=h[-HISTORY_MAX:])
+            if self.cadence:
                 self.cadence.settle(d)
         self._emit(d, detail)
 
@@ -186,15 +187,36 @@ class Publisher:
         p = Path(clip["path"]) if clip and clip.get("path") else None
         return p if p and p.is_file() and p.stat().st_size > 0 else None
 
-    def media_fp(self, clip: dict | None) -> str:
+    def _media(self, clip: dict | None, read: bool = True) -> tuple[int, str]:
+        """(size, SHA-256 hex) of the clip file as it is now; (0, "") without a file. The file is read once per
+        state of it (path, size, modification time, file id), however many deliveries and steps ask. read=False
+        never reads the file: (0, "") when this state was not read yet."""
         p = self.video_path(clip)
         if not p:
-            return ""
-        h = hashlib.sha256()
-        with open(p, "rb") as f:
-            for b in iter(lambda: f.read(1 << 20), b""):
-                h.update(b)
-        return f"v1:{p.stat().st_size}:{h.hexdigest()[:16]}"
+            return 0, ""
+        try:
+            st = p.stat()
+        except OSError:                               # gone between the check above and now
+            return 0, ""
+        key = (str(p), st.st_size, st.st_mtime_ns, st.st_ino)
+        digest = self._digests.get(key, "")
+        if not digest and read:
+            with open(p, "rb") as f:
+                digest = hashlib.file_digest(f, "sha256").hexdigest()
+            with self.store._lock:
+                if len(self._digests) >= 64:          # a few clips are in flight at a time
+                    self._digests.clear()
+                self._digests[key] = digest
+        return (st.st_size, digest) if digest else (0, "")
+
+    def media_digest(self, clip: dict | None, read: bool = True) -> str:
+        """The file's SHA-256. The upload claim asks with read=False: it holds the database write lock, and other
+        programs wait for that lock, so a file is only ever read before the claim."""
+        return self._media(clip, read)[1]
+
+    def media_fp(self, clip: dict | None) -> str:
+        size, digest = self._media(clip)
+        return f"v1:{size}:{digest[:16]}" if digest else ""
 
     def holds_provider_bytes(self, clip_id) -> list[dict]:
         """Deliveries for which a provider may hold or later resume this clip's bytes: the clip file must not be
@@ -699,7 +721,8 @@ class Publisher:
                 self._set(did, "queued", f"daily upload quota reached ({limit}); waiting for the provider day to reset",
                           next_attempt_at=at)
                 return None
-            hold = self.cadence.check(d, dest, now, self.video_path(clip)) \
+            # the file's hash was read before this transaction (_job): nothing is read under the write lock
+            hold = self.cadence.check(d, dest, now, self.media_digest(clip, read=False)) \
                 if self.cadence and dest["provider"] != TEST else None
             if hold:
                 kind, when, why = hold
