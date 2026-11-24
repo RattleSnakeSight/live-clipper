@@ -16,6 +16,7 @@ from ..logging_setup import register_secret
 from . import quota
 from .cadence import Cadence
 from .requirements import requirements_for
+from .social import ROUTES, Social
 from .store import Store
 from .vault import CRED_FIELDS, OAUTH_TTL, Secrets
 from .worker import ACTIVE, HOLD, REAL_PLATFORMS, TEST, TEST_LABEL, Publisher
@@ -74,6 +75,10 @@ class Enabled(BaseModel):
 
 class ModeBody(BaseModel):
     mode: str
+
+
+class SocialRouteBody(BaseModel):
+    route: str
 
 
 class TestModeBody(BaseModel):
@@ -140,10 +145,11 @@ class PublishService:
         from . import sandbox_server
         sandbox_server.APP_PORT = ctx.port
         self.store = Store(ctx.db)
+        self.social = Social(ctx)
         self.secrets = Secrets(ctx.secrets)
         self.pub = Publisher(self.store, ctx.settings, self.secrets, sandbox_dir=ctx.paths.root / "sandbox",
                              notify=ctx.notify, emit=lambda p: ctx.bus.publish("publish.delivery", p),
-                             cadence=Cadence(ctx.db))
+                             cadence=Cadence(ctx.db), social_owned=lambda: self.social.owned())
         for prov in PROVIDERS:
             if not self.store.q1("SELECT id FROM publish_destinations WHERE provider=?", prov):
                 self.pub.add_destination(prov, requirements_for(prov)["label"])
@@ -390,6 +396,8 @@ class PublishService:
             self._guard()
             d = self._dest(dest_id)
             if body.enabled:
+                if d["provider"] in self.social.owned():
+                    raise HTTPException(409, self.pub.block_reason(d))
                 if d["provider"] != TEST:
                     if d["status"] != "connected":
                         raise HTTPException(409, "connect the destination before enabling it")
@@ -454,6 +462,19 @@ class PublishService:
         async def oauth_callback(provider: str, request: Request):
             self._guard()
             return await self.finish_oauth(provider, dict(request.query_params))
+
+        @r.get("/social/route")
+        def get_social_route():
+            self._guard()
+            return self.social.state()
+
+        @r.put("/social/route")
+        def put_social_route(body: SocialRouteBody):
+            self._guard()
+            if body.route not in ROUTES:
+                raise HTTPException(400, f"route must be one of: {', '.join(ROUTES)}")
+            self.ctx.settings.set("social.route", body.route)
+            return self.social.state()
 
         @r.get("/publish/mode")
         def get_mode():

@@ -85,9 +85,11 @@ class Publisher:
     def __init__(self, store, settings, secrets, adapters: dict[str, Callable] | None = None,
                  clock: Callable[[], float] = time.time, max_attempts: int = 6, sandbox_dir=None,
                  notify: Callable[[str, str], None] | None = None,
-                 emit: Callable[[dict], None] | None = None, cadence=None):
+                 emit: Callable[[dict], None] | None = None, cadence=None,
+                 social_owned: Callable[[], set] | None = None):
         self.store, self.settings, self.secrets, self.clock = store, settings, secrets, clock
         self.cadence = cadence                # publish.cadence.Cadence: streamer spacing and one post per moment
+        self.social_owned = social_owned or (lambda: set())    # networks a connected outside sender posts
         self.sandbox_dir = sandbox_dir
         self.factories = {**default_factories(), **(adapters or {})}
         self.max_attempts = max_attempts
@@ -239,6 +241,9 @@ class Publisher:
         """Why no provider effect may happen for this destination (None = allowed)."""
         if dest.get("provider") == TEST:
             return None
+        if dest.get("provider") in self.social_owned():
+            return (f"{dest['provider'].capitalize()} is posted through Metricool, the preferred route; the direct "
+                    "route stays off so only one sender posts it")
         if not dest.get("rights_ack_at"):
             return "the rights/permission acknowledgement for this destination is missing"
         if not dest.get("enabled"):

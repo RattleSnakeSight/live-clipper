@@ -274,7 +274,8 @@ def test_metricool_is_named_where_posting_is_decided_and_asks_for_nothing(server
         expect(out.locator("input, button, select, textarea")).to_have_count(0)
     expect(page.locator("#dest-instagram")).to_contain_text("not been tried with a newly created Meta app")
     expect(page.locator("#routes-youtube")).to_have_count(0)
-    assert page.locator("input[name*=metricool i], label:has-text('Metricool')").count() == 0
+    # the one place with a Metricool choice is the preferred-route panel; the cards ask for nothing about it
+    assert page.locator("#list-cards input[name*=metricool i], .stack input[name*=metricool i]").count() == 0
 
     # first-run setup says it at the question, and again on the last page when Instagram or TikTok is picked
     wiz = server(app_state={})
@@ -460,3 +461,24 @@ def test_switching_on_after_an_account_change_names_the_new_account_first(server
     expect(page.locator("#dest-youtube header .pill").nth(1)).to_have_text("Posting on")
     assert dest(srv, page, "youtube")["enabled"] is True
     assert not page.js_errors
+
+
+def test_metricool_is_preferred_never_assumed_connected_and_skippable(server, make_page):
+    srv = server()
+    page = open_page(make_page, srv, "destinations")
+    panel = page.locator("#social-route")
+    expect(panel).to_contain_text("Metricool (preferred for Instagram and TikTok)")
+    expect(panel).to_contain_text("Not connected")                    # preferred is not connected
+    expect(panel.get_by_label("Through Metricool (preferred)")).to_be_checked()
+    panel.get_by_label("Directly, or not at all (skip Metricool)").check()
+    expect(panel).to_contain_text("Skipped")
+    assert json.loads((srv.state_file).read_text()).get("social_route") == "direct"
+
+
+def test_a_verified_sender_is_shown_as_connected_with_only_its_own_receipts(server, make_page):
+    srv = server(social_sender={"networks": ["instagram", "tiktok"]}, social_confirmed={"instagram": 2})
+    page = open_page(make_page, srv, "destinations")
+    panel = page.locator("#social-route")
+    expect(panel).to_contain_text("Connected: the local sender is running and verified")
+    expect(panel).to_contain_text("instagram: 2 confirmed")
+    expect(panel).to_contain_text("never direct or test posts")

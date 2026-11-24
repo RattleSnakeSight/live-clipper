@@ -817,6 +817,23 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         db["mode"] = body["mode"]
         return {"mode": db["mode"]}
 
+    @app.get("/api/social/route")
+    def get_social_route():
+        pref, sender = store.get("social_route", "metricool"), store.get("social_sender")
+        owned = list((sender or {}).get("networks", [])) if pref == "metricool" and sender else []
+        state = "skipped" if pref != "metricool" else "connected" if owned else "waiting" if sender else "not_connected"
+        return {"preference": pref, "state": state, "networks": owned, "confirmed": store.get("social_confirmed", {}),
+                "unconfirmed": {}, "label": "Metricool (preferred for Instagram and TikTok)",
+                "needs": ["A Metricool account with your brand and networks connected.", "The local sender program."]}
+
+    @app.put("/api/social/route")
+    def put_social_route(body: dict = Body(...)):
+        if body.get("route") not in ("metricool", "direct"):
+            raise HTTPException(400, "route must be one of: metricool, direct")
+        store["social_route"] = body["route"]
+        save()
+        return get_social_route()
+
     @app.get("/api/publish/test-mode")
     def get_test_mode():
         return {"enabled": dests[4]["enabled"], "label": TEST_LABEL}

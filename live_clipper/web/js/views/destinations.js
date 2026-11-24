@@ -94,10 +94,36 @@ function settingsForm(d, refresh) {
 
 export async function render(main, params) {
   const modeBox = h('section', { id: 'posting-mode', class: 'panel', 'aria-labelledby': 'pm-title' });
+  const socialBox = h('section', { id: 'social-route', class: 'panel', 'aria-labelledby': 'sr-title', style: 'margin-top: var(--gap)' });
   const list_ = h('div', { class: 'stack', style: 'margin-top: var(--gap)' });
   const intents = h('div', {});
   main.append(titleRow('Destinations', 'Post my clips: the accounts clips are posted to. Nothing is posted until a destination is connected, confirmed and turned on.'),
-    intents, modeBox, list_);
+    intents, modeBox, socialBox, list_);
+
+  // Instagram and TikTok through Metricool is the preferred route. It is only "connected" when the local sender
+  // says so itself; skipping it never blocks anything else, and a connected sender owns those two networks.
+  const SOCIAL_STATE = {
+    connected: 'Connected: the local sender is running and verified. It posts Instagram and TikTok; the direct cards below stay off.',
+    waiting: 'A sender was seen but is not verified or not running now. Nothing is assumed: the direct cards below still work.',
+    not_connected: 'Not connected. This is the preferred route, but no sender has reported in. You can skip it and use the direct cards below.',
+    skipped: 'Skipped. Instagram and TikTok are posted directly (see their cards below), or not at all.' };
+  async function loadSocial() {
+    const s = await get('/social/route');
+    const group = choiceGroup({ legend: 'How Instagram and TikTok are posted', value: s.preference, options: [
+      { value: 'metricool', label: 'Through Metricool (preferred)', hint: 'Needs a Metricool account and its local sender. Optional.' },
+      { value: 'direct', label: 'Directly, or not at all (skip Metricool)', hint: 'Use your own Meta and TikTok developer apps on the cards below, or leave them off.' }] });
+    group.inputs.forEach((i) => i.addEventListener('change', async () => {
+      try { await put('/social/route', { route: i.value }); await loadSocial(); await load(true); } catch (e) { toast(e.message, true); await loadSocial(); }
+    }));
+    const done = Object.entries(s.confirmed || {}).map(([n, c]) => `${n}: ${c} confirmed`).join(', ');
+    const open = Object.entries(s.unconfirmed || {}).map(([n, c]) => `${n}: ${c} not confirmed yet`).join(', ');
+    clear(socialBox, h('h2', { id: 'sr-title' }, s.label),
+      h('p', { class: 'small', role: 'status' }, SOCIAL_STATE[s.state] || ''),
+      s.state === 'connected' ? h('p', { class: 'small' }, `Networks it posts: ${s.networks.join(', ')}.`) : null,
+      (done || open) ? h('p', { class: 'small' }, `Posts the sender has recorded: ${[done, open].filter(Boolean).join('; ')}. Only its own receipts count here, never direct or test posts.`) : null,
+      group.el,
+      moreDetails('What a clean install needs', [{ title: 'Bring', items: s.needs }]));
+  }
 
   async function loadMode() {
     const m = await get('/publish/mode');
@@ -135,7 +161,8 @@ export async function render(main, params) {
     clear(intents, await intentSwitch('post', { dests: rows }));
     announceChanges(seen, real.map((d) => [d.label, `${statusOf(d)[0]}${d.status === 'connected' && d.account ? ` as ${d.account}` : ''}, posting ${d.enabled ? 'on' : 'off'}`]));
   }
-  await Promise.all([loadMode().catch((e) => clear(modeBox, h('p', { class: 'error' }, e.message))), load()]);
+  await Promise.all([loadMode().catch((e) => clear(modeBox, h('p', { class: 'error' }, e.message))),
+    loadSocial().catch((e) => clear(socialBox, h('p', { class: 'error' }, e.message))), load()]);
   focusCard(params && params[0] ? `dest-${params[0]}` : null);
   return refreshOnReturn(list_, load);
 }
