@@ -401,6 +401,7 @@ class EditService:
         if ff:  # a folder or the ffmpeg binary itself
             folder = str(Path(ff).parent if Path(ff).is_file() else Path(ff))
             os.environ["PATH"] = folder + os.pathsep + os.environ.get("PATH", "")
+        self.ctx = ctx
         self.engine = EditEngine(ctx.paths, ctx.db, ctx.settings, ctx.bus)
         self.engine.presets.seed()
         self.engine.recover()
@@ -660,7 +661,14 @@ class EditService:
             finals = ((self._clip(cid)["files"] or {}).get("final") or {})
             sent = [lg for lg in finals if e.publisher.on_language_ready(cid, lg)]
             sel = self._clip(cid)["trigger"].get("selection")
-            return {"evidence": ev, "published": sent, "selection": sel}
+            out = {"evidence": ev, "published": sent, "selection": sel}
+            if not body["approved"]:                   # Reject: waiting posts are cancelled, files go
+                m = next((getattr(s, "m", None) for s in getattr(self.ctx, "services", [])
+                          if getattr(s, "name", "") == "maintenance"), None)
+                if m is not None:
+                    busy = {"removed": False, "freed_bytes": 0, "kept_because": "it is being rendered now"}
+                    out["media"] = busy if cid in e.clip_tasks else m.reject_clip(cid)
+            return out
 
         @r.post("/api/clips/{cid}/publish")
         def publish_clip(cid: int, body: dict = Body(default={})):

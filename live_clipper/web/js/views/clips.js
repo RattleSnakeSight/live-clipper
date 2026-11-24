@@ -250,7 +250,8 @@ async function renderClip(main, id) {
     approved ? 'Approve this clip. If it is finished it goes to posting.' : 'Mark this clip as not suitable. It is not posted.',
     `review-${approved}`, async () => {
       const r = await post(`/clips/${enc}/review`, { approved });
-      reviewOut.textContent = approved ? (r.published && r.published.length ? 'Approved and sent to posting.' : 'Approved.') : 'Rejected.';
+      reviewOut.textContent = approved ? (r.published && r.published.length ? 'Approved and sent to posting.' : 'Approved.')
+        : 'Rejected.' + (r.media ? (r.media.removed ? ` Its files were deleted (${(r.media.freed_bytes / 1048576).toFixed(1)} MB freed).` : ` Its files stay: ${r.media.kept_because}.`) : '');
       await loadHistory();
     });
   const postAnyway = actionButton('Post anyway', 'Send the finished clip to posting whatever the format or rules decided.', 'publish', async () => {

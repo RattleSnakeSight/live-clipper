@@ -5,6 +5,11 @@ Ported from the original maintenance logic (values and order kept), minus the Dr
 Rules that never bend: clips that are queued, held, uploading or simply not posted yet are never deleted.
 Files this module does not know about are never deleted either, except temporary render files.
 
+What the user's own presses do (immediately, not on a schedule): Reject removes that clip's files, and Clean up
+now also removes every fully posted clip and every clip the user rejected, found by its folder even when the
+app never tracked it. A clip that is waiting, in flight, shared, approved or not decided keeps its files. The
+rows that show what was sent (deliveries, claims, the clip row) always stay.
+
 Cleanup order when a pass runs (each step only while space is still needed, except steps 1 and 2, which
 always run):
   1. temporary render files older than an hour
@@ -21,6 +26,7 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,6 +53,9 @@ TRASH_KEEP_DEFAULT_H = 168
 CYCLE_S = 60
 ORIGINAL_NAME = "source.ts"
 TERMINAL = {"published", "failed", "cancelled", "canceled", "skipped"}
+SENT = ("published", "private", "draft")             # a delivery that reached the platform and is settled
+UNSENT = ("queued", "held", "paused", "blocked", "waiting_language")   # the provider was never asked
+SETTLED = SENT + ("cancelled", "disallowed")
 TRASH_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}-\d{1,12}$")
 SAFE_ID = re.compile(r"[^A-Za-z0-9_]")
 
@@ -176,6 +185,108 @@ class Maintenance:
                     return True
         return False
 
+    # --- what a clip's deliveries say (publishing's own table, so it holds across restarts) ---
+    def _deliveries(self, clip_id) -> list[dict]:
+        try:
+            rows = self.ctx.db.execute("SELECT id, status, reconcile FROM publish_deliveries WHERE clip_id=?",
+                                       (int(clip_id) if str(clip_id).isdigit() else clip_id,)).fetchall()
+        except sqlite3.OperationalError:               # no publishing tables in this database
+            return []
+        return [{"id": r[0], "status": r[1], "reconcile": r[2]} for r in rows]
+
+    def _posted(self, clip_id) -> bool:
+        """Every delivery of the clip is settled and at least one reached its platform."""
+        rows = self._deliveries(clip_id)
+        if rows:
+            return all(r["status"] in SETTLED for r in rows) and any(r["status"] in SENT for r in rows)
+        return self.posted_at(str(clip_id)) is not None
+
+    def _rejected(self, clip_id) -> bool:
+        if not str(clip_id).isdigit():
+            return False
+        from .store import Store
+        c = Store(self.ctx.db).clip(int(clip_id)) or {}
+        return (((c.get("trigger") or {}).get("review") or {}).get("gameplay") or {}).get("state") == "rejected"
+
+    def _in_flight(self, clip_id) -> bool:
+        """An upload of this clip may still need its file (or the publisher says so)."""
+        for r in self._deliveries(clip_id):
+            if r["status"] not in SETTLED and (r["status"] != "failed" or r["reconcile"]):
+                return True
+        return self.publisher_holds(clip_id)
+
+    def _removable(self, clip_id) -> bool:
+        """May this clip's files be deleted now? Posted and settled, or rejected by the user with nothing waiting."""
+        if self._posted(clip_id):
+            return not self.publisher_holds(clip_id)
+        return self._rejected(clip_id) and not self._in_flight(clip_id) and not any(
+            r["status"] in UNSENT for r in self._deliveries(clip_id))
+
+    def _publisher(self):
+        for svc in self.ctx.services:
+            pub = getattr(svc, "pub", None) if getattr(svc, "name", "") == "publish" else None
+            if pub is not None:
+                return pub
+        return None
+
+    def adopt_folders(self) -> int:
+        """Track every clip folder under the store that the app never tracked (clips held or rejected by selection
+        never reached posting, so nothing recorded their folder). Only folders named after an existing clip."""
+        root = self.config()["dir"]
+        n = 0
+        try:
+            ids = [r[0] for r in self.ctx.db.execute("SELECT id FROM monitor_clips").fetchall()]
+        except sqlite3.OperationalError:
+            return 0
+        for cid in ids:
+            d = root / "clips" / str(cid)
+            if d.is_dir() and not is_link(d):
+                cur = self.ctx.db.execute(
+                    "INSERT INTO maintenance_clip(clip_id, unit_path, created_at) SELECT ?,?,? "
+                    "WHERE NOT EXISTS (SELECT 1 FROM maintenance_clip WHERE clip_id=?)",
+                    (str(cid), str(d), self.clock(), str(cid)))
+                n += cur.rowcount
+        return n
+
+    def release_clip(self, clip_id, why: str) -> dict:
+        """Delete one clip's folder now. Refuses a folder outside the store or one another clip shares. Keeps every
+        database row; the clip row gets a note of what was removed and why."""
+        cid, root = str(clip_id), self.config()["dir"]
+        row = self.ctx.db.execute("SELECT unit_path FROM maintenance_clip WHERE clip_id=? AND state='kept'",
+                                  (cid,)).fetchone()
+        p = Path(row[0]) if row else root / "clips" / cid
+        if is_link(p) or p == root or not self._inside(p, root):
+            return {"removed": False, "freed_bytes": 0, "kept_because": "its folder is not inside the storage folder"}
+        if self.ctx.db.execute("SELECT 1 FROM maintenance_clip WHERE unit_path=? AND clip_id<>? AND state='kept'",
+                               (str(p), cid)).fetchone():
+            return {"removed": False, "freed_bytes": 0, "kept_because": "the folder is shared with another clip"}
+        freed = _size(p) if p.exists() else 0
+        self._rm(p)
+        if self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE clip_id=?", (cid,)).rowcount == 0:
+            self.ctx.db.execute("INSERT OR IGNORE INTO maintenance_clip(clip_id, unit_path, created_at, state) "
+                                "VALUES(?,?,?,'deleted')", (cid, str(p), self.clock()))
+        if cid.isdigit():
+            from .store import Store
+            Store(self.ctx.db).merge_json("clips", int(cid), "trigger", {"media_removed": {
+                "at": self.clock(), "why": why, "bytes": freed}})
+        return {"removed": True, "freed_bytes": freed, "kept_because": ""}
+
+    def reject_clip(self, clip_id) -> dict:
+        """The user pressed Reject: what was only waiting is cancelled, then the clip's files are removed unless an
+        upload may still need them. Returns {"removed", "freed_bytes", "kept_because"}."""
+        cid, pub = str(clip_id), self._publisher()
+        if pub is not None:
+            for r in self._deliveries(cid):
+                if r["status"] in UNSENT and not r["reconcile"]:
+                    try:
+                        pub.cancel(r["id"])
+                    except Exception:                  # in flight meanwhile: the check below keeps the files
+                        log.warning("could not cancel delivery %s of rejected clip %s", r["id"], cid)
+        if self._in_flight(cid) or any(r["status"] in UNSENT for r in self._deliveries(cid)):
+            return {"removed": False, "freed_bytes": 0, "kept_because": "an upload of this clip is still waiting or "
+                    "may have reached a platform; its files stay until that is settled"}
+        return self.release_clip(cid, "rejected")
+
     # --- scan and plan ---
     def scan(self) -> dict:
         cfg = self.config()
@@ -236,7 +347,8 @@ class Maintenance:
                 "kept_bytes": kept, "trash_bytes": trash_b, "temp_bytes": sum(t["bytes"] for t in temp),
                 "protected_bytes": sum(u["bytes"] for u in units if u["posted_at"] is None)}
 
-    def plan(self, scan: dict | None = None) -> list[Action]:
+    def plan(self, scan: dict | None = None, manual: bool = False) -> list[Action]:
+        """manual: the user pressed Clean up, so what is posted or rejected goes now, not after the retention time."""
         sc = scan or self.scan()
         cfg, now = sc["cfg"], self.clock()
         acts: list[Action] = []
@@ -283,6 +395,17 @@ class Maintenance:
                     acts.append(Action("delete_clip", str(u["path"]), u["clip_id"], remaining[u["path"]],
                                        "disk cap reached"))
                     freed_extra[0] += remaining[u["path"]]
+        if manual:
+            for u in sc["units"]:
+                if any(x.action == "delete_clip" and x.path == str(u["path"]) for x in acts):
+                    continue
+                if self._removable(u["clip_id"]):
+                    orig = str(u["original"][0]) if u["original"] else None
+                    acts = [x for x in acts if not (x.action in ("trash_clip", "delete_original")
+                                                    and x.path in (str(u["path"]), orig))]
+                    why = "posted" if self._posted(u["clip_id"]) else "rejected"
+                    acts.append(Action("delete_clip", str(u["path"]), u["clip_id"], u["bytes"],
+                                       "you asked to clean up: " + why))
         return acts
 
     # --- execution ---
@@ -339,7 +462,9 @@ class Maintenance:
                     self._rm(p)
                     self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE trash_path=?", (str(p),))
                 else:
-                    if a.clip_id is not None and self.posted_at(a.clip_id) is None:
+                    asked = a.action == "delete_clip" and a.reason.startswith("you asked to clean up")
+                    if a.clip_id is not None and self.posted_at(a.clip_id) is None and not (
+                            asked and self._removable(a.clip_id)):
                         continue  # not (or no longer) fully posted: protected
                     if a.clip_id is not None and self.publisher_holds(a.clip_id):
                         continue  # a provider may still read or resume an upload of this file
@@ -367,9 +492,11 @@ class Maintenance:
                 errors.append(f"{a.action} {p.name}: {e.__class__.__name__}")
         return {"done": done, "freed_bytes": freed, "errors": errors}
 
-    def cleanup(self, dry_run: bool = True) -> dict:
+    def cleanup(self, dry_run: bool = True, manual: bool = False) -> dict:
+        if manual:
+            self.adopt_folders()
         sc = self.scan()
-        acts = self.plan(sc)
+        acts = self.plan(sc, manual=manual)
         out = {"dry_run": dry_run, "actions": [a.public(sc["cfg"]["dir"]) for a in acts]}
         if not dry_run:
             out.update(self.execute(acts))
@@ -501,4 +628,4 @@ class MaintenanceService:
         return self.m.report()
 
     def post_cleanup(self, body: CleanupBody) -> dict:
-        return self.m.cleanup(dry_run=body.dry_run)
+        return self.m.cleanup(dry_run=body.dry_run, manual=True)   # a press of the button, not the timer
