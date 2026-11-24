@@ -2,7 +2,7 @@
 
 Current state, release notes and the build history of Live Clipper.
 
-## Current state (0.4.0)
+## Current state (0.4.1)
 
 Live Clipper is a local app that watches Twitch, Kick and YouTube streams (and creator feeds), cuts vertical
 clips with captions, and posts them to YouTube Shorts, TikTok and Instagram Reels, automatically or after your
@@ -36,6 +36,18 @@ Known limits:
 
 ## Releases
 
+- **0.4.1** (2026-11-24). Reject and Clean up now delete the files they are meant to: Reject cancels what was
+  only waiting and deletes that clip's video files (kept while an upload may still need them, or when shared),
+  and Clean up now deletes fully posted and rejected clips at once, finds clips the app never tracked, and shows
+  by category which clips and how many bytes go and what is kept, before and when you confirm. A clip that a
+  separate sender program may still post, or has claimed and not confirmed, is never deleted, and posting to the
+  test destination alone never makes a clip removable. A delete that fails part way reports only the bytes that
+  are really gone. Instagram and TikTok through Metricool is the preferred, skippable route on Destinations: it
+  shows Connected only when a separately installed sender reports a verified brand and both accounts (the app
+  does not include that sender), counts only posts the sender read back as published with a public link, and keeps
+  the direct routes off while a sender is configured, also when it is offline, so a network never has two senders.
+  The setup question, the cards, the README and both guides say so. No change to the claims table, the receipts or
+  any other 0.4.0 format; the sender's heartbeat is a new file in the state folder.
 - **0.4.0** (2026-11-24). Sources and Destinations are rebuilt around "Watch a stream" and
   "Post my clips": one way to connect at a time, each field with the provider's name for it and where to
   find it, the installation's own callback and webhook addresses with Copy, and four numbered steps per

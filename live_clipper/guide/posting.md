@@ -20,7 +20,8 @@ or that every account can post. Where a detail could not be confirmed, this page
 
 Metricool, an outside scheduling service, is **not part of this installation**. The maintainers' own tested
 setup published Instagram and TikTok clips through it with an extra helper program that Live Clipper does not
-include. The Instagram and TikTok cards say so and offer nothing to connect for it. Watching streams, the
+include. It is the preferred route when a separately installed sender for it reports in; the Instagram and
+TikTok cards offer nothing to connect for it, and the panel at the top of Destinations lets you skip it. Watching streams, the
 test destination and YouTube never need Metricool. See "Metricool" below.
 
 ## Two modes
@@ -313,9 +314,18 @@ and publishes posts to social accounts you connect to it. The maintainers' own t
 publish finished clips to Instagram and TikTok publicly, which sidesteps the limits of a personal TikTok or
 Meta developer app described above.
 
-**It is not available in this installation.** That setup relies on an extra helper program on the same
+**It is the preferred route, and it is never assumed.** That setup relies on a sender program on the same
 computer that passes each finished clip to Metricool. Live Clipper does not include that program, so it
-cannot hand clips to Metricool, and the app asks for no Metricool sign-in, key or other value.
+cannot hand clips to Metricool itself, and the app asks for no Metricool sign-in, key or other value. The panel
+at the top of Destinations keeps four things apart:
+
+- *Preference*: Metricool by default. "Directly, or not at all" skips it; nothing else depends on it.
+- *Connected*: only when the sender itself reports, every few minutes, that the provider showed your selected
+  brand with both of your accounts. A report that is old, from the future or not verified shows "waiting".
+- *Who sends*: while a sender is configured, the direct Instagram and TikTok cards stay off, also when the
+  sender is offline, so a network never has two senders. Only an explicit skip hands them back.
+- *Confirmed posts*: only posts the sender read back from Metricool's planner as published with a public
+  link on Instagram or TikTok. Scheduled, uncertain, direct and test posts never count there.
 
 Why it is not included (Metricool's own pages, read 2026-11-23): Live Clipper is free to use, and Metricool
 offers no free way for a program to do this. Its API, the route it documents for programs, is part of the

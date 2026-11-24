@@ -88,15 +88,33 @@ async function storageBlock() {
   try { s = await get('/storage'); } catch { return h('p', { class: 'muted' }, 'Storage use is not available right now.'); }
   const out = h('div', { role: 'status', 'aria-live': 'polite' });
   const pct = s.cap_bytes ? Math.min(100, Math.round((s.usage_bytes / s.cap_bytes) * 100)) : 0;
-  const preview = h('button', { type: 'button', class: 'btn small', help: 'Show what a cleanup would delete, without deleting anything.' }, 'Preview cleanup');
-  const run = h('button', { type: 'button', class: 'btn small danger', help: 'Delete what the cleanup rules allow now. Clips waiting to be posted are kept.' }, 'Clean up now');
-  const show = (r) => clear(out, h('p', { class: 'small', style: 'margin-top: 8px' },
-    `${r.dry_run ? 'Would free' : 'Freed'} ${fmtBytes(r.freed_bytes || 0)} (${(r.actions || []).length} item${(r.actions || []).length === 1 ? '' : 's'}).`));
+  const preview = h('button', { type: 'button', class: 'btn small', help: 'Show which clips and how many bytes a cleanup would delete now, without deleting anything.' }, 'Preview cleanup');
+  const run = h('button', { type: 'button', class: 'btn small danger', help: 'Delete from this computer, now, every clip that is finished with: fully posted clips and clips you rejected, plus old trash and temporary files. Clips that are waiting, approved, being posted, shared or not decided are kept.' }, 'Clean up now');
+  // what a cleanup removes, by category, and what stays: the same words in the preview, the confirmation and the result
+  const lines = (r) => {
+    const s = r.summary || {};
+    const part = (k, label) => (s[k] && s[k].items ? `${s[k].items} ${label} (${fmtBytes(s[k].bytes)})` : null);
+    const parts = [part('posted', `fully posted clip${s.posted && s.posted.items === 1 ? '' : 's'}`),
+      part('rejected', `rejected clip${s.rejected && s.rejected.items === 1 ? '' : 's'}`),
+      part('other', `other item${s.other && s.other.items === 1 ? '' : 's'} (old trash, temporary files, clips past your keep time)`)].filter(Boolean);
+    return { parts, kept: `Kept: ${fmtBytes(s.kept_bytes || 0)} of clips that are waiting, approved, being posted, shared or not decided yet.` };
+  };
+  const show = (r) => {
+    const { parts, kept } = lines(r);
+    const total = fmtBytes(r.dry_run ? (r.would_free_bytes || 0) : (r.freed_bytes || 0));
+    clear(out, h('p', { class: 'small', style: 'margin-top: 8px' },
+      `${r.dry_run ? 'Would free' : 'Freed'} ${total}${parts.length ? `: ${parts.join(', ')}` : ' (nothing to clean up)'}. ${kept}`));
+  };
   preview.addEventListener('click', busy(preview, async () => {
     try { show(await post('/storage/cleanup', { dry_run: true })); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); }
   }));
   run.addEventListener('click', busy(run, async () => {
-    if (!await confirmDialog({ title: 'Clean up now?', body: 'Posted clips and recordings past your rules are deleted. Unposted clips are kept.', ok: 'Clean up', danger: true })) return;
+    let plan;
+    try { plan = await post('/storage/cleanup', { dry_run: true }); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); return; }
+    const { parts, kept } = lines(plan);
+    if (!parts.length) { show(plan); return; }
+    const body = `This deletes these files from this computer now, and it cannot be undone: ${parts.join(', ')}; ${fmtBytes(plan.would_free_bytes || 0)} in all. The posts already made stay where they are, and the record of what was sent is kept. ${kept}`;
+    if (!await confirmDialog({ title: 'Clean up now?', body, ok: 'Delete these files', danger: true })) return;
     try { show(await post('/storage/cleanup', { dry_run: false })); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); }
   }));
   return h('div', { class: 'stack', style: 'margin-bottom: 16px' },

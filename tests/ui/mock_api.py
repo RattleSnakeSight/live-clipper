@@ -422,7 +422,10 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     @app.post("/api/storage/cleanup")
     def cleanup(body: dict = Body(default={})):
         return {"dry_run": body.get("dry_run", True), "actions": [{"kind": "delete_temp", "path": "tmp/seg-001.ts",
-                                                                   "bytes": 52428800}], "freed_bytes": 52428800}
+                                                                   "bytes": 52428800}], "freed_bytes": 52428800,
+                "would_free_bytes": 52428800 + 3 * 1048576 * 100,
+                "summary": {"posted": {"items": 2, "bytes": 3 * 1048576 * 60}, "rejected": {"items": 1, "bytes": 3 * 1048576 * 40},
+                            "other": {"items": 1, "bytes": 52428800}, "kept_bytes": 3 * 1048576 * 500}}
 
     @app.get("/api/notifications")
     def notifications(since: int = 0):

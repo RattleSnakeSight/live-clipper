@@ -162,9 +162,11 @@ def _opts(*pairs: tuple[str, str]) -> list[dict]:
 POST_DESTS = ["youtube", "tiktok", "instagram"]
 # shown where the posting decision is made; the destination cards say the same (publish/requirements.py)
 METRICOOL_NOTE = (
-    "The maintainers' own tested setup publishes Instagram and TikTok clips through Metricool, an outside scheduling "
-    "service. That connection is not included in this installation: here Instagram and TikTok post directly through "
-    "your own Meta or TikTok developer app. YouTube Shorts posts directly through Google. Watching streams, the test "
+    "Metricool, an outside scheduling service, is the preferred way to post Instagram and TikTok clips. The sender "
+    "program that hands clips to it is not included in this installation: with a Metricool account and a separately "
+    "installed sender it is shown as connected on Destinations, and the app then leaves those two networks to it. "
+    "Without them, or if you skip it there, Instagram and TikTok post directly through your own Meta or TikTok "
+    "developer app, or not at all. YouTube Shorts posts directly through Google. Watching streams, the test "
     "destination and YouTube never need Metricool."
 )
 WEBHOOK_METHODS = ["webhook", "both"]

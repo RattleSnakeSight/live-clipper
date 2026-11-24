@@ -30,7 +30,8 @@ def app():
 
 
 def heartbeat(ctx, **kw):
-    body = {"name": "metricool", "verified": True, "networks": ["instagram", "tiktok"], "at": time.time(), **kw}
+    body = {"name": "metricool", "verified": True, "owns": ["instagram", "tiktok"], "networks": ["instagram", "tiktok"],
+            "at": time.time(), "published": {}, **kw}
     (ctx.paths.state / "social-sender.json").write_text(json.dumps(body), encoding="utf-8")
 
 
@@ -55,6 +56,8 @@ def test_a_verified_fresh_sender_makes_it_connected_and_a_stale_or_unverified_on
     assert route(c)["state"] == "connected" and route(c)["networks"] == ["instagram", "tiktok"]
     heartbeat(ctx, at=time.time() - 3600)
     assert route(c)["state"] == "waiting" and route(c)["networks"] == []     # seen, but not alive now
+    heartbeat(ctx, at=time.time() + 3600)
+    assert route(c)["state"] == "waiting"                               # a timestamp in the future never passes
     heartbeat(ctx, verified=False)
     assert route(c)["state"] == "waiting"
     heartbeat(ctx, name="something-else")                               # a sender for another service is not it
@@ -76,7 +79,7 @@ def test_revoking_is_the_sender_going_away_and_skipping_is_the_users_choice(app)
     assert c.put("/api/social/route", json={"route": "metricool"}).json()["state"] == "connected"
 
 
-def test_publications_count_only_from_the_senders_own_confirmed_receipts(app):
+def test_only_publications_the_sender_read_back_as_published_count_as_confirmed(app):
     ctx, _, c = app
     for stmt in LEGACY_SCHEMA:
         ctx.db.execute(stmt)
@@ -85,11 +88,11 @@ def test_publications_count_only_from_the_senders_own_confirmed_receipts(app):
     for owner, net, pending in rows:
         ctx.db.execute("INSERT INTO local_english_claims VALUES(?,?,'channel:1','m1',1,'',?,1,?)",
                        (owner, net, time.time(), pending))
-    heartbeat(ctx)
+    heartbeat(ctx)                                                      # no published counts reported
     r = route(c)
-    assert r["confirmed"] == {"instagram": 1, "tiktok": 1} and r["unconfirmed"] == {"tiktok": 1}
-    ctx.db.execute("DELETE FROM local_english_claims WHERE owner LIKE 'metricool:%'")
-    assert route(c)["confirmed"] == {}                                  # native and test receipts count for nothing
+    assert r["confirmed"] == {} and r["unconfirmed"] == {"tiktok": 1}   # a settled claim row is not a publication
+    heartbeat(ctx, published={"instagram": 2, "tiktok": 0, "youtube": 9, "x": "many", "bad": True})
+    assert route(c)["confirmed"] == {"instagram": 2}                    # only its own networks, real counts
 
 
 def test_a_network_the_connected_sender_owns_cannot_be_switched_on_or_sent_natively(app):
@@ -117,8 +120,10 @@ def test_when_the_route_is_skipped_or_the_sender_is_gone_the_direct_route_is_fre
     c.put("/api/social/route", json={"route": "metricool"})              # the sender is connected again
     row = svc.store.q1("SELECT * FROM publish_destinations WHERE id=?", ig["id"])
     assert "Metricool" in svc.pub.block_reason(row)                      # an already-on direct route stops: one sender
+    heartbeat(ctx, at=time.time() - 7200, verified=False)                # outage: stale and unverified
+    assert "Metricool" in svc.pub.block_reason(row)                      # no fall-through to the direct route
     (ctx.paths.state / "social-sender.json").unlink()
-    assert svc.pub.block_reason(row) is None
+    assert svc.pub.block_reason(row) is None                             # revoked: the direct route is free again
 
 
 def test_setup_needs_no_direct_instagram_or_tiktok_credentials_and_none_is_a_valid_choice(app):

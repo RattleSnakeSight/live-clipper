@@ -23,7 +23,7 @@ consent screen and accepting terms stay with you, in your browser: see [Platform
 
 On Sources and Destinations the helper sits under **Or let my agent fill these in**, next to the fields it
 fills. It never fills in a pasted Instagram token, a sign-in or a Metricool value: Live Clipper has no
-Metricool field at all.
+Metricool field at all (the Metricool route is a sender program that reports in, see [Posting](posting.md)).
 
 ## How it works
 

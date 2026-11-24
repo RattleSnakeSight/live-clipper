@@ -543,12 +543,24 @@ class Maintenance:
                 errors.append(f"{a.action} {p.name}: {e.__class__.__name__}")
         return {"done": done, "freed_bytes": freed, "errors": errors}
 
+    @staticmethod
+    def summary(acts: list[Action], sc: dict) -> dict:
+        """What a cleanup is about to remove, in the customer's words: posted clips, rejected clips, and the rest
+        (older posted clips past their retention time, trash, temporary render files), plus what stays."""
+        cats = {"posted": [0, 0], "rejected": [0, 0], "other": [0, 0]}
+        for a in acts:
+            k = "rejected" if a.reason.endswith("rejected") else "posted" if a.reason.endswith("posted") else "other"
+            cats[k][0] += 1
+            cats[k][1] += a.bytes
+        return {**{k: {"items": n, "bytes": b} for k, (n, b) in cats.items()}, "kept_bytes": sc["protected_bytes"]}
+
     def cleanup(self, dry_run: bool = True, manual: bool = False) -> dict:
         if manual:
             self.adopt_folders()
         sc = self.scan()
         acts = self.plan(sc, manual=manual)
-        out = {"dry_run": dry_run, "actions": [a.public(sc["cfg"]["dir"]) for a in acts]}
+        out = {"dry_run": dry_run, "actions": [a.public(sc["cfg"]["dir"]) for a in acts],
+               "summary": self.summary(acts, sc), "would_free_bytes": sum(a.bytes for a in acts)}
         if not dry_run:
             out.update(self.execute(acts))
         return out

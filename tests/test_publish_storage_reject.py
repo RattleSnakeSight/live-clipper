@@ -294,3 +294,18 @@ def test_a_delete_that_fails_part_way_reports_only_what_is_really_gone(sb, tmp_p
     assert [row[0] for row in r.db.execute("SELECT state FROM maintenance_clip WHERE clip_id=?", (str(cid),))] == ["kept"]
     monkeypatch.setattr(Maintenance, "_rm", real_rm)
     assert r.m.reject_clip(cid)["removed"] is True and not d.exists()      # and a retry finishes the job
+
+
+def test_the_preview_says_which_kinds_of_clips_and_how_many_bytes_and_what_is_kept(sb, tmp_path):
+    r = Rig(sb, tmp_path)
+    posted = r.clip(mb=4)
+    r.deliver(posted)
+    r.w.drain(horizon=0)
+    r.clip(mb=4, review="rejected")
+    r.clip(mb=4)                                               # undecided: kept
+    out = r.m.cleanup(dry_run=True, manual=True)
+    s = out["summary"]
+    assert (s["posted"]["items"], s["rejected"]["items"], s["other"]["items"]) == (1, 1, 0)
+    assert s["posted"]["bytes"] >= 4 * MB - 1024 and s["rejected"]["bytes"] >= 4 * MB - 1024
+    assert out["would_free_bytes"] == s["posted"]["bytes"] + s["rejected"]["bytes"]
+    assert s["kept_bytes"] >= 4 * MB - 1024                    # the undecided clip stays, and is counted

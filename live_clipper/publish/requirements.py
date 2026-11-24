@@ -60,18 +60,20 @@ def _routes(network: str, native_title: str, native_needs: list[str]) -> list[di
         {"id": "native", "available": True, "title": native_title,
          "summary": "This installation posts here itself. The steps below set it up.", "needs": native_needs},
         {"id": "metricool", "available": METRICOOL_AVAILABLE,
-         "title": "Through Metricool, an outside scheduling service",
+         "title": "Through Metricool (the preferred route), with a separately installed sender",
          "summary": "Metricool is a separate online service that schedules and publishes posts to social accounts "
-                    f"you connect to it. The maintainers' own tested setup used it to publish finished clips to "
-                    f"{network}. That setup relies on an extra helper program that is not part of Live Clipper, so "
-                    "this installation cannot hand clips to Metricool and there is nothing to connect or enter here.",
+                    f"you connect to it. It is the preferred route for {network}: when a sender program for it is "
+                    "installed on this computer, running and verified, the panel at the top of this page shows "
+                    "Connected and this app leaves the network to it. Live Clipper does not include that sender and "
+                    "cannot hand clips to Metricool itself, so there is nothing to connect or enter here. You can "
+                    "skip it at any time.",
          "needs": [
-             f"What it would take: your own Metricool account with your {network} account connected to a brand, and "
-             "a helper program that passes each finished clip to Metricool. Live Clipper does not include one: "
-             "Metricool's route for programs (its API) is on its paid Advanced and Custom plans only.",
-             "What works today: post directly (above), or keep the clip files and upload them to Metricool "
-             "yourself. If you upload by hand, leave posting to this destination switched off so the same clip is "
-             "not sent twice.",
+             f"What it takes: your own Metricool account with your {network} account connected to a brand, and a "
+             "sender program on this computer that passes each finished clip to Metricool and reports in. Live "
+             "Clipper does not include one: Metricool's route for programs (its API) is on its paid Advanced and "
+             "Custom plans only.",
+             "Without it: post directly (above), or keep the clip files and upload them to Metricool yourself. "
+             "Only one of the two sends a network, so the same clip is not sent twice.",
          ],
          "guide": {"page": "posting", "label": "Guide: Posting, \"Metricool\""}, "link": METRICOOL_HELP},
     ]

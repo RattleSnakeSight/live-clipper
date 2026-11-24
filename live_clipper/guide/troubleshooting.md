@@ -59,8 +59,15 @@ space gets critically low, recordings pause and resume once there is room. It cl
 4. If space is still short, trash is emptied early, then original recordings of posted clips (or whole
    posted clips first, depending on your answer), oldest first.
 
-Clips that are not posted yet are never deleted. If the cap is full of unposted clips, post or discard some,
-or raise the cap. The Status page lists what would be cleaned next.
+Clips that are not posted yet are never deleted by this automatic cleanup. If the cap is full of unposted
+clips, post or discard some, or raise the cap. The Status page lists what would be cleaned next.
+
+You can also free space yourself. **Reject** on a clip deletes its video files at once. **Clean up now** in
+Settings deletes, at once and without the keep time, every fully posted clip and every rejected clip, and old
+trash and temporary files. **Preview cleanup** shows the same list with the bytes first: posted clips,
+rejected clips, other items, and what is kept. Kept: clips that are waiting, approved, being posted, shared by
+another clip, or not decided yet, and any clip that a separate sender program (such as the Metricool sender)
+has not finished with. Nothing is posted or re-posted by cleaning up, and the record of what was sent stays.
 
 ## Platform problems
 

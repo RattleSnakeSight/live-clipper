@@ -48,8 +48,9 @@ The setup cannot be skipped: the other pages open once it is finished. To change
 - *Where do you want to post clips?* YouTube Shorts, TikTok, Instagram Reels, or nowhere (files only).
   Default: nowhere. Picking a destination here does not connect it. This is the "Post my clips" question,
   and it says who does the posting: YouTube Shorts posts directly through Google, and Instagram and TikTok
-  post directly through your own Meta or TikTok developer app. Metricool, the outside scheduling service
-  the maintainers' own tested setup used for Instagram and TikTok, is not part of this installation; see
+  post directly through your own Meta or TikTok developer app, unless you use Metricool, the outside
+  scheduling service that is the preferred route for them. Metricool needs an account and a separately installed
+  sender that is not part of this installation, is optional, and can be skipped on Destinations; see
   [Posting](posting.md).
 - *Should clips be posted automatically?* Only shown when you picked a destination. Default: **automatic**,
   which posts each finished clip to every destination you have connected, confirmed and switched on.

@@ -365,7 +365,7 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
         expect(sec.locator("details.step[open]")).to_have_count(1)  # only the next step is open
     for provider in ("tiktok", "instagram"):
         route = page.locator(f"#routes-{provider} li[data-route=metricool]")
-        expect(route).to_contain_text("Not available in this installation")
+        expect(route).to_contain_text("Needs a separately installed sender")
         expect(route.locator("input, button, select, textarea")).to_have_count(0)
     expect(page.locator("#dest-youtube")).to_contain_text("Metricool is not needed")
     expect(page.get_by_label("Automatic")).to_be_checked()

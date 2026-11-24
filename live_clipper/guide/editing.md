@@ -34,7 +34,11 @@ Clips page). In automatic mode only clips held by a rule or by the gameplay chec
 1. Watch the preview.
 2. Edit it if you want, and render again.
 3. Click "Post to" and the destination, or Reject the clip (or Cancel its delivery) if you do not want it.
+   Reject also deletes the clip's video files from this computer and frees that space; it cannot be undone.
+   The files stay only while an upload of the clip may still need them or another clip shares them, and the
+   clip page says so. The record of what was sent is always kept.
 
 Nothing is posted until you click Post. A clip that is held for review by a rule shows up in the same queue.
-Clips in the queue are never removed by storage cleanup. How posting and its states work is on
+Clips in the queue are never removed by storage cleanup. Clicking "Clean up now" in Settings deletes, at once,
+fully posted clips and rejected clips; approved clips, clips in the queue and clips still being posted stay. How posting and its states work is on
 [Posting](posting.md).

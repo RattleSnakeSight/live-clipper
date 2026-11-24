@@ -247,7 +247,7 @@ async function renderClip(main, id) {
   // review: the gameplay check and selection can hold a clip; the user decides
   const reviewOut = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
   const review = (approved) => actionButton(approved ? 'Approve' : 'Reject',
-    approved ? 'Approve this clip. If it is finished it goes to posting.' : 'Mark this clip as not suitable. It is not posted.',
+    approved ? 'Approve this clip. If it is finished it goes to posting.' : 'Mark this clip as not suitable. It is not posted, and its video files are deleted from this computer (unless an upload still needs them or they are shared). That cannot be undone.',
     `review-${approved}`, async () => {
       const r = await post(`/clips/${enc}/review`, { approved });
       reviewOut.textContent = approved ? (r.published && r.published.length ? 'Approved and sent to posting.' : 'Approved.')

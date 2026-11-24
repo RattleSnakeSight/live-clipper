@@ -39,10 +39,12 @@ approval and limits are up to each platform.
 | TikTok | No | Drafts or private posts, directly through your own TikTok app; public posts need TikTok's audit |
 | Instagram | No | Reels, directly through your own Meta app and a professional account |
 
-Metricool, an outside scheduling service, is not part of Live Clipper. The maintainers' own tested setup
-published Instagram and TikTok clips through it with an extra helper program this repository does not
-include; a stock install posts to those two directly, with the limits above, and asks for no Metricool
-account. Watching streams, the test destination and YouTube never need it. See
+Metricool, an outside scheduling service, is not part of Live Clipper, but it is the preferred route for
+Instagram and TikTok when a separately installed sender for it is running and verified: Destinations then shows
+it as connected and the app leaves those two networks to it. The sender is a separate program this repository
+does not include. Without it, or when you skip it, a stock install posts to those two directly, with the limits
+above, or not at all, and asks for no Metricool account. Watching streams, the test destination and YouTube
+never need it. See
 [Posting](live_clipper/guide/posting.md).
 
 A creator can also give you a feed address (rtmp, rtmps, srt, rtsp or http) to record. Details, limits and the
@@ -143,7 +145,7 @@ remove it there. See [Uninstalling](live_clipper/guide/uninstalling.md).
 
 ## Status
 
-Version 0.4.0. Automated tests run on Linux, macOS and Windows with Python 3.11 and 3.13 on every change:
+Version 0.4.1. Automated tests run on Linux, macOS and Windows with Python 3.11 and 3.13 on every change:
 
 - Monitoring: channel states, retries, reconnects and crash recovery, with local test streams and recorded
   or fake platform responses.

@@ -268,7 +268,7 @@ def test_metricool_is_named_where_posting_is_decided_and_asks_for_nothing(server
         expect(routes.locator("li[data-route=native] .pill")).to_have_text("Available here")
         out = routes.locator("li[data-route=metricool]")
         expect(out).to_contain_text("Metricool is a separate online service")
-        expect(out.locator(".pill")).to_have_text("Not available in this installation")
+        expect(out.locator(".pill")).to_have_text("Needs a separately installed sender")
         expect(out).to_contain_text("nothing to connect or enter here")
         expect(out).to_contain_text("not sent twice")  # one sender per account
         expect(out.locator("input, button, select, textarea")).to_have_count(0)
@@ -482,3 +482,21 @@ def test_a_verified_sender_is_shown_as_connected_with_only_its_own_receipts(serv
     expect(panel).to_contain_text("Connected: the local sender is running and verified")
     expect(panel).to_contain_text("instagram: 2 confirmed")
     expect(panel).to_contain_text("never direct or test posts")
+
+
+def test_clean_up_now_says_what_it_deletes_first_and_reject_help_says_so(server, make_page):
+    srv = server()
+    page = open_page(make_page, srv, "settings")
+    page.get_by_role("button", name="Preview cleanup").click()
+    said = page.locator("[role=status]").filter(has_text="Would free")
+    expect(said).to_contain_text("2 fully posted clips")
+    expect(said).to_contain_text("1 rejected clip")
+    expect(said).to_contain_text("Kept:")
+    page.get_by_role("button", name="Clean up now").click()
+    dialog = page.get_by_role("dialog")
+    expect(dialog).to_contain_text("cannot be undone")
+    expect(dialog).to_contain_text("2 fully posted clips")
+    expect(dialog).to_contain_text("1 rejected clip")
+    expect(dialog).to_contain_text("being posted, shared or not decided")
+    expect(dialog.get_by_role("button", name="Delete these files")).to_be_visible()
+    dialog.get_by_role("button", name="Cancel").click()

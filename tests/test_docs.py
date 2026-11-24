@@ -151,7 +151,7 @@ def test_the_guide_names_what_the_account_pages_show():
     assert "Metricool" in METRICOOL_NOTE and "not included in this installation" in METRICOOL_NOTE
     assert "Metricool, an outside scheduling service, is not part of Live Clipper" in readme
     assert "Metricool" in first_run and "not part of this installation" in first_run
-    assert "It is not available in this installation." in posting
+    assert "It is the preferred route, and it is never assumed." in posting
     for word in ("Connected", "Scheduled", "Awaiting confirmation", "Published"):
         assert f"| {word} |" in posting, word
     assert "An API key can never upload." in platforms and "An API key is not enough here." in posting

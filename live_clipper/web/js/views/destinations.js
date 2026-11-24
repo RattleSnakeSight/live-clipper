@@ -198,7 +198,7 @@ function routes(d) {
         (r.needs || []).length ? h('ul', { class: 'small' }, r.needs.map((n) => h('li', {}, n))) : null,
         r.guide ? h('p', { class: 'small' }, h('a', { href: `#/guide/${r.guide.page}`, help: `Open the guide page ${r.guide.label}.` }, r.guide.label),
           r.link ? [' · ', extLink(r.link)] : null) : null),
-      h('span', { class: `pill ${r.available ? 'pos' : 'neutral'}` }, r.available ? 'Available here' : 'Not available in this installation')))));
+      h('span', { class: `pill ${r.available ? 'pos' : 'neutral'}` }, r.available ? 'Available here' : 'Needs a separately installed sender')))));
 }
 
 function advanced(d) {
