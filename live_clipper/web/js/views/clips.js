@@ -151,14 +151,31 @@ async function renderClip(main, id) {
   const chName = (channels.find((c) => c.id === clip.channel_id) && channelName(channels.find((c) => c.id === clip.channel_id))) || '';
   const status = clipStatus(clip);
   const history = h('div');
-  const video = h('video', { controls: true, preload: 'metadata', src: `/api/clips/${enc}/media/final`,
-    'aria-label': `Preview of ${clipTitle(clip)}` });
-  const noVideo = h('p', { hidden: true }, 'The video is not ready yet. It appears here when rendering finishes.');
+  const video = h('video', { controls: true, preload: 'metadata', hidden: true, 'aria-label': `Preview of ${clipTitle(clip)}` });
+  const noVideo = h('p', {}, 'The video is not ready yet. It appears here when rendering finishes.');
+  // the finished video in the clip's language, if one exists; nothing is requested before it does
+  const finalUrl = () => ((clip.media && clip.media.final) || {})[langOf(clip)] || null;
+  let requestedSource = null;
+  function showMedia(reload = false) {
+    const src = finalUrl() || Object.values(clip.media?.final || {})[0] || clip.media?.preview || null;
+    if (src === requestedSource && !reload) return;
+    requestedSource = src;
+    video.hidden = !src;
+    noVideo.hidden = Boolean(src);
+    delete video.dataset.fallback;
+    if (src) video.src = src;
+    else video.removeAttribute('src');
+  }
   video.addEventListener('error', () => {
-    if (clip.media && clip.media.preview && !video.dataset.fallback) { video.dataset.fallback = '1'; video.src = clip.media.preview; return; }
+    if (clip.media && clip.media.preview && !video.dataset.fallback && video.getAttribute('src') !== clip.media.preview) {
+      video.dataset.fallback = '1';
+      video.src = clip.media.preview;
+      return;
+    }
     video.hidden = true;
     noVideo.hidden = false;
   });
+  showMedia();
 
   // the per-clip override: trim (seconds from the current clip start), titles and captions per language,
   // framing, preset. Only changed values are sent.
@@ -238,7 +255,8 @@ async function renderClip(main, id) {
     try {
       const r = await post(`/clips/${enc}/render`, body);
       toast(r.status === 'already_rendered' ? 'Already up to date.' : 'Rendering again. This takes a minute or two.');
-      statusSlot.replaceChildren(pill(CLIP_STATES, 'rendering'));
+      clip.rendering = r.status !== 'already_rendered';
+      statusSlot.replaceChildren(pill(CLIP_STATES, clipStatus(clip)));
     } catch (ex) {
       err.textContent = ex instanceof ApiError ? Object.values(ex.fields).join(' ') || ex.message : ex.message;
     }
@@ -262,10 +280,24 @@ async function renderClip(main, id) {
   const reasons = Object.entries((clip.trigger && clip.trigger.selection) || {})
     .map(([l, s]) => `${LANG_NAMES[l] || l}: ${s.decision}${(s.reasons || []).length ? ` (${s.reasons.join('; ')})` : ''}`);
 
+  const reviewActions = h('div', { class: 'row', style: 'margin-top: 8px', hidden: clip.status !== 'ready' },
+    review(true), review(false), postAnyway);
+  postAnyway.hidden = !Object.keys(clip.media?.final || {}).length;
+
   async function loadHistory() {
+    if (!finalUrl() || clip.rendering) {
+      const fresh = await get(`/clips/${enc}`);
+      const finished = clip.rendering && !fresh.rendering && fresh.status === 'ready';
+      Object.assign(clip, fresh);
+      showMedia(finished);
+      statusSlot.replaceChildren(pill(CLIP_STATES, clipStatus(clip)));
+      reviewActions.hidden = clip.status !== 'ready';
+      postAnyway.hidden = !Object.keys(clip.media?.final || {}).length;
+    }
     const rows = list(await get(`/publish/deliveries?clip_id=${enc}`), 'deliveries');
     const used = new Set(rows.map((d) => d.destination_id));
-    const allowed = clip.status === 'ready' ? dests.filter((d) => !used.has(d.id) && (d.enabled || d.test) && d.status === 'connected') : [];
+    // posting needs the finished video in the clip's language
+    const allowed = clip.status === 'ready' && finalUrl() ? dests.filter((d) => !used.has(d.id) && (d.enabled || d.test) && d.status === 'connected') : [];
     patch(history, [
       rows.length ? h('div', { class: 'table-wrap' }, h('table', {},
         // three columns fit beside the editor and on a phone: the time sits under the name, the result under the state
@@ -290,7 +322,7 @@ async function renderClip(main, id) {
         clip.error ? h('p', { class: 'note bad' }, clip.error) : null,
         h('section', { class: 'panel', 'aria-labelledby': 'rv-title' }, h('h2', { id: 'rv-title' }, 'Decision'),
           reasons.length ? h('ul', { class: 'small' }, reasons.map((r) => h('li', {}, r))) : h('p', { class: 'small muted' }, 'No posting decision yet.'),
-          clip.status === 'ready' ? h('div', { class: 'row', style: 'margin-top: 8px' }, review(true), review(false), postAnyway) : null, reviewOut),
+          reviewActions, reviewOut),
         h('section', { class: 'panel', 'aria-labelledby': 'dh-title' }, h('h2', { id: 'dh-title' }, 'Where it was posted'), history)),
       editor));
   await loadHistory();

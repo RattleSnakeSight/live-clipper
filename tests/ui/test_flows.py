@@ -274,3 +274,59 @@ def test_clip_editor_sends_only_the_changed_preset_values(seeded_server, make_pa
     page.get_by_label("Video quality (CRF)").fill("99")
     page.get_by_role("button", name="Render again").click()
     expect(page.locator("#render-err")).to_contain_text("less than or equal to 51")
+
+
+def _without_final(route):
+    """The real clip view, as it looks before its video is rendered: no finished file in any language."""
+    response = route.fetch()
+    body = response.json()
+    body["media"]["final"] = {}
+    route.fulfill(response=response, json=body)
+
+
+def test_a_clip_without_a_finished_video_requests_none_and_offers_no_post(seeded_server, make_page):
+    page = make_page()
+    finals = []
+    page.on("request", lambda r: "/media/final" in r.url and finals.append(r.url))
+    page.route("**/api/clips/2", _without_final)
+    page.goto(seeded_server.url + "/#/clips/2")
+    expect(page.get_by_text("Where it was posted")).to_be_visible()
+    expect(page.get_by_text("Also post to:")).to_have_count(0)
+    expect(page.get_by_role("button", name="Post anyway")).to_have_count(0)
+    expect(page.locator("#clip-editor video")).to_have_attribute("src", "/api/clips/2/media/preview")
+    assert finals == []
+
+
+def test_a_render_that_finishes_while_the_clip_is_open_shows_its_video_and_posting(seeded_server, make_page):
+    page = make_page()
+    page.route("**/api/clips/2", _without_final)
+    page.goto(seeded_server.url + "/#/clips/2")
+    expect(page.get_by_text("Where it was posted")).to_be_visible()
+    expect(page.get_by_text("Also post to:")).to_have_count(0)
+    finals = []
+    page.on("request", lambda r: "/media/final" in r.url and finals.append(r.url))
+    page.unroute("**/api/clips/2")  # the render finished: the next poll sees the video
+    expect(page.get_by_text("Also post to:")).to_be_visible(timeout=12000)
+    assert finals and finals[0].endswith("/api/clips/2/media/final?lang=en")  # (this fake serves no files)
+
+
+@pytest.mark.parametrize("final", [None, "/api/clips/2/media/final?lang=es"])
+def test_clip_without_preview_or_original_final(seeded_server, make_page, final):
+    page = make_page()
+
+    def clip_media(route):
+        response = route.fetch()
+        body = response.json()
+        body["media"].update(preview=None, final={"es": final} if final else {})
+        route.fulfill(response=response, json=body)
+
+    page.route("**/api/clips/2", clip_media)
+    page.goto(seeded_server.url + "/#/clips/2")
+    expect(page.get_by_text("Where it was posted")).to_be_visible()
+    video = page.locator("#clip-editor video")
+    if final:
+        expect(video).to_have_attribute("src", final)
+    else:
+        expect(page.get_by_text("The video is not ready yet.", exact=False)).to_be_visible()
+        assert video.get_attribute("src") is None
+    expect(page.get_by_text("Also post to:")).to_have_count(0)
