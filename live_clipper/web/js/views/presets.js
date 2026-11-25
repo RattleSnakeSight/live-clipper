@@ -5,7 +5,7 @@ import { renderEditor, renderList } from './docs.js';
 
 export async function render(main, params) {
   if (params[0]) return renderEditor(main, 'presets', params[0], 'presets');
-  main.append(titleRow('Presets', 'A preset decides how a clip looks: size, framing, captions and loudness.'));
+  main.append(titleRow('Presets', 'A preset sets the video size, framing, caption style and title duration.'));
   await renderList(main, 'presets', { listId: 'preset-list',
     intro: 'Duplicate the built-in preset to make your own, or import one from a file. Rules can pick a preset for some clips.' });
 }

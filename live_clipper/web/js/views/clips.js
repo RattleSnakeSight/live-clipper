@@ -175,7 +175,7 @@ async function renderClip(main, id) {
     value: clip.srt[l], spellcheck: 'false', help: 'The burned-in captions as SRT text. Fix the words; keep the timing lines.' })]);
   const layout = selectField({ label: 'Framing', value: '', help: 'How the stream is framed in the vertical video.',
     options: LAYOUTS.map(([value, label]) => ({ value, label })) });
-  const preset = selectField({ label: 'Preset', value: clip.preset_id, help: 'How the clip looks: size, captions style and loudness.',
+  const preset = selectField({ label: 'Preset', value: clip.preset_id, help: 'Choose the video size, framing, caption style and title duration.',
     options: presets.length ? presets.map((p) => ({ value: p.id, label: p.name || p.id })) : [{ value: clip.preset_id || 'default', label: clip.preset_id || 'Default' }] });
   // partial preset values for this clip only (sent as `overrides`); the form starts from the clip's effective values
   const H = schemaHelp(presetSchema);

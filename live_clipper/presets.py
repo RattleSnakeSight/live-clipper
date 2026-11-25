@@ -165,7 +165,7 @@ class Languages(_M):
 class Preset(_M):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$",
                     description=(
-                        "Short unique name used in files and rules: lower-case letters, digits, dashes."))
+                        "Fixed ID used in files and rules. Duplicate the preset to make a separate copy."))
     name: str = Field(min_length=1, max_length=80, description="The name shown in the app.")
     description: str = Field("", max_length=500, description="One line about what this look is for.")
     window: Window = Field(description="How much video goes around each moment.")

@@ -467,6 +467,9 @@ class EditService:
 
         @r.put("/api/presets/{pid}")
         def update_preset(pid: str, body: dict = Body(...)):
+            if body.get("id", pid) != pid:
+                message = "This preset ID is fixed. Duplicate the preset to make a copy."
+                raise HTTPException(422, {"errors": {"id": message}})
             try:
                 return presets().update(pid, body)
             except ValidationError as e:

@@ -292,6 +292,25 @@ def test_second_profile_skips_the_tour_on_first_run(make_app, offline_page):
     assert not page.js_errors
 
 
+def test_storage_save_refreshes_active_and_pending_folders(make_app, offline_page, tmp_path):
+    app = make_app("storage-profile")
+    page = offline_page()
+    open_app(page, app)
+    run_wizard(page)
+    page.get_by_role("button", name="Skip tour").click()
+    app.wait_state(page, "tour.version", 1)
+    expect(page).to_have_url(f"{app.url}/#/dashboard")
+
+    page.goto(f"{app.url}/#/settings")
+    storage = page.locator("#settings-storage")
+    active = app.api("/storage")["dir"]
+    for directory in ["media-one", "media-two"]:
+        chosen = str(tmp_path / directory)
+        storage.get_by_label("Where should clips and recordings be stored?").fill(chosen)
+        storage.get_by_role("button", name="Save", exact=True).click()
+        expect(storage.locator("dl dd")).to_contain_text([active, chosen])
+
+
 def test_real_screens_channels_rules_destinations_and_help(make_app, offline_page, tmp_path):
     app = make_app("profile-c")
     page = offline_page()
@@ -411,6 +430,7 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
         row.get_by_role("button", name="Export").click()
     doc = json.loads(Path(dl.value.path()).read_text(encoding="utf-8"))
     doc.update(id="my-format", name="My format")
+    doc["output"]["caption_style"] = "legacy-style"
     f = tmp_path / "my-format.json"
     f.write_text(json.dumps(doc), encoding="utf-8")
     with page.expect_file_chooser() as fc:
@@ -418,6 +438,15 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     fc.value.set_files(str(f))
     expect(page.locator("#format-list")).to_contain_text('Imported "My format"')
     assert "my-format" in [x["id"] for x in app.api("/formats")["formats"]]
+    page.goto(f"{app.url}/#/formats/my-format")
+    editor = page.locator("#doc-editor")
+    expect(editor.locator("input[data-path=id]")).not_to_be_editable()
+    expect(editor.locator('[data-path="output.caption_style"]')).to_have_count(0)
+    editor.locator("input[data-path=name]").fill("Edited format")
+    editor.get_by_role("button", name="Save", exact=True).click()
+    expect(editor.get_by_text("Saved.", exact=True)).to_be_visible()
+    result = app.api("/formats/my-format/export")
+    assert result["name"] == "Edited format" and result["output"]["caption_style"] == "legacy-style"
 
     # the API reference is drawn locally from the app's own route list; this page's guard fails the test on
     # any request that leaves the computer

@@ -41,7 +41,7 @@ Each part of a format, in plain words:
 | Language | Which languages are allowed (automatic, English, Spanish) and how sure the app must be about a stretch of speech. |
 | Titles | How titles are written: at most 70 characters, a list of actions (explode, crash, heist, snipe, jump and so on) with word patterns and priorities, places and vehicles it can name, chat reactions it can mention, and sentence templates in English and Spanish. |
 | Posting | The caption template (title, creator, platform, hashtags) and the hashtags. |
-| Output | Values that rules can set, empty by default: a decision, a preset, a title template, a caption style and the destinations. |
+| Output | Rules can set a decision, a preset, a title template and the destinations. Defaults are empty. |
 
 Pattern values are regular expressions. If you do not write them, you do not need to understand them: leave
 them alone and change the numbers.
@@ -65,12 +65,15 @@ Actions (any that you fill in):
 - Decision: skip the clip, hold it for your review, or force it to qualify.
 - Threshold: the chat spike ratio needed.
 - Clip window: seconds before and after the moment.
-- Preset to use, title template, caption style, destinations.
+- Preset to use, title template and destinations. To change the caption style for a rule, choose an editing preset with the desired caption settings.
 
 ## Presets
 
 The Default vertical clip preset makes 1080x1920 clips with captions burned in and a 2.8 second title at the
 start. Previews are 720x1280.
+
+The preset's Captions settings control the rendered text. A format or rule can contain a legacy
+`caption_style` value. Live Clipper preserves it when you save other edits.
 
 | Part | What it controls |
 |---|---|

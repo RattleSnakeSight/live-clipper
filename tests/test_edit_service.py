@@ -52,6 +52,9 @@ def test_preset_endpoints(api):
     assert [p["id"] for p in c.get("/api/presets").json()] == ["default"]
     r = c.post("/api/presets", json={"name": "Big Captions", "captions": {"size_frac": 0.08}})
     assert r.status_code == 201 and r.json()["id"] == "big-captions"
+    refused = c.put("/api/presets/big-captions", json={"id": "renamed", "name": "Changed"})
+    assert refused.status_code == 422 and "id" in refused.json()["detail"]["errors"]
+    assert c.get("/api/presets/big-captions").json()["name"] == "Big Captions"
     assert c.post("/api/presets", json={"id": "big-captions", "name": "x"}).status_code == 409
     bad = c.post("/api/presets", json={"name": "x", "encode": {"render_crf": 77}})
     assert bad.status_code == 400 and bad.json()["detail"]["code"] == "invalid"

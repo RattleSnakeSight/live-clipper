@@ -49,6 +49,7 @@ export function docForm(doc, schema, groupSections = false) {
   const groupName = nextId('sections');
 
   function field(path, key, value, raw) {
+    if (path === 'output.caption_style') return null; // Legacy JSON field, preserved by read().
     const node = resolve(root, raw);
     const help = node.description || `Sets ${path}.`;
     const id = nextId('d');
@@ -56,7 +57,7 @@ export function docForm(doc, schema, groupSections = false) {
     errorSlots[path] = err;
     const wrap = (control, label = human(key)) => h('div', { class: 'field', dataset: { path } },
       h('label', { for: id }, label), h('p', { class: 'help', id: `${id}-help` }, help), control, err);
-    const attrs = { id, help, 'aria-describedby': `${id}-help ${id}-err`, dataset: { path } };
+    const attrs = { id, help, readonly: path === 'id', 'aria-describedby': `${id}-help ${id}-err`, dataset: { path } };
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const group = h('fieldset', { class: 'panel', style: 'margin-top: 16px', dataset: { path } },
         h('legend', { class: 'label' }, human(key)), h('p', { class: 'help', style: 'margin-bottom: 8px' }, help),

@@ -46,7 +46,7 @@ export const STEPS = [
   { route: '#/formats', target: '#preview-tool', title: 'Preview the result',
     text: 'Pick a channel and a situation to see every final value and which layer set it.' },
   { route: '#/presets', target: '#preset-list', title: 'Presets',
-    text: 'A preset decides how a clip looks: size, framing, captions and loudness.' },
+    text: 'A preset sets the video size, framing, caption style and title duration.' },
   { route: '#/destinations', target: '#posting-mode', title: 'Posting mode',
     text: 'Automatic posts every finished clip to the destinations you connected and turned on. Manual waits for you in the review queue.' },
   { route: '#/destinations', target: '#dest-youtube', title: 'Setting up a destination',

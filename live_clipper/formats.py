@@ -396,7 +396,7 @@ class Output(_M):
                 "Title pattern, for example {title} | {channel}. Placeholders: {title}, {channel}, {game}, "
                 "{platform}. Empty uses the generated title."))
     caption_style: str | None = Field(None,
-        description="Name of the caption style to use. Empty keeps the preset's style.")
+        description="Legacy file field. Choose an editing preset to set the caption style.")
     destinations: list[str] | None = Field(
         None,
             description=(
@@ -405,7 +405,7 @@ class Output(_M):
 
 class SelectionFormat(_M):
     id: str = Field(pattern=ID_RE,
-        description="Short unique name used in files and rules: lower-case letters, digits, dashes.")
+        description="Fixed ID used in files and rules. Duplicate the format to make a separate copy.")
     name: str = Field(min_length=1, max_length=120, description="The name shown in the app.")
     version: int = Field(1, description="Version number of this file layout. Leave it as it is.")
     description: str = Field("", description="One line about what this format is for.")
@@ -493,7 +493,7 @@ class RuleActions(_M):
                 "Title pattern for matching clips, for example {title} | {channel}. Placeholders: {title}, "
                 "{channel}, {game}, {platform}. Empty keeps the format's value."))
     caption_style: str | None = Field(None,
-        description="Caption style for matching clips. Empty keeps the format's value.")
+        description="Legacy file field. Choose an editing preset to set the caption style.")
     destinations: list[str] | None = Field(
         None,
             description=(

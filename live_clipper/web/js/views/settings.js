@@ -31,7 +31,7 @@ export async function render(main) {
   for (const [id, title, intro, ids] of SECTIONS) {
     const qs = ids.map((x) => byId[x]).filter(Boolean);
     const fields = qs.map((q) => ({ q, f: questionField(q, answers[q.id]) }));
-    const extra = id === 'settings-storage' ? await storageBlock() : id === 'settings-notify' ? browserNotifications() : null;
+    const extra = id === 'settings-storage' ? h('div', {}, await storageBlock()) : id === 'settings-notify' ? browserNotifications() : null;
     const sync = () => {
       const cur = { ...answers };
       for (const { q, f } of fields) if (!f.el.hidden) cur[q.id] = f.read();
@@ -83,6 +83,7 @@ export async function render(main) {
         }
         retryLogin = false;
         dirty.delete(id);
+        if (id === 'settings-storage') extra.replaceChildren(await storageBlock());
         out.textContent = 'storage.dir' in changed ? 'Saved. Restart Live Clipper to use the new folder.' : 'Saved.';
         toast(`${title} saved.`);
       } catch (ex) {
