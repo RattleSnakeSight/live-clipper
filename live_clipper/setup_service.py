@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -204,12 +205,13 @@ def build_questions(hw: dict, default_dir: str) -> list[dict]:
           note="No account is needed to start watching: you paste a channel link. Keys from your own free "
                "developer application add precise live status and chat, and you can add them later on Sources."),
         q("storage.dir", "Where should clips and recordings be stored?",
-          "Pick a folder on a drive with plenty of free space.", "path", default_dir, validation={"required": True}),
+          "The new folder takes effect after restarting Live Clipper. Existing files stay where they are.",
+          "path", default_dir, validation={"required": True}),
         q("storage.cap_gb", "How much disk space may Live Clipper use (GB)?",
           "When this is reached, the app stops starting new clips and cleans up old posted ones.", "number",
           d["storage.cap_gb"], validation={"min": 1, "max": 4096, "integer": True}),
         q("storage.retention_days", "How many days should posted clips be kept?",
-          "Clips that are already posted are deleted after this long. Unposted clips are never deleted.",
+          "Automatic expiry applies to posted clips. Rejecting a clip can also remove its files.",
           "number", 14, validation={"min": 1, "max": 365, "integer": True}),
         q("storage.clean_first", "What should be deleted first when the disk is full?",
           "Original recordings take the most space, and finished clips are small.", "select", "originals",
@@ -330,13 +332,12 @@ def _check_dir(value: str) -> tuple[str, str | None]:
             return value, "Choose a dedicated folder, not a drive root or your home folder."
         if p.is_dir():
             owned = (p / APP_MARKER).exists()
-            names = {c.name for c in p.iterdir()} - {".write-test"}
+            names = {c.name for c in p.iterdir()}
             if names and not owned and not names <= set(APP_SUBDIRS):
                 p = p / "LiveClipper"          # never mix app data (and its cleanup) with the user's own files
         p.mkdir(parents=True, exist_ok=True)
-        probe = p / ".write-test"
-        probe.write_text("ok")
-        probe.unlink()
+        with tempfile.NamedTemporaryFile(dir=p) as probe:
+            probe.write(b"ok")
         (p / APP_MARKER).touch()
     except OSError:
         return value, "Live Clipper cannot write to that folder."
@@ -377,6 +378,7 @@ class SetupService:
     def __init__(self, run: Callable = _run, autostart_mod=autostart):
         self._run, self._autostart = run, autostart_mod
         self.ctx: AppContext | None = None
+        self.login_verified = False
         self.router = APIRouter()
         r = APIRouter(prefix="/api/setup")
         r.get("/hardware")(self.hardware)
@@ -390,6 +392,12 @@ class SetupService:
 
     async def start(self, ctx: AppContext) -> None:
         self.ctx = ctx
+        if ctx.app_state.get("setup.completed"):
+            desired = ctx.settings.get("service.start_at_login")
+            try:
+                self.login_verified = self._autostart.is_installed() == desired
+            except OSError:
+                self.login_verified = False
 
     async def stop(self) -> None:
         pass
@@ -406,9 +414,9 @@ class SetupService:
     def _questions(self) -> list[dict]:
         return build_questions(self._hw(), str(self.ctx.paths.media))
 
-    def _answers(self) -> dict:
+    def _answers(self, questions) -> dict:
         out = {}
-        for q in self._questions():
+        for q in questions:
             val = self.ctx.settings.get(STORED_AS.get(q["id"], q["id"]))
             if val is not None:
                 out[q["id"]] = val
@@ -423,8 +431,18 @@ class SetupService:
         return {"questions": self._questions()}
 
     def put_answers(self, body: dict) -> dict:
-        qs = {q["id"]: q for q in self._questions()}
-        answers = body.get("answers", body)
+        questions = self._questions()
+        clean = self._validate(questions, body.get("answers", body))
+        with self.ctx.db.tx():
+            if "service.start_at_login" in clean and self.ctx.app_state.get("setup.completed"):
+                self._apply_login(clean["service.start_at_login"])
+            self._persist(clean)
+        return self.state()
+
+    def _validate(self, questions, answers) -> dict:
+        if not isinstance(answers, dict):
+            raise HTTPException(422, {"errors": {"_": "Expected a group of setup answers."}})
+        qs = {q["id"]: q for q in questions}
         clean, errors = {}, {}
         for key, value in answers.items():
             if key not in qs:
@@ -435,8 +453,7 @@ class SetupService:
                 errors[key] = err
         if errors:
             raise HTTPException(422, {"errors": errors})
-        self._persist(clean)
-        return self.state()
+        return clean
 
     def _persist(self, clean: dict) -> None:
         for key, value in clean.items():
@@ -446,7 +463,8 @@ class SetupService:
                 self.ctx.settings.set(STORED_AS.get(key, key), value)
 
     def state(self) -> dict:
-        answers, qs = self._answers(), self._questions()
+        qs = self._questions()
+        answers = self._answers(qs)
         effective = {q["id"]: answers.get(q["id"], q["default"]) for q in qs}
         shown = {**answers}
         if "notify.webhook_url" in shown:
@@ -454,35 +472,47 @@ class SetupService:
         remaining = [q["id"] for q in qs if is_visible(q, effective) and q["id"] not in answers]
         return {"completed": bool(self.ctx.app_state.get("setup.completed", False)),
                 "completed_at": self.ctx.app_state.get("setup.completed_at"),
-                "answers": shown, "remaining": remaining}
+                "answers": shown, "remaining": remaining, "login_verified": self.login_verified}
 
-    def complete(self) -> dict:
-        answers, qs = self._answers(), self._questions()
-        effective = {q["id"]: answers.get(q["id"], q["default"]) for q in qs}
-        missing, fill = {}, {}
-        for q in qs:
-            if not is_visible(q, effective):
-                continue
-            val = effective[q["id"]]
-            clean, err = validate_value(q, val)
-            if err or (q["validation"].get("required") and q["type"] in ("url", "path") and not clean):
-                missing[q["id"]] = err or "Needs an answer."
-            elif q["id"] not in answers:
-                fill[q["id"]] = clean
-        if missing:
-            raise HTTPException(422, {"errors": missing})
-        self._persist(fill)
-        if effective.get("service.start_at_login"):
-            try:
+    def _apply_login(self, enabled: bool) -> None:
+        self.login_verified = False
+        try:
+            if enabled:
                 self._autostart.install()
-            except Exception as e:
-                log.warning("could not enable start at login: %s", e)
-                self.ctx.db.event("warning", "setup", "could not enable start at login")
-        elif "service.start_at_login" in answers and self._autostart.is_installed():
-            try:
+            elif self._autostart.is_installed():
                 self._autostart.uninstall()
-            except Exception as e:
-                log.warning("could not disable start at login: %s", e)
-        self.ctx.app_state.set("setup.completed", True)
-        self.ctx.app_state.set("setup.completed_at", time.time())
+            else:
+                self.login_verified = True
+                return
+            if self._autostart.is_installed() != enabled:
+                raise OSError("Registration state did not change")
+            self.login_verified = True
+        except Exception as exc:
+            log.warning("Could not change start at login: %s", type(exc).__name__)
+            raise HTTPException(409, {"errors": {"service.start_at_login":
+                "The operating system could not change start at login. Check permissions and retry."}}) from exc
+
+    def complete(self, body: dict | None = None) -> dict:
+        qs = self._questions()
+        changes = self._validate(qs, (body or {}).get("answers", {}))
+        with self.ctx.db.tx():
+            answers = {**self._answers(qs), **changes}
+            effective = {q["id"]: answers.get(q["id"], q["default"]) for q in qs}
+            missing = {}
+            for q in qs:
+                if not is_visible(q, effective):
+                    continue
+                clean, err = validate_value(q, effective[q["id"]])
+                if err or (q["validation"].get("required") and q["type"] in ("url", "path") and not clean):
+                    missing[q["id"]] = err or "Needs an answer."
+                elif q["id"] not in answers:
+                    changes[q["id"]] = clean
+            if missing:
+                raise HTTPException(422, {"errors": missing})
+            first_run = not self.ctx.app_state.get("setup.completed")
+            if "service.start_at_login" in changes or (first_run and "service.start_at_login" in answers):
+                self._apply_login(effective["service.start_at_login"])
+            self._persist(changes)
+            self.ctx.app_state.set("setup.completed", True)
+            self.ctx.app_state.set("setup.completed_at", time.time())
         return self.state()

@@ -356,6 +356,7 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     # destinations: the steps with the exact local redirect addresses; Metricool is named and asks for nothing
     page.goto(f"{app.url}/#/destinations")
     dests = (("youtube", "YouTube Shorts"), ("tiktok", "TikTok"), ("instagram", "Instagram Reels"))
+    page.locator("#dest-instagram > details.connect > summary").click()
     page.locator("#dest-instagram").get_by_label("Sign in with your Meta app").check()
     for provider, label in dests:
         sec = page.locator(f"#dest-{provider}")
@@ -372,7 +373,7 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     # destination settings go through the real publish API, with its per-field errors shown inline
     ig = page.locator("#dest-instagram form[data-settings=instagram]")
     settings = page.locator("form[data-settings=instagram]")
-    page.locator("#dest-instagram details").filter(has=settings).locator("> summary").click()
+    page.locator("#dest-instagram details:not(.connect)").filter(has=settings).locator("> summary").click()
     ig.get_by_label("Public video folder address (https)").fill("http://example.com/clips")
     ig.get_by_role("button", name="Save settings").click()
     expect(ig.locator(".field").filter(has_text="Public video folder address").locator(".error")).to_contain_text("https://")
@@ -456,14 +457,16 @@ def test_real_screens_channels_rules_destinations_and_help(make_app, offline_pag
     assert not page.js_errors
 
 
-def test_dark_default_light_choice_and_agent_key_setup_on_the_real_app(make_app, offline_page, tmp_path):
+def test_system_theme_light_choice_and_agent_key_setup_on_the_real_app(make_app, offline_page, tmp_path):
     """The real app, the real `agent pair` / `agent serve` commands and a synthetic key file: the customer
     asks in the browser, the helper reads the file and the existing destination integration has the keys."""
     key, secret = "FAKEKEY-e2e-4711", "FAKESECRET-e2e-0815"  # gitleaks:allow (synthetic)
     app = make_app("profile-agent")
     page = offline_page()
     open_app(page, app)
-    assert page.evaluate("document.documentElement.dataset.theme") == "dark"  # no preference: dark
+    assert page.evaluate("document.documentElement.dataset.themePreference") == "auto"
+    page.emulate_media(color_scheme="dark")
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
     run_wizard(page)
     page.get_by_role("button", name="Skip tour").click()
     app.wait_state(page, "tour.version", 1)  # the tour then returns to the dashboard
@@ -484,6 +487,7 @@ def test_dark_default_light_choice_and_agent_key_setup_on_the_real_app(make_app,
     keys = tmp_path / "tiktok.env"
     keys.write_text(f"TIKTOK_CLIENT_KEY={key}\nTIKTOK_CLIENT_SECRET={secret}\n", encoding="utf-8")
     page.goto(f"{app.url}/#/destinations")
+    page.locator("#dest-tiktok > details.connect > summary").click()
     page.locator("#dest-tiktok").get_by_text("Or let my agent fill these in").click()
     panel = page.locator('#dest-tiktok .agent-panel')
     expect(panel).to_contain_text("Paired with Codex")

@@ -26,6 +26,7 @@ const TITLES = {
 
 const main = document.getElementById('main');
 let cleanup = null;
+let activeHash = null;
 let renderSeq = 0;
 let setupDone = false;
 let signedOut = false;
@@ -50,6 +51,11 @@ async function render() {
     return;
   }
   if (!ROUTES[route]) { route = 'dashboard'; params = []; }
+  if (cleanup?.canLeave && !cleanup.canLeave()) {
+    history.replaceState(null, '', activeHash);
+    return;
+  }
+  activeHash = location.hash || '#/dashboard';
   if (cleanup) { cleanup(); cleanup = null; }
   document.body.classList.toggle('setup-mode', route === 'setup');
   document.getElementById('sidebar').classList.remove('open');

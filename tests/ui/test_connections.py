@@ -400,18 +400,19 @@ def test_a_link_to_a_card_lands_on_it_and_coming_back_keeps_your_place(server, m
     assert page.evaluate("scrollY") > 0  # the page did not jump back to the top
     # a saved setting is not "unsaved typing": the page still looks again when the customer comes back
     page.request.put(f"{srv.url}/api/destinations/2/settings", data={"tags": ["clips"]})
-    limits = card.locator("details").filter(has=page.get_by_text("What fails without each step"))
+    limits = card.locator("details:not(.connect)").filter(has_text="What fails without each step")
     limits.locator("> summary").click()
     keys = {"client_key": "ck", "client_secret": "cs"}  # as if saved from another tab
     page.request.put(f"{srv.url}/api/destinations/2/credentials", data=keys)
     page.evaluate(RETURN)
     card = page.locator("#dest-tiktok")
     expect(card.locator(".pill").first).to_have_text("Keys saved, not signed in")  # it did look again
-    limits = card.locator("details").filter(has=page.get_by_text("What fails without each step"))
+    limits = card.locator("details:not(.connect)").filter(has_text="What fails without each step")
     expect(limits).to_have_attribute("open", "")  # and what was opened is still open
     # an unsaved value keeps the card as it is until it is saved
     two = card.locator("details.step[data-step='2']")
     expect(two).to_have_attribute("open", "")
+    page.locator("#dest-instagram > details.connect > summary").click()
     token = page.locator("#dest-instagram").get_by_label("Access token")
     token.fill("typed-not-saved-000000")
     page.request.post(f"{srv.url}/api/destinations/2/connect")

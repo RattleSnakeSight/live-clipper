@@ -1,7 +1,7 @@
-// Runs before the page paints, so there is no flash of the wrong colours: dark unless this browser was told
-// "light" in Settings > Appearance. The cookie mirrors the saved preference (app state `ui.theme`) and, unlike
-// browser storage, is shared by every port the app may start on.
+// Resolve the saved preference before first paint, including on the update screen.
 (function () {
-  var m = document.cookie.match(/(?:^|; )lc_theme=(light|dark)/);
-  document.documentElement.setAttribute('data-theme', m ? m[1] : 'dark');
+  const choice = document.cookie.match(/(?:^|; )lc_theme=(light|dark|auto)(?:;|$)/)?.[1] || 'auto';
+  const root = document.documentElement;
+  root.dataset.themePreference = choice;
+  root.dataset.theme = choice === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : choice;
 }());

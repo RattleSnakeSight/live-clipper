@@ -8,8 +8,15 @@ import os
 _upstream = os.environ.get("LC_TEST_UPSTREAM")
 if _upstream:
     try:
-        from live_clipper import update_gate
+        from live_clipper import autostart, update_gate
     except ImportError:  # a process without the app (pip, a helper tool)
         pass
     else:
         update_gate.manifest_url = lambda: _upstream
+
+        # Child app instances launched by tests must never change this user's login registration.
+        def refuse_registration():
+            raise RuntimeError("OS registration is unavailable in this test process")
+
+        autostart.is_installed = lambda: False
+        autostart.install = autostart.uninstall = refuse_registration

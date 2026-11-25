@@ -17,7 +17,7 @@ export const STEPS = [
     text: 'This tour shows every screen in about two minutes. Skip it any time and replay it from Settings.' },
   { route: '#/dashboard', target: '#channel-cards', title: 'Channel list',
     text: 'Each row shows whether a channel is offline, waiting, recording, reconnecting, needs action or disabled, and where that status comes from.' },
-  { route: '#/dashboard', target: '.chan.needs', title: 'When a channel needs you',
+  { route: '#/dashboard', target: '.chan.needs', fallback: '#channel-cards', example: 'When a channel needs attention, its row here will explain the problem and offer a fix.', title: 'When a channel needs you',
     text: 'A channel marked Needs action says what went wrong and links straight to the fix.' },
   { route: '#/dashboard', target: '#rail', title: 'Clips and posting',
     text: 'The newest clips and what was posted in the last 24 hours. Clips that wait for you are listed above the channels.' },
@@ -31,8 +31,8 @@ export const STEPS = [
     text: 'In manual posting mode, finished clips wait here until you press Post for a destination. Clips a rule holds wait here too.' },
   { route: '#/clips', target: '#clip-library', title: 'Clip library',
     text: 'Every clip with its status: cutting, rendering, ready, held for review or failed. Filter by channel, status or title.' },
-  { route: async () => { const id = await first('/clips', 'clips'); return id === null ? null : `#/clips/${id}`; },
-    target: '#clip-editor', title: 'Fix a clip',
+  { route: async () => { const id = await first('/clips', 'clips'); return id === null ? '#/clips' : `#/clips/${id}`; },
+    target: '#clip-editor', fallback: '#clip-library', example: 'Once a clip appears here, open it to preview the video and edit it.', title: 'Fix a clip',
     text: 'Preview a clip, trim it, change its title, captions, framing or preset, render it again, approve it and see where it was posted.' },
   { route: '#/formats', target: '#format-list', title: 'Formats',
     text: 'A format decides which moments become clips. Duplicate the built-in one to make your own.' },
@@ -135,6 +135,7 @@ export function startTour() {
 
   async function finish(state) {
     active = null;
+    ++seq;
     layer.remove();
     document.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', place);
@@ -192,13 +193,17 @@ export function startTour() {
 
   async function show(i) {
     const my = ++seq;
+    card.querySelectorAll('.next, .tour-back').forEach((button) => { button.disabled = true; });
     index = i;
     const step = STEPS[i];
     const hash = typeof step.route === 'function' ? await step.route() : step.route;
     if (my !== seq) return;
     if (hash) await go(hash);
+    if (my !== seq) return;
     targetSel = step.target || null;
-    target = step.target && hash ? await waitFor(step.target) : null;
+    const fallback = step.fallback && !document.querySelector(step.target);
+    if (fallback) targetSel = step.fallback;
+    target = targetSel && (hash || fallback) ? await waitFor(targetSel) : null;
     if (my !== seq) return;
     // a target taller than half the screen starts just under the top bar, so the card below hides less of it
     if (target) {
@@ -212,13 +217,13 @@ export function startTour() {
     clear(card,
       h('p', { class: 'count' }, `Step ${i + 1} of ${STEPS.length}`),
       h('h2', { id: 'tour-title' }, step.title),
-      h('p', { id: 'tour-text' }, step.text),
+      h('p', { id: 'tour-text' }, fallback ? step.example : step.text),
       items.length ? h('ul', { 'aria-label': 'Controls here' },
         items.map(([label, help]) => h('li', {}, h('strong', {}, label), `: ${help}`))) : null,
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'btn ghost', help: 'Close the tour. It will not open again unless you replay it from Settings.',
           onclick: () => finish('skipped') }, 'Skip tour'),
-        i > 0 ? h('button', { type: 'button', class: 'btn', help: 'Go back one step.', onclick: () => show(i - 1) }, 'Back') : null,
+        i > 0 ? h('button', { type: 'button', class: 'btn tour-back', help: 'Go back one step.', onclick: () => show(i - 1) }, 'Back') : null,
         h('button', { type: 'button', class: 'btn primary next', help: last ? 'Finish the tour.' : 'Go to the next step.',
           onclick: () => (last ? finish('completed') : show(i + 1)) }, last ? 'Finish' : 'Next')));
     requestAnimationFrame(place);

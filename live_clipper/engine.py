@@ -319,7 +319,7 @@ class Monitor:
                         self.engine.buffers._delete(idx, seg)
 
     def _start_media_and_chat(self) -> None:
-        limit = int(self.engine.settings.max_concurrent_recordings or 0)
+        limit = self.engine.recording_limit()
         if limit and sum(1 for m in self.engine.monitors.values() if m is not self and m.media_on) >= limit:
             if not self.slot_wait:
                 self._log(f"waiting for a recording slot ({limit} recordings at once)")
@@ -502,10 +502,11 @@ class Maintenance:
 
 
 class Engine:
-    def __init__(self, settings: Settings, store: Store, secrets=None, hub=None, edit=None):
+    def __init__(self, settings: Settings, store: Store, secrets=None, hub=None, edit=None, *, recording_limit=None):
         from .buffer import BufferManager  # edit subsystem (reference API)
         from .edit_service import EditEngine
         self.settings = settings
+        self.recording_limit = recording_limit or (lambda: settings.max_concurrent_recordings)
         self.store = store
         self.secrets = secrets
         self.hub = hub

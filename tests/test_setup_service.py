@@ -193,16 +193,19 @@ def test_storage_folder_nonempty_gets_app_subfolder(tmp_path):
     chosen = tmp_path / "Documents"
     chosen.mkdir()
     (chosen / "thesis.docx").write_text("mine")
+    (chosen / ".write-test").write_text("keep")
     value, err = setup_service._check_dir(str(chosen))
     assert err is None and value == str(chosen / "LiveClipper") and (chosen / "LiveClipper").is_dir()
     # choosing the app folder again (it carries the marker) keeps it as is, even once it has content
-    (chosen / "LiveClipper" / "stuff.txt").write_text("x")
+    (chosen / "LiveClipper" / ".write-test").write_text("owned by user")
     assert setup_service._check_dir(value) == (value, None)
+    assert (chosen / "LiveClipper" / ".write-test").read_text() == "owned by user"
     # an empty folder is used directly
     empty = tmp_path / "empty"
     empty.mkdir()
     assert setup_service._check_dir(str(empty)) == (str(empty), None)
     assert (chosen / "thesis.docx").read_text() == "mine"
+    assert (chosen / ".write-test").read_text() == "keep"
 
 
 def test_the_two_account_questions_carry_their_intent_and_note():
@@ -216,3 +219,67 @@ def test_the_two_account_questions_carry_their_intent_and_note():
         assert said in post["note"], said
     assert all(q["intent"] == "" and q["note"] == "" for q in qs.values() if q not in (watch, post))
     assert [o["value"] for o in post["options"]] == ["youtube", "tiktok", "instagram", "none"]  # answers kept
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_login_failure_preserves_saved_settings_and_can_retry(enabled, monkeypatch):
+    ctx, auto = make_ctx(), FakeAutostart()
+    service = SetupService(run=fake_run, autostart_mod=auto)
+    with client(ctx, service) as c:
+        assert c.post("/api/setup/complete").is_success
+        ctx.settings.set("service.start_at_login", not enabled)
+        auto.installed = not enabled
+        method = "install" if enabled else "uninstall"
+        with monkeypatch.context() as m:
+            m.setattr(auto, method, lambda: None)  # Some registrars return without applying a change.
+            edits = {"service.start_at_login": enabled, "storage.retention_days": 17}
+            r = c.post("/api/setup/complete", json={"answers": edits})
+            assert r.status_code == 409
+            assert "service.start_at_login" in r.json()["detail"]["errors"]
+            assert ctx.settings.get("service.start_at_login") is not enabled
+            assert ctx.settings.get("storage.retention_days") == 14
+        assert c.put("/api/setup/answers", json={"answers": edits}).is_success
+        assert auto.installed is enabled
+        assert ctx.settings.get("storage.retention_days") == 17
+
+
+def test_denied_login_does_not_finish_first_run(monkeypatch):
+    ctx, auto = make_ctx(), FakeAutostart()
+    def denied():
+        raise PermissionError("denied")
+    monkeypatch.setattr(auto, "install", denied)
+    with client(ctx, SetupService(run=fake_run, autostart_mod=auto)) as c:
+        assert c.put("/api/setup/answers", json={"service.start_at_login": True}).is_success
+        assert c.post("/api/setup/complete").status_code == 409
+        assert not c.get("/api/setup/state").json()["completed"]
+
+
+def test_settings_can_repair_previously_unapplied_login():
+    ctx, auto = make_ctx(), FakeAutostart()
+    ctx.app_state.set("setup.completed", True)
+    ctx.settings.set("service.start_at_login", True)
+    with client(ctx, SetupService(run=fake_run, autostart_mod=auto)) as c:
+        assert not c.get("/api/setup/state").json()["login_verified"]
+        result = c.put("/api/setup/answers", json={"service.start_at_login": True})
+        assert result.json()["login_verified"] and auto.installed
+
+
+def test_storage_consumers_switch_together_after_restart(tmp_path):
+    from live_clipper.edit_service import EditService
+    from live_clipper.maintenance import MaintenanceService
+    from live_clipper.monitor_service import MonitorService
+
+    chosen = tmp_path / "new-media"
+    for restarted in (False, True):
+        ctx = make_ctx()
+        setup = SetupService(run=fake_run, autostart_mod=FakeAutostart())
+        edit, monitor = EditService(), MonitorService()
+        with client(ctx, setup, MaintenanceService(), edit, monitor) as api:
+            if not restarted:
+                assert api.put("/api/setup/answers", json={"storage.dir": str(chosen)}).is_success
+            expected = chosen if restarted else ctx.paths.media
+            storage = api.get("/api/storage").json()
+            assert storage["configured_dir"] == str(chosen)
+            assert storage["dir"] == str(expected)
+            assert monitor.engine.settings.data_dir == expected
+            assert edit.engine.clips_dir.parent == expected

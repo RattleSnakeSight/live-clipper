@@ -11,8 +11,19 @@ const ORDER = ['needs_action', 'reconnecting', 'recording', 'waiting', 'offline'
 const rank = (c) => (ORDER.indexOf(c.state) + 1) || ORDER.length + 1;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+function probeProblem(detail) {
+  if (!detail) return '';
+  if (/\b(401|403)\b|unauthori[sz]ed/i.test(detail)) return 'The platform refused access. Check the connection on Sources.';
+  if (/\b429\b|too many requests/i.test(detail)) return 'The platform is limiting requests. Live Clipper will retry.';
+  if (/\b404\b|channel not found/i.test(detail)) return 'The channel could not be found. Check its link.';
+  if (/ProxyError|ConnectionPool|timed out|unable to open URL|name resolution|connection refused/i.test(detail))
+    return 'Live Clipper could not reach the platform. Check the internet connection while it retries.';
+  return '';
+}
+
 function channelRow(c, refresh) {
   const needs = c.state === 'needs_action';
+  const problem = c.state !== 'disabled' && probeProblem(c.detail);
   const name = channelName(c);
   const armed = Boolean(c.enabled); // a channel is watched exactly while it is armed
   const arm = armed
@@ -32,11 +43,14 @@ function channelRow(c, refresh) {
         h('div', { class: 'meta' }, `${platformName(c.platform)} · ${statusSource(c)}`),
         // recording whenever the channel is live is the default and needs no line
         isTopicMode(c) ? h('div', { class: 'meta' }, 'Records only while the stream title matches its format') : null,
-        !needs && c.detail && c.state !== 'disabled' ? h('div', { class: 'meta' }, sentence(c.detail)) : null),
-      pill(CHANNEL_STATES, c.state),
+        problem ? h('div', {}, h('p', { class: 'small' }, problem),
+          h('details', {}, h('summary', { help: 'Show the diagnostic message from the stream probe.' }, 'Details'),
+            h('p', { class: 'small' }, c.detail)))
+          : !needs && c.detail && c.state !== 'disabled' ? h('div', { class: 'meta' }, sentence(c.detail)) : null),
+      problem ? h('span', { class: 'pill warn' }, 'Connection problem') : pill(CHANNEL_STATES, c.state),
       h('div', { class: 'row' }, arm,
         h('a', { class: 'btn small ghost', href: `#/channels/${c.id}`, help: `Change ${name}'s link, format, destinations or turn it off.` }, 'Edit'))),
-    needs ? h('div', { class: 'note', role: 'status' }, h('p', {}, c.detail || 'This channel needs your attention.'),
+    needs ? h('div', { class: 'note', role: 'status' }, problem ? null : h('p', {}, c.detail || 'This channel needs your attention.'),
       c.fix ? h('p', { class: 'small' }, `To fix: ${c.fix}`) : null,
       c.fix_link ? h('a', { class: 'act', href: c.fix_link, help: 'Open the screen where this can be fixed.' }, 'Fix this') : null) : null);
 }

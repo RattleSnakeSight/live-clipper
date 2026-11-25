@@ -122,9 +122,15 @@ def test_format_import_export_round_trip(seeded_server, make_page, tmp_path):
     # edit in the form; a bad value is caught by the server and shown at the field
     mine.get_by_role("link", name="Edit").click()
     pre = page.locator('[data-path="window.pre"] input')
+    window_section = page.locator("summary").filter(has_text="Window").first
+    expect(pre).to_be_hidden()
+    window_section.click()
+    expect(pre).to_be_visible()
     expect(pre).to_have_value("9.5")
     pre.fill("-3")
+    window_section.click()
     page.get_by_role("button", name="Save").first.click()
+    expect(pre).to_be_visible()
     expect(page.locator('[data-path="window.pre"] .error')).to_contain_text("greater than or equal to 0")
     pre.fill("12")
     page.get_by_role("tab", name="JSON").click()
@@ -195,7 +201,11 @@ def test_guide_renders_offline_markdown_safely(seeded_server, make_page):
 def open_settings(page, provider):
     """The optional settings of a destination are one click away, under its setup steps."""
     inside = page.locator(f"form[data-settings={provider}]")
-    page.locator(f"#dest-{provider} details").filter(has=inside).locator("> summary").click()
+    card = page.locator(f"#dest-{provider}")
+    panel = card.locator("> details.connect")
+    if panel.get_attribute("open") is None:
+        panel.locator("> summary").click()
+    card.locator("details:not(.connect)").filter(has=inside).locator("> summary").click()
     return page.locator(f"#dest-{provider} form[data-settings={provider}]")
 
 

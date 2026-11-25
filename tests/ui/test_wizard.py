@@ -91,3 +91,40 @@ def test_wizard_full_flow_with_conditions_resume_and_review(fresh_server, make_p
     # the tour starts right after the wizard on first use
     expect(page.get_by_role("dialog")).to_contain_text("Welcome to Live Clipper")
     assert not page.js_errors
+
+
+def test_repeated_setup_discards_changes_on_cancel(seeded_server, make_page):
+    page = make_page()
+    before = state(seeded_server)["answers"]
+    page.goto(seeded_server.url + "/#/setup")
+    page.locator(".question input[type=radio]").last.check()
+    next_q(page)
+    page.get_by_role("button", name="Cancel").click()
+    expect(page.get_by_role("heading", name="Settings", exact=True)).to_be_visible()
+    assert state(seeded_server)["answers"] == before
+
+
+def test_local_test_option_saves_manual_mode(fresh_server, make_page):
+    page = make_page()
+    page.goto(fresh_server.url + "/#/setup/review")
+    page.get_by_role("checkbox", name="Try Manual review").check()
+    page.get_by_role("button", name="Finish setup").click()
+    expect(page).to_have_url(fresh_server.url + "/#/dashboard")
+    assert state(fresh_server)["answers"]["posting.mode"] == "manual"
+    assert page.request.get(fresh_server.url + "/api/publish/test-mode").json()["enabled"]
+
+
+def test_settings_navigation_offers_to_keep_unsaved_edit(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/settings")
+    retention = page.get_by_label("How many days should posted clips be kept?")
+    retention.fill("19")
+    posting = page.get_by_role("link", name="Manage posting mode and accounts")
+    page.once("dialog", lambda d: d.dismiss())
+    posting.click()
+    expect(page).to_have_url(seeded_server.url + "/#/settings")
+    expect(retention).to_have_value("19")
+    page.once("dialog", lambda d: d.accept())
+    posting.click()
+    expect(page).to_have_url(seeded_server.url + "/#/destinations")
+    assert state(seeded_server)["answers"].get("storage.retention_days") != 19

@@ -1,5 +1,4 @@
-// First-run wizard. Every answer is saved as soon as you press Next, so a reload resumes at the first
-// unanswered question.
+// First setup resumes at the next unanswered question. Later edits stay in a draft until Save setup.
 
 import { ApiError, get, list, post, put } from '../api.js';
 import { answerLabel, checkValue, effective, isVisible, questionField } from '../questions.js';
@@ -58,6 +57,10 @@ export async function render(main, params) {
   const questions = qd.questions || [];
   const saved = { ...st.answers };
   const answers = effective(questions, saved);
+  let tryLocal = false;
+  const cancel = () => st.completed ? btn('Cancel', 'Discard this setup draft and return to Settings.', () => {
+    location.hash = '#/settings';
+  }) : null;
   const visible = () => questions.filter((q) => isVisible(q, answers));
   const root = h('div', { class: 'wizard' });
   main.append(root);
@@ -72,7 +75,7 @@ export async function render(main, params) {
     const pct = total ? Math.min(1, step / total) : 1;
     return [
       h('h1', {}, st.completed ? 'Change your setup' : 'Set up Live Clipper'),
-      h('p', { class: 'help' }, 'A few questions so the app fits this computer. You can change every answer later in Settings.'),
+      h('p', { class: 'help' }, st.completed ? 'Changes take effect when you choose Save setup. Cancel discards this draft.' : 'A few questions so the app fits this computer. You can change these answers later.'),
       h('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Setup progress', 'aria-valuemin': 0,
         'aria-valuemax': total, 'aria-valuenow': Math.min(step, total) },
       h('span', { style: `transform: scaleX(${pct})` })),
@@ -100,7 +103,7 @@ export async function render(main, params) {
     if (i >= vis.length) return showReview();
     const q = vis[i];
     const field = questionField(q, answers[q.id], { big: true });
-    const next = btn(i === vis.length - 1 ? 'Review answers' : 'Next', 'Save this answer and go to the next question.', null, 'primary next');
+    const next = btn(i === vis.length - 1 ? 'Review answers' : 'Next', st.completed ? 'Keep this answer in the draft and continue.' : 'Save this answer and continue.', null, 'primary next');
     const form = h('form', { novalidate: true, onsubmit: async (e) => {
       e.preventDefault();
       const value = field.read();
@@ -108,7 +111,7 @@ export async function render(main, params) {
       if (err) { field.setError(err); field.focus(); return; }
       next.disabled = true;
       try {
-        if (!(q.id in saved) || JSON.stringify(saved[q.id]) !== JSON.stringify(value)) {
+        if (!st.completed && (!(q.id in saved) || JSON.stringify(saved[q.id]) !== JSON.stringify(value))) {
           await put('/setup/answers', { answers: { [q.id]: value } });
           saved[q.id] = value;
         }
@@ -123,7 +126,7 @@ export async function render(main, params) {
     field.el,
     h('nav', { 'aria-label': 'Setup steps' },
       i > 0 ? btn('Back', 'Go back to the previous question. This answer is not saved.', () => showQuestion(i - 1)) : null,
-      next));
+      cancel(), next));
     next.type = 'submit';
     clear(root, header(i, vis.length + 1), i === 0 ? hardwareSummary() : null,
       h('p', { class: 'small muted', style: 'margin-bottom: 8px' }, `Question ${i + 1} of ${vis.length}`), form);
@@ -132,17 +135,34 @@ export async function render(main, params) {
 
   function showReview(errors = {}) {
     const vis = visible();
+    const localTrial = !st.completed && !(answers['posting.destinations'] || []).some((p) => p !== 'none');
+    const trial = localTrial ? h('label', { class: 'choice' }, h('input', {
+      type: 'checkbox', help: 'Hold clips for review and enable the local test destination.', checked: tryLocal, onchange: (e) => { tryLocal = e.target.checked; },
+    }), 'Try Manual review with the local test destination. No account is needed.') : null;
     const finish = btn(st.completed ? 'Save setup' : 'Finish setup', 'Save every answer and open the dashboard.', null, 'primary next');
     finish.addEventListener('click', async () => {
       finish.disabled = true;
       try {
-        await post('/setup/complete');
+        const changes = Object.fromEntries(vis.filter((q) => st.completed &&
+          JSON.stringify(answers[q.id]) !== JSON.stringify(saved[q.id])).map((q) => [q.id, answers[q.id]]));
+        if (localTrial && tryLocal) changes['posting.mode'] = 'manual';
+        await post('/setup/complete', { answers: changes });
+        if (localTrial && tryLocal) {
+          try { await put('/publish/test-mode', { enabled: true }); }
+          catch (err) {
+            markSetupDone();
+            clear(root, h('h1', {}, 'Setup saved'), h('p', { role: 'alert' },
+              'Manual mode is saved. The test destination could not be enabled. ' + err.message),
+              h('a', { href: '#/destinations' }, 'Open Destinations to retry'));
+            return;
+          }
+        }
         markSetupDone();
         location.hash = '#/dashboard';
         maybeStartTour();
       } catch (ex) {
         finish.disabled = false;
-        showReview(ex instanceof ApiError ? ex.fields : { _: ex.message });
+        showReview(ex instanceof ApiError && Object.keys(ex.fields).length ? ex.fields : { _: ex.message });
       }
     });
     const list = h('dl', { class: 'review' }, vis.map((q, i) => [
@@ -159,9 +179,9 @@ export async function render(main, params) {
       errCount ? h('p', { class: 'note bad', role: 'alert' },
         errors._ || `${errCount} answer${errCount > 1 ? 's need' : ' needs'} a change before setup can finish.`) : null,
       accounts,
-      list,
+      list, trial,
       h('nav', { 'aria-label': 'Setup steps' },
-        btn('Back', 'Go back to the last question.', () => showQuestion(vis.length - 1)), finish));
+        btn('Back', 'Go back to the last question.', () => showQuestion(vis.length - 1)), cancel(), finish));
     root.querySelector('#review-title').focus();
   }
 

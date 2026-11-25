@@ -387,8 +387,9 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         return setup_state()
 
     @app.post("/api/setup/complete")
-    def complete():
-        a = answers()
+    def complete(body: dict | None = None):
+        changes = (body or {}).get("answers", {})
+        a = {**answers(), **changes}
         eff = {q["id"]: a.get(q["id"], q["default"]) for q in QUESTIONS}
         missing, fill = {}, {}
         for q in QUESTIONS:
@@ -402,7 +403,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
                     fill[q["id"]] = eff[q["id"]]
         if missing:
             raise HTTPException(422, {"errors": missing})
-        persist(fill)
+        persist({**changes, **fill})
         store["app_state"]["setup.completed"] = True
         store["app_state"]["setup.completed_at"] = time.time()
         save()

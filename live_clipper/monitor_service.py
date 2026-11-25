@@ -136,7 +136,11 @@ class MonitorService:
         engine = None
         try:
             self.hub = StatusHub(self.secrets, transport=self.transport)
-            engine = Engine(self.settings, self.store, self.secrets, hub=self.hub, edit=edit)
+            def recording_limit():
+                return int(ctx.settings.get("processing.max_concurrent_recordings") or 0)
+
+            engine = Engine(self.settings, self.store, self.secrets, hub=self.hub, edit=edit,
+                            recording_limit=recording_limit)
             # storage maintenance (ops): its admission check and its disk pause also gate clips and captures
             engine.maintenance.ops = getattr(svcs.get("maintenance"), "m", None)
             self.hub.tokens = engine.tokens

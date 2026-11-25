@@ -32,7 +32,7 @@ test destination and YouTube never need Metricool. See "Metricool" below.
   if you like (see [Editing](editing.md)), then press **Post to** and the destination. Nothing leaves your
   computer until you press it.
 
-Change the mode at any time under Destinations > Posting mode or in Settings. Clips that already wait keep
+Change the mode at any time under Destinations > Posting mode. Settings links there. Clips that already wait keep
 waiting. Use automatic mode only for channels you own or have permission to post from. For a first test,
 manual mode with the test destination (below) posts nothing; see [First run](first-run.md).
 

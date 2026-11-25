@@ -6,6 +6,7 @@ import { checkValue, effective, isVisible, questionField } from '../questions.js
 import { startTour } from '../tour.js';
 import { busy, choiceGroup, clear, confirmDialog, fmtBytes, h, selectField, titleRow, toast } from '../ui.js';
 import { agentOverview, agentPanel } from '../agent.js';
+import { mountWheel } from '../accent.js';
 import { THEMES, currentTheme, saveTheme } from '../theme.js';
 
 const SECTIONS = [
@@ -23,9 +24,10 @@ export async function render(main) {
   const byId = Object.fromEntries(questions.map((q) => [q.id, q]));
   const saved = { ...st.answers };
   const answers = effective(questions, saved);
-  main.append(titleRow('Settings', 'Your setup answers, grouped by topic. Each group has its own Save.'));
+  main.append(titleRow('Settings', 'Appearance applies immediately. Use Save for Storage, Processing, and Notifications and startup.'));
   main.append(appearanceBlock());
 
+  const dirty = new Set();
   for (const [id, title, intro, ids] of SECTIONS) {
     const qs = ids.map((x) => byId[x]).filter(Boolean);
     const fields = qs.map((q) => ({ q, f: questionField(q, answers[q.id]) }));
@@ -36,7 +38,9 @@ export async function render(main) {
       for (const { q, f } of fields) f.el.hidden = !isVisible(q, cur);
     };
     const save = h('button', { type: 'submit', class: 'btn primary', help: `Save the ${title.toLowerCase()} settings.` }, 'Save');
-    const out = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+    let retryLogin = id === 'settings-notify' && st.login_verified === false && st.completed;
+    const out = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' },
+      retryLogin ? 'The saved login preference could not be verified. Choose the setting you want and press Save to retry.' : '');
     const form = h('form', { class: 'panel narrow', novalidate: true, id, 'aria-labelledby': `${id}-title` },
       h('h2', { id: `${id}-title` }, title), h('p', { class: 'muted', style: 'margin-bottom: 12px' }, intro),
       extra, h('div', { class: 'settings-list' }, fields.map(({ f }) => f.el)),
@@ -44,7 +48,15 @@ export async function render(main) {
         'Start at login adds a small entry to your system startup list; turn it off here to remove it. '
         + 'The app keeps recording in the background while it runs.') : null,
       h('div', { class: 'row', style: 'margin-top: 16px' }, save, out));
-    form.addEventListener('change', sync);
+    const trackChanges = () => {
+      sync();
+      const edited = fields.some(({ q, f }) => !f.el.hidden && JSON.stringify(f.read()) !== JSON.stringify(answers[q.id]));
+      if (edited) dirty.add(id); else dirty.delete(id);
+      out.textContent = edited ? 'Unsaved changes.' : '';
+    };
+    form.addEventListener('input', trackChanges);
+    form.addEventListener('change', trackChanges);
+    const inputs = form.querySelector('.settings-list');
     form.addEventListener('submit', busy(save, async (e) => {
       e.preventDefault();
       out.textContent = '';
@@ -56,31 +68,62 @@ export async function render(main) {
         const err = checkValue(q, v);
         f.setError(err);
         if (err) { if (!bad) f.focus(); bad = true; continue; }
-        if (JSON.stringify(v) !== JSON.stringify(q.id in saved ? saved[q.id] : undefined)) changed[q.id] = v;
+        if (JSON.stringify(v) !== JSON.stringify(answers[q.id]) || (q.id === 'service.start_at_login' && retryLogin)) changed[q.id] = v;
       }
       if (bad) return;
       if (!Object.keys(changed).length) { out.textContent = 'Nothing changed.'; return; }
+      inputs.inert = true;
       try {
-        await put('/setup/answers', { answers: changed });
-        Object.assign(saved, changed);
-        Object.assign(answers, changed);
-        // setup/complete applies side effects such as start at login
-        if ('service.start_at_login' in changed) await post('/setup/complete').catch(() => {});
-        out.textContent = 'Saved.';
+        const result = await put('/setup/answers', { answers: changed });
+        for (const { q, f } of fields) {
+          if (!(q.id in changed)) continue;
+          const value = result.answers[q.id];
+          answers[q.id] = value;
+          if (q.type === 'path' || q.type === 'url') f.el.querySelector('input').value = value;
+        }
+        retryLogin = false;
+        dirty.delete(id);
+        out.textContent = 'storage.dir' in changed ? 'Saved. Restart Live Clipper to use the new folder.' : 'Saved.';
         toast(`${title} saved.`);
       } catch (ex) {
         const errs = ex instanceof ApiError ? ex.fields : {};
+        if (errs['service.start_at_login']) retryLogin = true;
         for (const { q, f } of fields) if (errs[q.id]) f.setError(errs[q.id]);
         out.textContent = Object.keys(errs).length ? '' : ex.message;
-      }
+      } finally { inputs.inert = false; }
     }));
     main.append(form);
     sync();
   }
 
-  main.append(await postingBlock());
+  main.append(h('section', { id: 'settings-posting', class: 'panel narrow' },
+    h('h2', {}, 'Posting'), h('a', { href: '#/destinations' }, 'Manage posting mode and accounts on Destinations')));
   main.append(await agentBlock());
   main.append(helpBlock(health));
+  const headings = [...main.querySelectorAll('form[id] > h2, section[id] > h2')];
+  const jump = selectField({ label: 'Go to section', help: 'Jump to a group of settings.',
+    options: [{ value: '', label: 'Choose a section' }, ...headings.map((heading) => ({
+      value: heading.parentElement.id, label: heading.textContent,
+    }))] });
+  jump.input.addEventListener('change', () => {
+    const heading = headings.find((item) => item.parentElement.id === jump.input.value);
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus();
+      heading.scrollIntoView({ block: 'center' });
+    }
+    jump.input.value = '';
+  });
+  main.querySelector('#settings-appearance').before(jump.el);
+  const warn = (e) => {
+    if (!dirty.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
+  window.addEventListener('beforeunload', warn);
+  const cleanup = () => window.removeEventListener('beforeunload', warn);
+  cleanup.canLeave = () => !dirty.size || window.confirm('Discard unsaved Settings changes?');
+  return cleanup;
 }
 
 async function storageBlock() {
@@ -119,7 +162,9 @@ async function storageBlock() {
   }));
   return h('div', { class: 'stack', style: 'margin-bottom: 16px' },
     h('dl', { class: 'kv' },
-      h('dt', {}, 'Folder'), h('dd', {}, s.dir),
+      h('dt', {}, 'Active folder'), h('dd', {}, s.dir),
+      s.configured_dir && s.configured_dir !== s.dir
+        ? [h('dt', {}, 'After restart'), h('dd', {}, s.configured_dir)] : null,
       h('dt', {}, 'Used'), h('dd', {}, `${fmtBytes(s.usage_bytes)} of ${fmtBytes(s.cap_bytes)} (${pct}%)`),
       h('dt', {}, 'Free on disk'), h('dd', {}, fmtBytes(s.free_bytes)),
       h('dt', {}, 'Kept because not posted yet'), h('dd', {}, fmtBytes(s.protected_bytes))),
@@ -145,33 +190,22 @@ function browserNotifications() {
   return h('div', { class: 'row', style: 'margin-bottom: 16px' }, btn, status);
 }
 
-async function postingBlock() {
-  const box = h('section', { id: 'settings-posting', class: 'panel narrow', 'aria-labelledby': 'sp-title' }, h('h2', { id: 'sp-title' }, 'Posting'));
-  try {
-    const m = await get('/publish/mode');
-    const g = choiceGroup({ legend: 'Posting mode', value: m.mode, options: [
-      { value: 'auto', label: 'Automatic', hint: 'Finished clips go to every connected, turned-on destination.' },
-      { value: 'manual', label: 'Manual', hint: 'Every clip waits in the review queue until you press Post.' }] });
-    g.inputs.forEach((i) => i.addEventListener('change', async () => {
-      try { await put('/publish/mode', { mode: i.value }); toast('Posting mode saved.'); } catch (e) { toast(e.message, true); }
-    }));
-    box.append(g.el, h('p', { class: 'small', style: 'margin-top: 8px' }, 'Accounts are set up on ',
-      h('a', { href: '#/destinations', help: 'Open Destinations to connect accounts.' }, 'Destinations'), '.'));
-  } catch {
-    box.append(h('p', { class: 'muted' }, 'Posting is not available right now.'));
-  }
-  return box;
-}
-
 function appearanceBlock() {
   const g = choiceGroup({ legend: 'Theme', name: 'theme', value: currentTheme(),
-    help: 'Dark is the default. Your choice is saved for this app and applies right away.',
+    help: 'Automatic follows this computer. Choosing Light or Dark overrides it.',
     options: Object.entries(THEMES).map(([value, label]) => ({ value, label })) });
   g.inputs.forEach((i) => i.addEventListener('change', async () => {
-    try { await saveTheme(i.value); toast(`${THEMES[i.value]} theme on.`); } catch (e) { toast(e.message, true); }
+    g.inputs.forEach((input) => { input.disabled = true; });
+    try { await saveTheme(i.value); toast(`${THEMES[i.value]} theme on.`); }
+    catch (e) {
+      g.inputs.forEach((input) => { input.checked = input.value === currentTheme(); });
+      toast(e.message, true);
+    } finally { g.inputs.forEach((input) => { input.disabled = false; }); }
   }));
-  return h('section', { id: 'settings-appearance', class: 'panel narrow', 'aria-labelledby': 'sa-title' },
+  const panel = h('section', { id: 'settings-appearance', class: 'panel narrow', 'aria-labelledby': 'sa-title' },
     h('h2', { id: 'sa-title' }, 'Appearance'), g.el);
+  mountWheel(panel);
+  return panel;
 }
 
 async function agentBlock() {

@@ -345,14 +345,17 @@ function card(d, refresh) {
     h('header', {}, h('h2', { id: `dn-${d.id}` }, d.label),
       h('span', { class: `pill ${tone}` }, label, connected && d.account ? ` as ${d.account}` : ''),
       h('span', { class: `pill ${d.enabled ? 'pos' : 'neutral'}` }, d.enabled ? 'Posting on' : 'Posting off')),
-    h('p', {}, r.what), routes(d), problem,
+    problem,
+    h('details', { class: 'more connect' },
+    h('summary', { help: `Show or hide account setup and posting controls for ${d.label}.` }, `Manage ${d.label}`),
+    h('p', {}, r.what), routes(d),
     h('ol', { class: 'setup-steps', role: 'list', 'aria-label': `Setup steps for ${d.label}` },
       step(1, 4, titles.app_credentials || 'Save your developer app keys', state('app_credentials'), keysStep),
       step(2, 4, titles.connect || 'Sign in', state('connect'), signStep),
       step(3, 4, titles.rights_acknowledgement || 'Check the account and confirm your rights', state('rights_acknowledgement'), rightsStep),
       step(4, 4, titles.enable || 'Turn posting on', state('enable'), enable.el)),
     advanced(d),
-    settings ? h('details', { class: 'more' }, h('summary', { help: 'Show or hide the optional settings for this destination.' }, 'Settings'), settings) : null);
+    settings ? h('details', { class: 'more' }, h('summary', { help: 'Show or hide the optional settings for this destination.' }, 'Settings'), settings) : null));
 }
 
 // The fields of one way to connect. Keys are saved first; a token is checked with the provider at once.

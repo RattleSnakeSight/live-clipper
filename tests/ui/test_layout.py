@@ -39,6 +39,7 @@ def test_a_hidden_field_is_not_shown(seeded_server, make_page):
     expect(webhook).to_be_hidden()  # only asked when notifications go to a webhook
     method.check()
     expect(webhook).to_be_visible()
+    page.once("dialog", lambda d: d.accept())
 
     page.goto(seeded_server.url + "/#/channels/new")
     every = page.get_by_label("Check the title every (seconds)")
@@ -135,21 +136,22 @@ def test_settings_switch_saves_a_yes_or_no_answer(seeded_server, make_page):
 def test_theme_is_set_before_the_app_script_runs(seeded_server, make_page):
     """No flash: theme-boot.js sets the theme from the cookie before the app's own script loads."""
     page = make_page()
+    page.emulate_media(color_scheme="dark")
     page.route("**/js/app.js", lambda route: route.abort())  # only the pre-paint script may act
     page.goto(seeded_server.url + "/#/dashboard")
-    assert page.evaluate("document.documentElement.dataset.theme") == "dark"  # nothing saved: dark
+    assert page.evaluate("document.documentElement.dataset.theme") == "dark"
     page.context.add_cookies([{"name": "lc_theme", "value": "light", "url": seeded_server.url}])
     page.reload()
     assert page.evaluate("document.documentElement.dataset.theme") == "light"
     bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
-    assert bg == "rgb(241, 244, 244)"  # the light ground colour, before any module ran
+    assert bg == "oklch(0.965 0.006 200)"  # light ground before any module ran
 
 
 def test_settings_theme_choice_applies_and_is_saved(seeded_server, make_page):
     page = make_page()
     page.goto(seeded_server.url + "/#/settings")
     box = page.locator("#settings-appearance")
-    expect(box.get_by_label("Dark")).to_be_checked()
+    expect(box.get_by_label("Automatic")).to_be_checked()
     box.get_by_label("Light").check()
     expect(page.locator("html")).to_have_attribute("data-theme", "light")
     assert json.loads(seeded_server.state_file.read_text())["app_state"]["ui.theme"] == "light"
@@ -164,6 +166,7 @@ def test_ask_my_agent_request_waits_and_can_be_cancelled(seeded_server, make_pag
     page = make_page()
     page.goto(seeded_server.url + "/#/destinations")
     # the helper is an option of the keys step, one click away from the fields it fills
+    page.locator("#dest-tiktok > details.connect > summary").click()
     page.locator("#dest-tiktok").get_by_text("Or let my agent fill these in").click()
     panel = page.locator("#dest-tiktok .agent-panel")
     expect(panel).to_contain_text("Paired with Claude Code")
@@ -204,3 +207,29 @@ def test_manual_fallback_points_to_the_right_form(seeded_server, fresh_server, m
     panel.get_by_role("button", name="Cancel").click()
     expect(panel).to_contain_text("once setup is finished")
     assert not page.js_errors
+
+
+def test_custom_accent_supports_keyboard_pointer_and_save_failure(seeded_server, make_page):
+    page = make_page(width=390)
+    page.goto(seeded_server.url + "/#/settings")
+    panel = page.locator("#settings-appearance")
+    panel.get_by_text("Customize accent colour", exact=True).click()
+    wheel = panel.get_by_role("slider")
+    wheel.press("ArrowRight")
+    expect(wheel).to_have_attribute("aria-valuenow", "203")
+    saved_hue = "async h => (await (await fetch('/api/app-state/ui.accent')).json()).value?.hue === h"
+    page.wait_for_function(saved_hue, arg=203)
+    page.reload()
+    panel.get_by_text("Customize accent colour", exact=True).click()
+    expect(wheel).to_have_attribute("aria-valuenow", "203")
+    wheel.click(position={"x": 122, "y": 66})
+    expect(wheel).to_have_attribute("aria-valuenow", "0")
+    page.wait_for_function(saved_hue, arg=0)
+    hex_input = panel.get_by_role("textbox", name="Accent colour as a hex code")
+    hex_input.fill("bad")
+    hex_input.press("Tab")
+    expect(hex_input).to_have_attribute("aria-invalid", "true")
+    page.route("**/api/app-state/ui.accent", lambda r: r.fulfill(status=503, body="Unavailable"))
+    panel.get_by_role("button", name="Reset to teal").click()
+    expect(page.locator("#toasts")).to_contain_text("Accent could not be saved")
+    expect(wheel).to_have_attribute("aria-valuenow", "0")

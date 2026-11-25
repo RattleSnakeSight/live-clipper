@@ -96,7 +96,7 @@ install scripts in `scripts/`.
 
 `live-clipper start` opens your browser at `http://127.0.0.1:8765` (or another free port) on "Set up Live
 Clipper". Every question has a default for your computer. Then a short tour shows the app; you can skip it and
-replay it from Settings. The app opens in a dark theme; Settings > Appearance switches to light.
+replay it from Settings. The app follows the computer’s light or dark theme. Settings > Appearance lets you override it and choose an accent.
 
 Posting is **automatic** by default, but nothing is posted until you connect an account, confirm you have the
 right to post and switch it on. For your first test, choose **Manual** posting and the **test destination**,

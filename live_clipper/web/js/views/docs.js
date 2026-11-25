@@ -42,10 +42,11 @@ export function schemaHelp(schema) {
 }
 
 // Builds a form for `doc`. Returns {el, read(): doc, showErrors({path: msg})}.
-export function docForm(doc, schema) {
+export function docForm(doc, schema, groupSections = false) {
   const root = schema || {};
   const readers = [];
   const errorSlots = {};
+  const groupName = nextId('sections');
 
   function field(path, key, value, raw) {
     const node = resolve(root, raw);
@@ -57,9 +58,12 @@ export function docForm(doc, schema) {
       h('label', { for: id }, label), h('p', { class: 'help', id: `${id}-help` }, help), control, err);
     const attrs = { id, help, 'aria-describedby': `${id}-help ${id}-err`, dataset: { path } };
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return h('fieldset', { class: 'panel', style: 'margin-top: 16px', dataset: { path } },
+      const group = h('fieldset', { class: 'panel', style: 'margin-top: 16px', dataset: { path } },
         h('legend', { class: 'label' }, human(key)), h('p', { class: 'help', style: 'margin-bottom: 8px' }, help),
         Object.entries(value).map(([k, v]) => field(`${path}.${k}`, k, v, child(root, node, k))), err);
+      if (!groupSections || path.includes('.')) return group;
+      return h('details', { class: 'more', name: groupName },
+        h('summary', { help: `Edit the ${human(key)} settings. ${help}` }, human(key)), group);
     }
     if (typeof value === 'boolean') {
       const sw = switchField({ id, label: human(key), help, checked: value });
@@ -130,7 +134,11 @@ export function docForm(doc, schema) {
         const input = el.querySelector(`[data-path="${CSS.escape(path)}"] input, [data-path="${CSS.escape(path)}"] select, [data-path="${CSS.escape(path)}"] textarea`);
         if (input) { input.setAttribute('aria-invalid', 'true'); firstBad = firstBad || input; }
       }
-      if (firstBad) firstBad.focus();
+      if (firstBad) {
+        const section = firstBad.closest('details');
+        if (section) section.open = true;
+        firstBad.focus();
+      }
     },
   };
 }
@@ -227,7 +235,7 @@ export async function renderEditor(main, kind, id, backLabel) {
   const one = SINGULAR[kind];
   const [doc, schema] = await Promise.all([
     get(`/${kind}/${encodeURIComponent(id)}`), get(`/${kind}/schema`).catch(() => null)]);
-  let form = docForm(doc, schema);
+  let form = docForm(doc, schema, kind === 'formats');
   const formPane = h('div', { id: 'pane-form', role: 'tabpanel', 'aria-labelledby': 'tab-form' }, form.el);
   const json = h('textarea', { id: 'doc-json', class: 'code', spellcheck: 'false', 'aria-describedby': 'doc-json-help doc-json-err',
     help: 'The same settings as raw JSON. Errors show below before anything is saved.' });
@@ -252,7 +260,7 @@ export async function renderEditor(main, kind, id, backLabel) {
       if (t === 'json') json.value = JSON.stringify(form.read(), null, 2);
       else {
         const parsed = JSON.parse(json.value);
-        form = docForm(parsed, schema);
+        form = docForm(parsed, schema, kind === 'formats');
         clear(formPane, form.el);
       }
     } catch (e) {

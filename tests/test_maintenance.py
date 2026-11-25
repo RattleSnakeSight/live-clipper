@@ -264,3 +264,18 @@ def test_temp_sweep_skips_links_and_junctions(tmp_path):
     from live_clipper.maintenance import Action
     e.m.execute([Action("delete_temp", str(link / "hook_keep.txt"), None, 1, "x")])
     assert survivor.exists()
+
+
+def test_storage_root_changes_at_restart(tmp_path):
+    e = Env(tmp_path)
+    old_clip = e.clip(1, 1, posted_days_ago=30)
+    chosen = tmp_path / "new-media"
+    chosen.mkdir()
+    e.ctx.settings.set("storage.dir", str(chosen))
+    report = e.m.report()
+    assert report["dir"] == str(e.root)
+    assert report["configured_dir"] == str(chosen)
+    restarted = Maintenance(e.ctx)
+    assert restarted.report()["dir"] == str(chosen)
+    assert not restarted.plan()
+    assert old_clip.exists()

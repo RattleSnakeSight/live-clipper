@@ -6,7 +6,8 @@ change things later. A question only appears when an earlier answer needs it. Yo
 computer.
 
 The setup cannot be skipped: the other pages open once it is finished. To change your answers later, open
-**Settings**, which groups them by topic, or press **Run setup again** there.
+**Settings**, which groups them by topic, or press **Run setup again** there. On a repeat visit, changes stay in a draft until **Save setup**.
+**Cancel** discards that draft.
 
 ## The questions
 
@@ -24,10 +25,12 @@ The setup cannot be skipped: the other pages open once it is finished. To change
 
 - *Where should clips and recordings be stored?* Default: the media folder inside the app's data folder. The
   app refuses a drive root or your home folder, and makes a `LiveClipper` subfolder if the folder you pick
-  already holds other files.
+  already holds other files. Restart Live Clipper when ready to use the new folder for capture, editing and cleanup.
+  Existing files stay in place. To work on media in the old folder again, select it and restart.
+  Settings shows the active folder and the folder selected for the next start.
 - *How much disk space may Live Clipper use (GB)?* Default: a quarter of the free space, at least 5 and at
   most 50. At this cap the app stops starting new clips and cleans up old posted ones.
-- *How many days should posted clips be kept?* Default: 14. Clips that are not posted are never deleted.
+- *How many days should posted clips be kept?* Default: 14. Automatic expiry only removes posted clips. Rejecting a clip can also remove its media.
 - *What should be deleted first when the disk is full?* Default: original recordings of posted clips, then
   posted clips. The other choice deletes whole posted clips, oldest first.
 - *Which automatic cleanups do you want?* Default: both (delete posted clips after the keep time, and delete
@@ -87,9 +90,10 @@ connections each has, so you can do one without the other.
 Automatic posting is the default, but nothing is posted until you connect an account, tick that you have the
 right to post and switch the destination on. For a first test that cannot post anything:
 
-1. Choose **Manual** posting (in setup, or later under Destinations > Posting mode). To get the posting
-   question in setup, pick any destination; picking does not connect it.
-2. On Destinations, switch on **Use the test destination**. It is a stand-in on your computer and posts
+1. On a fresh installation, choose **Nowhere, I only want the files**, then select **Try Manual review with
+   the local test destination** on the review page and finish setup. This enables Manual and the local test
+   destination together. For an existing installation, choose **Manual** on Destinations.
+2. If it is off, on Destinations switch on **Use the test destination**. It is a stand-in on your computer and posts
    nowhere.
 3. On Channels, add a channel you own or have permission to clip, and switch monitoring on.
 4. When the channel goes live and a moment qualifies, the clip appears on the Clips page under "Waiting for
@@ -101,7 +105,9 @@ passes the format's checks. See [Monitoring](monitoring.md) and [Posting](postin
 
 ## Appearance
 
-The app opens in a dark theme. **Settings > Appearance** switches to light, and the choice is kept.
+**Automatic** follows this computer's light or dark setting. In **Settings > Appearance**, choose Light or
+Dark to keep a fixed theme. Open **Customize accent colour** to change the hue with the wheel, arrow keys,
+swatches or a hex colour. The app adjusts its lightness for readability. **Reset to teal** restores the default.
 
 ## The tour
 

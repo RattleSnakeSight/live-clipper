@@ -225,3 +225,16 @@ def test_sources_say_what_each_way_to_connect_needs(client):
     yt = client.post("/api/sources/youtube/connect", json={"api_key": "KEY"}).json()
     assert yt["route"] == "api_key" and yt["how"].startswith("Connected with an API key")
     assert "KEY" not in str(yt)
+
+
+def test_saved_slot_limit_applies_to_new_recordings(client):
+    def add(name):
+        return client.post("/api/channels", json={"url": f"twitch.tv/{name}", "enabled": True}).json()
+
+    assert add("streamer_alpha")["state"] == "recording"
+    client.ctx.settings.set("processing.max_concurrent_recordings", 1)
+    second = add("streamer_beta")
+    assert second["state"] == "waiting"
+    client.ctx.settings.set("processing.max_concurrent_recordings", 2)
+    client.post(f"/api/channels/{second['id']}/disarm")
+    assert client.post(f"/api/channels/{second['id']}/arm").json()["state"] == "recording"

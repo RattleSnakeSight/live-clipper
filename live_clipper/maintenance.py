@@ -122,6 +122,7 @@ def _size(p: Path) -> int:
 class Maintenance:
     def __init__(self, ctx: AppContext, clock=time.time, free_fn=None):
         self.ctx, self.clock = ctx, clock
+        self.media_dir = Path(ctx.settings.get("storage.dir") or ctx.paths.media)
         self._free = free_fn or (lambda p: shutil.disk_usage(p).free)
         self.captures_paused = False
 
@@ -130,7 +131,7 @@ class Maintenance:
         s = self.ctx.settings
         rules = s.get("storage.cleanup_rules", ["expire_posted", "clean_when_full"])
         return {
-            "dir": Path(s.get("storage.dir") or self.ctx.paths.media),
+            "dir": self.media_dir,
             "cap_bytes": int(float(s.get("storage.cap_gb", 20)) * GB),  # original default 20480 MB
             "retention_days": float(s.get("storage.retention_days", 14)),
             "clean_first": s.get("storage.clean_first", "originals"),
@@ -344,6 +345,8 @@ class Maintenance:
                                    "FROM maintenance_clip WHERE state IN ('kept','trash')").fetchall()
         for cid, unit, created, state, tpath, purge_after in rows:
             p = Path(tpath if state == "trash" else unit)
+            if not self._inside(p, root):
+                continue  # Keep other media folders' records when switching drives, including offline drives.
             if not (p.exists() or p.is_symlink()):
                 self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE clip_id=? AND unit_path=?",
                                     (cid, unit))
@@ -617,7 +620,8 @@ class Maintenance:
         cfg = sc["cfg"]
         other = max(0, sc["total"] - sc["kept_bytes"] - sc["trash_bytes"] - sc["temp_bytes"])
         return {
-            "dir": str(cfg["dir"]), "usage_bytes": sc["total"], "cap_bytes": cfg["cap_bytes"],
+            "dir": str(cfg["dir"]), "configured_dir": str(self.ctx.settings.get("storage.dir") or self.ctx.paths.media),
+            "usage_bytes": sc["total"], "cap_bytes": cfg["cap_bytes"],
             "free_bytes": sc["free"], "over_cap": sc["total"] > cfg["cap_bytes"],
             "breakdown": {"clips": sc["kept_bytes"], "trash": sc["trash_bytes"], "temporary": sc["temp_bytes"],
                           "other": other},

@@ -1,24 +1,25 @@
-// Appearance: dark by default, light when chosen. The saved preference is app state `ui.theme`; a cookie lets
-// theme-boot.js apply it before the first paint.
-
 import { appState, setAppState } from './api.js';
+import { applyAccent, syncAccent } from './accent.js';
 
-export const THEMES = { dark: 'Dark', light: 'Light' };
+export const THEMES = { auto: 'Automatic', dark: 'Dark', light: 'Light' };
+const system = matchMedia('(prefers-color-scheme: dark)');
+export function currentTheme() { return document.documentElement.dataset.themePreference || 'auto'; }
 
-export function currentTheme() {
-  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-}
-
-export function applyTheme(theme) {
-  const t = theme === 'light' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', t);
+export function applyTheme(value) {
+  const t = Object.hasOwn(THEMES, value) ? value : 'auto';
+  const root = document.documentElement;
+  root.dataset.themePreference = t;
+  root.dataset.theme = t === 'auto' ? (system.matches ? 'dark' : 'light') : t;
   document.cookie = `lc_theme=${t}; path=/; max-age=31536000; samesite=strict`;
+  applyAccent(Number(root.dataset.accent ?? 200));
+  document.getElementById('settings-appearance')?.dispatchEvent(new Event('themechange'));
   return t;
 }
+system.addEventListener('change', () => { if (currentTheme() === 'auto') applyTheme('auto'); });
 
-// The saved preference wins over whatever the cookie said (another browser, or a cleared cookie).
 export async function syncTheme() {
-  try { applyTheme(await appState('ui.theme')); } catch { /* not signed in yet: keep what the page shows */ }
+  try { applyTheme(await appState('ui.theme')); } catch { /* Keep the cached theme. */ }
+  await syncAccent();
 }
 
 export async function saveTheme(theme) {
