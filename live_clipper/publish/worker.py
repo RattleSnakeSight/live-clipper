@@ -332,7 +332,7 @@ class Publisher:
 
     def _insert(self, clip: dict, dest: dict, language: str, mode: str, version: int, held: bool | None = None) -> int:
         held = (mode == "manual") if held is None else held
-        with self.store.tx():
+        with self.store._lock, self.store.tx():
             same = self.store.q1("SELECT id FROM publish_deliveries WHERE clip_id=? AND destination_id=? AND "
                                  "language=? AND version=?", clip["clip_id"], dest["id"], language, version)
             if same:
@@ -700,7 +700,7 @@ class Publisher:
 
     def _claim_upload(self, did: int) -> dict | None:
         """Atomically move queued -> uploading, re-checking everything under the database transaction."""
-        with self.store.tx():
+        with self.store._lock, self.store.tx():
             d = self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did)
             dest = d and self.store.q1("SELECT * FROM publish_destinations WHERE id=?", d["destination_id"])
             if not d or d["status"] != "queued" or not dest:

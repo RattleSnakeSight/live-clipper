@@ -97,7 +97,9 @@ def test_single_instance_lock():
     assert read_lock(paths) is None
     assert acquire_lock(paths, port=8765)
     assert not acquire_lock(paths, port=9999)
-    assert read_lock(paths) == {"pid": os.getpid(), "port": 8765}
+    info = read_lock(paths)
+    assert info["pid"] == os.getpid() and info["port"] == 8765
+    assert info["lock_version"] == 2 and info["instance"]
     release_lock(paths)
     assert read_lock(paths) is None
 

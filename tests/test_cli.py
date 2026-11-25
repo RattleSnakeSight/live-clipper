@@ -42,6 +42,10 @@ def test_install_source_from_pip_metadata():
 
 
 def test_start_status_second_start_logs_stop(home):
+    # Stale discovery data pointing at this unrelated, live Python process must not prevent startup.
+    (home / "state").mkdir(parents=True, exist_ok=True)
+    (home / "state" / "supervisor.lock").write_text(json.dumps(
+        {"pid": os.getpid(), "port": 1, "lock_version": 2}))
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -80,24 +84,63 @@ def test_uninstall_purge_deletes_data_and_prints_removal_command(home, monkeypat
     assert "uninstall" not in calls  # nothing was installed, so nothing was removed
 
 
-def _force_stop(home, monkeypatch, is_app):
+def test_stop_timeout_keeps_ownership_and_never_kills_any_pid(home, monkeypatch, capsys):
     from live_clipper import cli as cli_mod
-    killed = []
-    (home / "state").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": 424242, "port": 1})
+    from live_clipper.paths import get_paths
+
+    paths = get_paths()
+    lock = paths.state / "supervisor.lock"
+    lock.write_text("synthetic lock")
+    (paths.state / "heartbeat").write_text(json.dumps({"pid": os.getpid()}))
+    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": os.getpid(), "port": 8799})
     monkeypatch.setattr(cli_mod, "_wait", lambda pred, timeout: False)
-    monkeypatch.setattr(cli_mod, "_is_app_process", lambda pid: is_app)
-    monkeypatch.setattr(cli_mod.os, "kill", lambda pid, sig: killed.append(pid))
-    cli_mod.cmd_stop()
-    return killed
+    def no_signal(*args):
+        raise AssertionError("must not signal")
+    monkeypatch.setattr(cli_mod.os, "kill", no_signal)
+    assert cli_mod.cmd_stop() == 1
+    assert lock.read_text() == "synthetic lock"
+    assert (paths.state / "stop").exists()
+    assert "did not stop" in capsys.readouterr().out
 
 
-def test_force_stop_never_kills_a_reused_pid(home, monkeypatch):
-    assert _force_stop(home, monkeypatch, False) == []
-    assert _force_stop(home, monkeypatch, True) == [424242]
+def test_start_reports_unresponsive_owner_without_opening_or_spawning(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    from live_clipper import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": 123, "port": 8799})
+    monkeypatch.setattr(cli_mod, "_health", lambda port: None)
+    monkeypatch.setattr(cli_mod, "_open_ui", lambda *a: (_ for _ in ()).throw(
+        AssertionError("must not open")))
+    monkeypatch.setattr(cli_mod.subprocess, "Popen", lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError("must not spawn")))
+    assert cli_mod.cmd_start(SimpleNamespace(no_browser=True)) == 1
+    assert "not responding" in capsys.readouterr().out
 
 
-def test_is_app_process_recognises_python_and_rejects_dead_pids():
-    from live_clipper.cli import _is_app_process
-    assert _is_app_process(os.getpid())
-    assert not _is_app_process(2**22 + 12345)
+def test_update_and_uninstall_abort_when_stop_fails(monkeypatch):
+    from types import SimpleNamespace
+
+    from live_clipper import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": 123, "port": 8799})
+    monkeypatch.setattr(cli_mod, "cmd_stop", lambda: 1)
+    monkeypatch.setattr(cli_mod.subprocess, "call", lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError("must not install or start")))
+    monkeypatch.setattr(cli_mod.autostart, "is_installed", lambda: (_ for _ in ()).throw(
+        AssertionError("must not touch autostart")))
+    assert cli_mod.cmd_update(SimpleNamespace(check=False, source="synthetic-package")) == 1
+    assert cli_mod.cmd_uninstall(SimpleNamespace(purge_data=True, yes=True)) == 1
+
+
+def test_restart_aborts_when_old_version_does_not_stop(monkeypatch):
+    from types import SimpleNamespace
+
+    from live_clipper import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "read_lock", lambda paths: {"pid": 123, "port": 8799})
+    monkeypatch.setattr(cli_mod, "_health", lambda port: {"version": "0.0.1"})
+    monkeypatch.setattr(cli_mod, "cmd_stop", lambda: 1)
+    monkeypatch.setattr(cli_mod.subprocess, "Popen", lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError("must not start")))
+    assert cli_mod.cmd_start(SimpleNamespace(no_browser=True)) == 1

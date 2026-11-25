@@ -16,6 +16,7 @@ from pathlib import Path
 import uvicorn
 
 from . import registry
+from .instance_lock import acquire_lock, release_lock
 from .logging_setup import setup_logging
 from .paths import get_paths
 from .server import allow_remote, create_app, ensure_token
@@ -72,27 +73,32 @@ def run(port: int, host: str = "127.0.0.1") -> None:
     check_host(host)
     paths = get_paths()
     setup_logging(paths.logs)
-    services = load_services(registry.SERVICES)  # imports register their migrations
-    ctx = build_context(paths, port=port, token=ensure_token(paths))
-    heartbeat = Heartbeat(paths.state)
-    ctx.services[:0] = [heartbeat, *services]
-    ctx.update_gate = gate = UpdateGate(paths.state)
-    server = uvicorn.Server(uvicorn.Config(create_app(ctx), host=host, port=port, log_config=None,
-                                           access_log=False))
-    heartbeat.on_stop_request = lambda: setattr(server, "should_exit", True)
-    restart = []
+    if not acquire_lock(paths, port, role="worker"):
+        raise SystemExit("A worker already owns this data folder; no second worker was started.")
+    try:
+        services = load_services(registry.SERVICES)  # imports register their migrations
+        ctx = build_context(paths, port=port, token=ensure_token(paths))
+        heartbeat = Heartbeat(paths.state)
+        ctx.services[:0] = [heartbeat, *services]
+        ctx.update_gate = gate = UpdateGate(paths.state)
+        server = uvicorn.Server(uvicorn.Config(create_app(ctx), host=host, port=port, log_config=None,
+                                               access_log=False))
+        heartbeat.on_stop_request = lambda: setattr(server, "should_exit", True)
+        restart = []
 
-    def come_back_gated() -> None:  # a release appeared while the services ran: stop them the normal way
-        restart.append(True)
-        server.should_exit = True
+        def come_back_gated() -> None:  # a release appeared while the services ran: stop them the normal way
+            restart.append(True)
+            server.should_exit = True
 
-    gate.on_restart = come_back_gated
-    log.info("worker %d serving on %s:%d", os.getpid(), host, port)
-    server.run()
-    if not server.started:
-        raise SystemExit(1)
-    if restart:
-        raise SystemExit(RESTART_EXIT)
+        gate.on_restart = come_back_gated
+        log.info("worker %d serving on %s:%d", os.getpid(), host, port)
+        server.run()
+        if not server.started:
+            raise SystemExit(1)
+        if restart:
+            raise SystemExit(RESTART_EXIT)
+    finally:
+        release_lock(paths, role="worker")
 
 
 def main(argv: list[str] | None = None) -> None:

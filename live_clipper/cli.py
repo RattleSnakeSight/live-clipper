@@ -6,7 +6,6 @@ import json
 import os
 import platform
 import shutil
-import signal
 import socket
 import subprocess
 import sys
@@ -18,6 +17,7 @@ from pathlib import Path
 import httpx
 
 from . import __version__, autostart, skillinstall
+from .instance_lock import InstanceLockError
 from .paths import get_paths
 from .supervisor import read_lock, spawn_kwargs
 
@@ -106,11 +106,18 @@ def _open_ui(port: int, no_browser: bool) -> None:
 def cmd_start(args) -> int:
     info = read_lock(get_paths())
     if info:
+        if info.get("role") == "worker":
+            print("Live Clipper has a surviving worker without its supervisor. Stop it, then start again.")
+            return 1
         running = (_health(info["port"]) or {}).get("version")
-        if running and running != __version__:
+        if not running:
+            print("Live Clipper owns the instance lock but is not responding. See `live-clipper logs`.")
+            return 1
+        if running != __version__:
             # the program was upgraded while the old one kept running: finish the update with a restart
             print(f"Live Clipper {running} is still running; restarting it as {__version__}.")
-            cmd_stop()
+            if cmd_stop():
+                return 1
         else:
             print("Live Clipper is already running.")
             report_update(_check_update(info["port"], "open"))
@@ -127,8 +134,7 @@ def cmd_start(args) -> int:
                     _open_ui(port, False)
 
         threading.Thread(target=opener, daemon=True).start()
-        supervisor.main(["--port", str(port)])
-        return 0
+        return supervisor.main(["--port", str(port)])
     subprocess.Popen([sys.executable, "-m", "live_clipper.supervisor", "--port", str(port)], **spawn_kwargs())
     if not _wait(lambda: _health(port), 60):
         print("Live Clipper did not start. See `live-clipper logs`.")
@@ -138,24 +144,6 @@ def cmd_start(args) -> int:
     return 0
 
 
-def _is_app_process(pid: int) -> bool:
-    """True only if `pid` is alive and looks like Live Clipper (a python or live-clipper image), so a recycled
-    PID belonging to some other program is never killed."""
-    try:
-        if os.name == "nt":
-            out = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/FO", "CSV", "/NH"],
-                                 capture_output=True, text=True, timeout=10).stdout.strip()
-            if not out.startswith('"'):
-                return False
-            image = out.splitlines()[0].split('","')[0].strip('"').lower()
-            return image.startswith(("python", "live-clipper"))
-        out = subprocess.run(["ps", "-p", str(int(pid)), "-o", "args="], capture_output=True, text=True,
-                             timeout=10).stdout.lower()
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return False
-    return "python" in out or "live_clipper" in out or "live-clipper" in out
-
-
 def cmd_stop(args=None) -> int:
     paths = get_paths()
     info = read_lock(paths)
@@ -163,21 +151,18 @@ def cmd_stop(args=None) -> int:
         print("Live Clipper is not running.")
         return 0
     (paths.state / "stop").write_text("")
-    if not _wait(lambda: read_lock(paths) is None, 30):
-        print("Not responding; forcing it to stop.")
-        pids = [info["pid"]]
+    (paths.state / "worker.stop").write_text("")
+    def stopped():
         try:
-            pids.append(json.loads((paths.state / "heartbeat").read_text())["pid"])
-        except (OSError, ValueError, KeyError):
-            pass
-        for pid in pids:
-            if not _is_app_process(pid):
-                continue
-            try:
-                os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
-            except OSError:
-                pass
-        (paths.state / "supervisor.lock").unlink(missing_ok=True)
+            current = read_lock(paths)
+            return current is None
+        except InstanceLockError:
+            return False  # metadata may disappear just before the guard closes
+
+    if not _wait(stopped, 30):
+        print("Live Clipper did not stop. Its lock is kept; no process was killed by PID or image name. "
+              "Check `live-clipper logs` before trying again.")
+        return 1
     print("Live Clipper stopped.")
     return 0
 
@@ -186,7 +171,9 @@ def cmd_status(args) -> int:
     info = read_lock(get_paths())
     health = _health(info["port"]) if info else None
     if health:
-        print(json.dumps({**health, "port": info["port"], "supervisor_pid": info["pid"]}, indent=2))
+        print(json.dumps({**health, "port": info["port"],
+                          "supervisor_pid": info["pid"] if info.get("role") != "worker" else None,
+                          "owner": info.get("role", "supervisor")}, indent=2))
         return 0
     print(json.dumps({"status": "not responding" if info else "stopped"}))
     return 1
@@ -309,8 +296,8 @@ def cmd_update(args) -> int:
         print("This is an editable (developer) install: update it with `git pull`.")
         return 0
     was_running = read_lock(get_paths()) is not None
-    if was_running:
-        cmd_stop()
+    if was_running and cmd_stop():
+        return 1
     rc = subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", source])
     if was_running:  # the new version, from the same environment; it checks for updates as it starts
         flags = ["--no-browser"] if args.no_browser else []
@@ -319,7 +306,8 @@ def cmd_update(args) -> int:
 
 
 def cmd_uninstall(args) -> int:
-    cmd_stop()
+    if cmd_stop():
+        return 1
     if autostart.is_installed():
         autostart.uninstall()
         print("Removed start-at-login.")
@@ -440,4 +428,8 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if args.home:
         os.environ["LIVE_CLIPPER_HOME"] = args.home
-    return args.func(args)
+    try:
+        return args.func(args)
+    except InstanceLockError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1

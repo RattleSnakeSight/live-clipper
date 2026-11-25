@@ -16,13 +16,25 @@ live-clipper start ──spawns──> supervisor ──spawns──> worker (uv
                                (holds lock)            (writes heartbeat every 5 s)
 ```
 
-- `live_clipper.supervisor` holds the single-instance lock `state/supervisor.lock` (`{"pid", "port"}`).
-  A second `live-clipper start` sees a live lock and just opens the browser on the running instance.
+- `live_clipper.supervisor` holds an OS lifetime lock on `state/supervisor.guard`. This file is never
+  deleted; the OS releases ownership when the supervisor exits, including after a crash.
+  `state/supervisor.lock` holds discovery metadata (`pid`, `port`, `lock_version`, `instance`), not permission
+  to signal a process. A leftover metadata file cannot claim a reused PID. A second start opens the existing
+  healthy instance, or reports that its owner is not responding.
+- The worker separately holds `state/worker.guard` and writes `state/worker.lock`. If its supervisor crashes,
+  this guard prevents a second worker from using the data folder. Start reports the surviving worker; stop
+  requests its shutdown through `worker.stop`, after which a normal start restores supervision.
+- Older PID-only records are recognized through authenticated local status. A process born after the old
+  record was written, or a record from before this boot, is stale. Ambiguous legacy ownership stops startup with an error;
+  it never triggers a second instance or a guessed process kill.
 - It restarts the worker when it exits (backoff 1 s doubling to 60 s, reset after 5 minutes up) or when
   `state/heartbeat` is older than 60 s (hung event loop). Each restart is a row in `events`
   (`source='supervisor'`).
 - Stop: `live-clipper stop` creates `state/stop`; the supervisor creates `state/worker.stop`, the worker
   shuts down gracefully (services get `stop()`), and the supervisor exits. SIGINT/SIGTERM/CTRL_BREAK work too.
+  The supervisor can kill its own unresponsive worker through its retained process handle. If the supervisor
+  itself fails to stop, the CLI returns failure and keeps its lock; it never kills by PID or image name.
+  Update, uninstall and version-change restart abort when that stop fails.
 - `start --foreground` runs the supervisor in the terminal instead of in the background.
 - Update gate (`live_clipper/update_gate.py`): the worker checks the version line on the project's main
   branch before anything else. Only services marked `essential = True` (the heartbeat) start at once; the
@@ -134,5 +146,5 @@ db/        live-clipper.sqlite3
 media/     recordings and clips (subsystems create their own subfolders)
 logs/      live-clipper.log, supervisor.log
 secrets/   vault.json.enc, vault.key (only without a keyring)
-state/     token, supervisor.lock, heartbeat, stop / worker.stop (transient)
+state/     token, supervisor.guard, supervisor.lock, worker.guard, worker.lock, heartbeat, stop / worker.stop (transient)
 ```

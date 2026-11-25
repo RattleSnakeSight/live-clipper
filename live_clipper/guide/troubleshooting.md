@@ -27,6 +27,21 @@ terminal, and try again. Meanwhile `python -m live_clipper start` works too.
 
 Check `live-clipper logs` and the restart list on the Status page, then run `live-clipper doctor`.
 
+## Startup or shutdown cannot verify the running instance
+
+If startup says the instance owns its lock but is not responding, check `live-clipper logs` and try
+`live-clipper stop`. If stopping times out, it reports failure and keeps the lock. Update and uninstall also
+stop at that point. The command never kills another program just because its process ID or name looks right.
+
+An older installation may have a PID-only lock. If the new copy cannot verify that older instance, stop it
+using its original installation first, then retry. Do not delete lock files while an instance might still run.
+For the new lock format, the operating system releases ownership after a crash; a leftover record does not
+prevent a later start. Start-at-login still requires signing in, and nothing records while the computer sleeps.
+
+If startup reports a surviving worker without its supervisor, use `live-clipper stop`, then start again.
+The worker keeps its own lock until it exits, so another worker cannot use the same data folder in the meantime.
+If that worker cannot respond to stop, restarting the computer releases its OS locks. Start again after signing in.
+
 ## ffmpeg or ffprobe is missing
 
 `doctor` says "not found: install ffmpeg". Install it and run `doctor` again:

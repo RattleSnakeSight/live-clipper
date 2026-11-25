@@ -21,6 +21,7 @@ from pathlib import Path
 import httpx
 
 from .agent_setup import TARGETS, read_pairing
+from .instance_lock import InstanceLockError
 from .paths import get_paths
 from .supervisor import read_lock
 
@@ -154,7 +155,15 @@ def serve(once: bool = False, max_wait: float = 0, say=print) -> int:
         if max_wait and time.monotonic() - started > max_wait:
             say("No request arrived; stopping. Start the helper again when the customer is ready.")
             return 1
-        lock = read_lock(paths)
+        try:
+            lock = read_lock(paths)
+        except InstanceLockError:
+            if not warned:
+                say("Live Clipper's instance is not ready or cannot be verified; "
+                    "waiting without sending keys.")
+                warned = True
+            time.sleep(2)
+            continue
         if not lock:
             if not warned:
                 say("Live Clipper is not running; waiting for it to start.")

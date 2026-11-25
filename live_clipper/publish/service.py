@@ -145,7 +145,7 @@ class PublishService:
         from . import sandbox_server
         sandbox_server.APP_PORT = ctx.port
         self.store = Store(ctx.db)
-        self.social = Social(ctx)
+        self.social = Social(ctx, lock=self.store._lock)
         self.secrets = Secrets(ctx.secrets)
         self.pub = Publisher(self.store, ctx.settings, self.secrets, sandbox_dir=ctx.paths.root / "sandbox",
                              notify=ctx.notify, emit=lambda p: ctx.bus.publish("publish.delivery", p),
@@ -473,7 +473,7 @@ class PublishService:
             self._guard()
             if body.route not in ROUTES:
                 raise HTTPException(400, f"route must be one of: {', '.join(ROUTES)}")
-            self.ctx.settings.set("social.route", body.route)
+            self.social.set_route(body.route)
             return self.social.state()
 
         @r.get("/publish/mode")

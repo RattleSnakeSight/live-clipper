@@ -101,10 +101,12 @@ export async function render(main, params) {
     intents, modeBox, socialBox, list_);
 
   // Instagram and TikTok through Metricool is the preferred route. It is only "connected" when the local sender
-  // says so itself; skipping it never blocks anything else, and a connected sender owns those two networks.
+  // says so itself; skipping it never blocks anything else, and once the sender has named its networks it owns them
+  // until the user skips the route (an offline, unverified or broken sender hands nothing back).
   const SOCIAL_STATE = {
-    connected: 'Connected: the local sender is running and verified. It posts Instagram and TikTok; the direct cards below stay off.',
-    waiting: 'A sender was seen but is not verified or not running now. Nothing is assumed: the direct cards below still work.',
+    connected: 'Connected: the local sender is running and verified. The direct cards for its networks stay off.',
+    held: 'The sender is not reporting as running and verified right now (stopped, not verified, or its report cannot be read). Its networks stay assigned to it, and their direct cards stay off to keep one sender per network. Start the sender again, or skip Metricool below to post them directly.',
+    waiting: 'A sender reported in but names no network it posts. Nothing is assumed: the direct cards below still work.',
     not_connected: 'Not connected. This is the preferred route, but no sender has reported in. You can skip it and use the direct cards below.',
     skipped: 'Skipped. Instagram and TikTok are posted directly (see their cards below), or not at all.' };
   async function loadSocial() {

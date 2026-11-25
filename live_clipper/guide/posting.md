@@ -321,9 +321,12 @@ at the top of Destinations keeps four things apart:
 
 - *Preference*: Metricool by default. "Directly, or not at all" skips it; nothing else depends on it.
 - *Connected*: only when the sender itself reports, every few minutes, that the provider showed your selected
-  brand with both of your accounts. A report that is old, from the future or not verified shows "waiting".
-- *Who sends*: while a sender is configured, the direct Instagram and TikTok cards stay off, also when the
-  sender is offline, so a network never has two senders. Only an explicit skip hands them back.
+  brand with your connected accounts. An old, future-dated or unverified report does not show Connected;
+  networks already assigned to that sender stay assigned to it.
+- *Who sends*: once the sender has reported the networks it posts, the direct Instagram and TikTok cards stay
+  off, also when the sender is offline or not verified, its report is old or cannot be read, or the report is gone.
+  The panel then says the sender is not reporting. A network never has two senders. Only choosing "Directly,
+  or not at all" hands them back.
 - *Confirmed posts*: only posts the sender read back from Metricool's planner as published with a public
   link on Instagram or TikTok. Scheduled, uncertain, direct and test posts never count there.
 

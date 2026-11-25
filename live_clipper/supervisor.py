@@ -4,7 +4,6 @@ Stop it by creating `state/stop` (what `live-clipper stop` does) or with SIGINT/
 """
 
 import argparse
-import json
 import logging
 import os
 import signal
@@ -14,73 +13,13 @@ import threading
 import time
 
 from .db import Database
+from .instance_lock import InstanceLockError, acquire_lock, pid_alive, read_lock, release_lock  # noqa: F401
 from .logging_setup import setup_logging
 from .paths import Paths, get_paths
 from .server import ensure_token
 from .update_gate import RESTART_EXIT
 
 log = logging.getLogger(__name__)
-
-
-def pid_alive(pid: int) -> bool:
-    if os.name == "nt":
-        import ctypes
-
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return ctypes.get_last_error() == 5  # access denied: exists, owned by someone else
-        code = ctypes.c_ulong()
-        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-        kernel32.CloseHandle(handle)
-        return bool(ok) and code.value == 259  # STILL_ACTIVE
-    try:
-        os.kill(pid, 0)  # never on Windows: there os.kill terminates the process
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def read_lock(paths: Paths) -> dict | None:
-    """{"pid", "port"} of the running supervisor, or None if none is running."""
-    try:
-        info = json.loads((paths.state / "supervisor.lock").read_text())
-    except (OSError, ValueError):
-        return None
-    return info if pid_alive(info["pid"]) else None
-
-
-def acquire_lock(paths: Paths, port: int) -> bool:
-    lock = paths.state / "supervisor.lock"
-    for _ in range(2):
-        try:
-            fd = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
-        except FileExistsError:
-            if read_lock(paths) is not None:
-                return False
-            lock.unlink(missing_ok=True)  # stale: its owner is gone
-            continue
-        with os.fdopen(fd, "w") as f:
-            json.dump({"pid": os.getpid(), "port": port}, f)
-        return True
-    return False
-
-
-def release_lock(paths: Paths) -> None:
-    info = read_lock(paths)
-    if not info or info["pid"] != os.getpid():
-        return
-    # Windows refuses to delete a file that another process has open, and `live-clipper stop` opens the lock
-    # five times a second to see whether we are gone. That read takes a moment, so try again for a few
-    # seconds instead of leaving a stale lock behind.
-    for _ in range(50):
-        try:
-            (paths.state / "supervisor.lock").unlink(missing_ok=True)
-            return
-        except PermissionError:
-            time.sleep(0.1)
 
 
 def spawn_kwargs() -> dict:
@@ -174,15 +113,20 @@ class Supervisor:
         self.proc.wait()
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="live_clipper.supervisor")
     p.add_argument("--port", type=int, required=True)
     args = p.parse_args(argv)
     paths = get_paths()
     setup_logging(paths.logs, "supervisor.log")
-    if not acquire_lock(paths, args.port):
+    try:
+        acquired = acquire_lock(paths, args.port)
+    except (InstanceLockError, OSError) as exc:
+        log.error("could not acquire the instance lock: %s", exc)
+        return 1
+    if not acquired:
         log.info("already running")
-        return
+        return 0
     try:
         ensure_token(paths, regenerate=True)
         sup = Supervisor(paths, args.port)
@@ -192,7 +136,8 @@ def main(argv: list[str] | None = None) -> None:
         sup.run()
     finally:
         release_lock(paths)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

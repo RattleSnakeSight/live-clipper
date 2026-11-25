@@ -181,6 +181,29 @@ def test_file_and_credential_manager_sources(app, tmp_path, monkeypatch):
     no_secrets_anywhere(app, json.dumps(out))
 
 
+def test_helper_waits_without_sending_keys_when_instance_ownership_is_uncertain(monkeypatch):
+    from live_clipper.instance_lock import InstanceLockError
+
+    now, said = [0.0], []
+    monkeypatch.setattr(agent_helper, "read_pairing", lambda path: {"agent": "codex"})
+
+    def uncertain(paths):
+        raise InstanceLockError("startup metadata is not ready")
+
+    def advance(seconds):
+        now[0] += seconds
+
+    def no_http(*args, **kwargs):
+        raise AssertionError("must not send keys to an unverified instance")
+
+    monkeypatch.setattr(agent_helper, "read_lock", uncertain)
+    monkeypatch.setattr(agent_helper.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(agent_helper.time, "sleep", advance)
+    monkeypatch.setattr(agent_helper.httpx, "Client", no_http)
+    assert agent_helper.serve(max_wait=3, say=said.append) == 1
+    assert sum("without sending keys" in line for line in said) == 1
+
+
 def test_only_the_paired_helper_can_claim_or_answer(app):
     assert app.post("/api/agent/helper/claim", json={}).status_code == 409  # nothing paired yet
     helper = paired(app)
