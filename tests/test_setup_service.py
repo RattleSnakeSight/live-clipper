@@ -189,6 +189,23 @@ def test_storage_folder_refuses_roots_and_home(tmp_path, monkeypatch):
     assert not (home / ".live-clipper-data").exists()
 
 
+def test_first_setup_keeps_default_media_folder_with_monitor_buffer(tmp_path):
+    ctx = make_ctx()
+    media = ctx.paths.media
+    (media / "buffer").mkdir()
+    (media / "clips").mkdir()
+    with client(ctx, SetupService(run=fake_run, autostart_mod=FakeAutostart())) as api:
+        state = api.post("/api/setup/complete").json()
+        assert state["answers"]["storage.dir"] == str(media)
+        assert not (media / "LiveClipper").exists()
+
+    # A directory named buffer in a user-selected folder does not establish app ownership.
+    chosen = tmp_path / "custom"
+    (chosen / "buffer").mkdir(parents=True)
+    value, err = setup_service._check_dir(str(chosen), str(media))
+    assert err is None and value == str(chosen / "LiveClipper")
+
+
 def test_storage_folder_nonempty_gets_app_subfolder(tmp_path):
     chosen = tmp_path / "Documents"
     chosen.mkdir()

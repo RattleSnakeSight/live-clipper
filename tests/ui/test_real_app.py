@@ -303,7 +303,9 @@ def test_storage_save_refreshes_active_and_pending_folders(make_app, offline_pag
 
     page.goto(f"{app.url}/#/settings")
     storage = page.locator("#settings-storage")
-    active = app.api("/storage")["dir"]
+    initial = app.api("/storage")
+    active = initial["dir"]
+    assert initial["configured_dir"] == active == str(app.home / "media")
     for directory in ["media-one", "media-two"]:
         chosen = str(tmp_path / directory)
         storage.get_by_label("Where should clips and recordings be stored?").fill(chosen)

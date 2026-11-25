@@ -318,11 +318,11 @@ def validate_value(q: dict, value: Any) -> tuple[Any, str | None]:
         if parts.scheme not in v["schemes"] or not parts.netloc:
             return value, "Enter a full address starting with http:// or https://."
     if t == "path":
-        return _check_dir(value)
+        return _check_dir(value, q["default"])
     return value, None
 
 
-def _check_dir(value: str) -> tuple[str, str | None]:
+def _check_dir(value: str, default_dir: str | None = None) -> tuple[str, str | None]:
     p = Path(value).expanduser()
     if not value or not p.is_absolute():
         return value, "Enter a full folder path."
@@ -333,6 +333,9 @@ def _check_dir(value: str) -> tuple[str, str | None]:
         if p.is_dir():
             owned = (p / APP_MARKER).exists()
             names = {c.name for c in p.iterdir()}
+            # Monitoring creates the buffer in the default media folder before first-run setup.
+            if default_dir and real == Path(default_dir).resolve() and (p / "buffer").is_dir():
+                names.discard("buffer")
             if names and not owned and not names <= set(APP_SUBDIRS):
                 p = p / "LiveClipper"          # never mix app data (and its cleanup) with the user's own files
         p.mkdir(parents=True, exist_ok=True)
