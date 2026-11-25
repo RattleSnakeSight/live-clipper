@@ -2,7 +2,7 @@
 
 Current state, release notes and the build history of Live Clipper.
 
-## Current state (0.4.1)
+## Current state (0.4.2)
 
 Live Clipper is a local app that watches Twitch, Kick and YouTube streams (and creator feeds), cuts vertical
 clips with captions, and posts them to YouTube Shorts, TikTok and Instagram Reels, automatically or after your
@@ -36,6 +36,17 @@ Known limits:
 
 ## Releases
 
+- **0.4.2** (2026-11-25). A fresher look you can make your own: Settings > Appearance adds an accent colour
+  (wheel, swatches or a colour code; warnings and errors keep their own colours) and an Automatic theme that
+  follows the computer. Destination setup, the format editor and other long screens open one part at a time.
+  Channel problems are explained in plain words, with the technical message under Details. Settings now apply
+  when saved, or say clearly when they need a restart; a failed start-at-login registration is reported instead of
+  shown as saved; the setup re-run has Cancel; first-run Review offers a local trial (Manual posting and the test
+  destination). The clip page shows the video and the posting buttons only once the clip is rendered, and picks up
+  a render that finishes while it is open. A fresh install keeps its default media folder. Instagram and TikTok
+  stay with the Metricool sender when its status file goes missing or cannot be read: only choosing "Directly,
+  or not at all" hands them back, and a broken status file no longer stops YouTube posting. Only one copy of the
+  app runs per data folder, and `live-clipper stop` never stops another program by mistake.
 - **0.4.1** (2026-11-24). Reject and Clean up now delete the files they are meant to: Reject cancels what was
   only waiting and deletes that clip's video files (kept while an upload may still need them, or when shared),
   and Clean up now deletes fully posted and rejected clips at once, finds clips the app never tracked, and shows

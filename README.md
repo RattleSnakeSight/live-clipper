@@ -145,7 +145,7 @@ remove it there. See [Uninstalling](live_clipper/guide/uninstalling.md).
 
 ## Status
 
-Version 0.4.1. Automated tests run on Linux, macOS and Windows with Python 3.11 and 3.13 on every change:
+Version 0.4.2. Automated tests run on Linux, macOS and Windows with Python 3.11 and 3.13 on every change:
 
 - Monitoring: channel states, retries, reconnects and crash recovery, with local test streams and recorded
   or fake platform responses.
