@@ -428,8 +428,13 @@ def test_keyboard_focus_stays_in_the_card_after_an_action(server, make_page):
     page = open_page(make_page, srv, "destinations/youtube")
     card = page.locator("#dest-youtube")
     ack = card.get_by_label(re.compile("permission to post them on @example_clips"))
-    ack.focus()
-    page.keyboard.press("Space")
+    # The deep-link router focuses this heading after the card's controls first become visible.
+    expect(card.get_by_role("heading", level=2)).to_be_focused()
+    with page.expect_response(
+        lambda r: r.request.method == "PUT" and r.url.endswith("/acknowledge")
+    ) as saved:
+        ack.press("Space")
+    assert saved.value.ok
     expect(page.locator("#dest-youtube details.step[data-step='4']")).to_have_attribute("data-state", "next")
     inside = "document.activeElement.closest('section') && document.activeElement.closest('section').id"
     assert page.evaluate(inside) == "dest-youtube"  # not dropped to the top of the page
