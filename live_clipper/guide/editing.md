@@ -35,10 +35,14 @@ Clips page). In automatic mode only clips held by a rule or by the gameplay chec
 2. Edit it if you want, and render again.
 3. Click "Post to" and the destination, or Reject the clip (or Cancel its delivery) if you do not want it.
    Reject also deletes the clip's video files from this computer and frees that space; it cannot be undone.
-   The files stay only while an upload of the clip may still need them or another clip shares them, and the
-   clip page says so. The record of what was sent is always kept.
+   The files stay only while an upload of the clip may still need them, another clip shares them, or the clip is
+   being cut or rendered, and the clip page says so. The record of what was sent is always kept.
+   If Reject kept the files because a render was running, wait for that render to finish, then use
+   Settings > Clean up now: the preview lists the rejected clip, and confirming it removes the files.
 
 Nothing is posted until you click Post. A clip that is held for review by a rule shows up in the same queue.
 Clips in the queue are never removed by storage cleanup. Clicking "Clean up now" in Settings deletes, at once,
-fully posted clips and rejected clips; approved clips, clips in the queue and clips still being posted stay. How posting and its states work is on
+fully posted clips and rejected clips, and only those its confirmation listed; approved clips, clips in the queue and clips still being posted stay. A clip that is being
+cut or rendered keeps its files, its original and its temporary files, by Clean up now and by automatic cleanup,
+even when the render starts after the preview; it is listed again once the render finishes. How posting and its states work is on
 [Posting](posting.md).

@@ -30,6 +30,38 @@ from .publish import store as _publish_store  # noqa: F401  (publish_* tables be
 
 log = logging.getLogger(__name__)
 
+def _recover_missing_publish_channel(conn: sqlite3.Connection) -> None:
+    """Recover native finals with a missing channel without claiming standalone publish payloads."""
+    rows = conn.execute("""
+        SELECT p.clip_id, p.language, p.payload, m.channel_id, ch.platform, ch.publish_platforms, live.files
+        FROM publish_clips p JOIN monitor_clip_channels m ON m.id=p.clip_id
+        LEFT JOIN monitor_channels ch ON ch.id=m.channel_id
+        LEFT JOIN monitor_clips live ON live.id=m.id
+        LEFT JOIN monitor_clip_ledger ledger ON ledger.clip_id=m.id
+        WHERE p.channel_id IS NULL AND typeof(p.clip_id)='integer'
+          AND p.created_at>=COALESCE(live.created_at, ledger.clip_created_at)
+    """).fetchall()
+    for row in rows:
+        payload = json.loads(row["payload"])
+        # A standalone producer may use the same integer id. Match the monitored final's path as well.
+        final = (json.loads(row["files"] or "{}").get("final") or {}).get(row["language"])
+        final = final or f"final_{row['language']}.mp4"  # the ledger outlives the file metadata
+        path = str(payload.get("path") or "").replace("\\", "/")
+        if path.split("/")[-3:] != ["clips", str(row["clip_id"]), final]:
+            continue
+        source = row["channel_id"]
+        saved = payload.get("channel_id")
+        allowed = json.loads(row["publish_platforms"] or "[]")
+        if not row["platform"] or saved not in (None, source):
+            payload["destinations"] = []
+        elif allowed:
+            chosen = payload.get("destinations")
+            payload["destinations"] = allowed if chosen is None else [d for d in chosen if d in allowed]
+        payload["channel_id"] = source
+        conn.execute("UPDATE publish_clips SET channel_id=?, payload=? WHERE clip_id=? AND language=?",
+                     (source, json.dumps(payload), row["clip_id"], row["language"]))
+
+
 register_migrations(
     "monitor",
     [
@@ -99,12 +131,73 @@ CREATE VIEW monitor_deliveries AS
          reconcile, version, media_version, blocked_from, claimed_at, '' AS account_key,
          COALESCE(public_at, 0) AS public_at FROM publish_deliveries;
 """,
+        # v3: retain clip attribution and channel permissions after removal.
+        """
+ALTER TABLE monitor_channels RENAME TO monitor_old_channels;
+CREATE TABLE monitor_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, name TEXT NOT NULL, source_url TEXT NOT NULL DEFAULT '',
+  url TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT '',
+  settings TEXT NOT NULL DEFAULT '{}', armed INTEGER NOT NULL DEFAULT 0,
+  format_id TEXT, publish_platforms TEXT NOT NULL DEFAULT '[]', created_at REAL NOT NULL, retired_at REAL);
+INSERT INTO monitor_channels(id,platform,name,source_url,url,display_name,settings,armed,format_id,publish_platforms,created_at)
+  SELECT id,platform,name,source_url,url,display_name,settings,armed,format_id,publish_platforms,created_at
+  FROM monitor_old_channels;
+DROP TABLE monitor_old_channels;
+CREATE UNIQUE INDEX monitor_active_login ON monitor_channels(platform,name) WHERE retired_at IS NULL;
+
+-- Reserve ids that outlived their channel, including publisher-only records and permissions.
+-- A retired row without a platform or login has no recoverable attribution.
+INSERT INTO monitor_channels(id,platform,name,created_at,retired_at)
+  SELECT DISTINCT CAST(ref AS INTEGER),'','',0,0 FROM (
+    SELECT channel_id AS ref FROM monitor_clip_channels UNION ALL SELECT channel_id FROM monitor_vod_imports
+    UNION ALL SELECT channel_id FROM monitor_log UNION ALL SELECT channel_id FROM monitor_recovery_evidence
+    UNION ALL SELECT channel_id FROM publish_clips
+    UNION ALL SELECT j.key FROM settings_kv s, json_each(s.value_json) j WHERE s.key='publish.channel_platforms'
+  ) WHERE CAST(ref AS INTEGER)>0 AND CAST(CAST(ref AS INTEGER) AS TEXT)=CAST(ref AS TEXT)
+    AND NOT EXISTS (SELECT 1 FROM monitor_channels c WHERE c.id=ref);
+
+-- A clip older than the registered channel already shared a reused number before this upgrade.
+-- Keep the current channel id and give the identifiable older history a separate unknown identity.
+CREATE TEMP TABLE split_channel AS
+  SELECT c.id AS original,c.created_at AS since,
+         (SELECT COALESCE(MAX(id),0) FROM monitor_channels) + ROW_NUMBER() OVER (ORDER BY c.id) AS historical
+  FROM monitor_channels c WHERE c.retired_at IS NULL AND (
+       EXISTS (SELECT 1 FROM monitor_clips m WHERE m.channel_id=c.id AND m.created_at<c.created_at)
+    OR EXISTS (SELECT 1 FROM monitor_clip_ledger l WHERE l.channel_id=c.id AND l.clip_created_at<c.created_at)
+    OR EXISTS (SELECT 1 FROM publish_clips p WHERE p.channel_id=c.id AND p.created_at<c.created_at)
+    OR EXISTS (SELECT 1 FROM monitor_vod_imports v WHERE v.channel_id=c.id AND v.created_at<c.created_at));
+INSERT INTO monitor_channels(id,platform,name,created_at,retired_at) SELECT historical,'','',0,0 FROM split_channel;
+UPDATE monitor_clips SET channel_id=s.historical FROM split_channel s
+  WHERE channel_id=s.original AND created_at<s.since;
+UPDATE monitor_clip_ledger SET channel_id=s.historical FROM split_channel s
+  WHERE channel_id=s.original AND clip_created_at<s.since;
+UPDATE monitor_vod_imports SET channel_id=s.historical FROM split_channel s
+  WHERE channel_id=s.original AND created_at<s.since;
+UPDATE monitor_log SET channel_id=s.historical FROM split_channel s
+  WHERE channel_id=s.original AND (ts<s.since OR EXISTS
+    (SELECT 1 FROM monitor_clip_channels m WHERE m.id=monitor_log.clip_id AND m.channel_id=s.historical));
+UPDATE monitor_recovery_evidence SET channel_id=s.historical FROM split_channel s
+  WHERE channel_id=s.original AND (created_at<s.since OR EXISTS
+    (SELECT 1 FROM monitor_clip_channels m WHERE m.id=monitor_recovery_evidence.clip_id AND m.channel_id=s.historical));
+UPDATE publish_clips SET channel_id=s.historical FROM split_channel s
+  WHERE publish_clips.channel_id=s.original AND (publish_clips.created_at<s.since OR EXISTS
+    (SELECT 1 FROM monitor_clip_channels m WHERE m.id=publish_clips.clip_id AND m.channel_id=s.historical));
+DROP TABLE split_channel;
+-- Pending deliveries consult the persisted payload again before sending.
+UPDATE publish_clips SET payload=json_set(payload,'$.channel_id',CAST(channel_id AS INTEGER),'$.destinations',json('[]'))
+  WHERE EXISTS (SELECT 1 FROM monitor_channels c WHERE c.id=publish_clips.channel_id AND c.platform='');
+""",
+        _recover_missing_publish_channel,  # v4: recover channel provenance for older native finals
     ],
 )
 
 JSON_COLS = {"settings", "trigger", "captions", "layout", "timings", "files", "history", "evidence", "media",
              "chat", "coverage", "triggers", "clip_ids", "progress", "publish_platforms", "overrides"}
 LIST_COLS = {"history", "publish_platforms"}
+# One joined lookup for the whole library, including retired or unavailable sources.
+_CLIP_SELECT = """SELECT clip.*,
+  COALESCE(NULLIF(ch.display_name,''), NULLIF(ch.name,''), 'Unknown historical channel') AS channel_name
+  FROM clips clip LEFT JOIN channels ch ON ch.id=clip.channel_id"""
 LOG_KEEP = 2000
 TABLES = ("channels", "clips", "log", "clip_ledger", "clip_descriptors", "vod_imports", "recovery_evidence",
           "clip_channels", "destinations", "deliveries")
@@ -173,8 +266,8 @@ class Store:
         self.x(f"UPDATE {table} SET {', '.join(cols)} WHERE id=?", *vals, row_id)
 
     def merge_json(self, table: str, row_id: int, col: str, patch: dict) -> dict:
-        """Atomic read-modify-write of a JSON column (one level deep)."""
-        with self._lock:
+        """Merge with the latest row, including changes from a different subsystem's Store."""
+        with self._lock, contextlib.nullcontext() if self.db.conn().in_transaction else self.db.tx():
             row = self.q1(f"SELECT {col} FROM {table} WHERE id=?", row_id)
             cur = (row or {}).get(col) or {}
             for k, v in patch.items():
@@ -189,22 +282,30 @@ class Store:
     def add_channel(
         self, platform: str, name: str, source_url: str = "", settings: dict | None = None, **extra: Any
     ) -> int:
-        cid = self.x(
-            "INSERT INTO channels(platform,name,source_url,settings,created_at) VALUES(?,?,?,?,?)",
-            platform,
-            name,
-            source_url,
-            json.dumps(settings or {}),
-            time.time(),
-        )
-        self.update("channels", cid, **extra)
+        with self.tx():
+            cid = self.x(
+                "INSERT INTO channels(platform,name,source_url,settings,created_at) VALUES(?,?,?,?,?)",
+                platform,
+                name,
+                source_url,
+                json.dumps(settings or {}),
+                time.time(),
+            )
+            self.update("channels", cid, **extra)
         return cid
 
     def channel(self, cid: int) -> dict | None:
-        return self.q1("SELECT * FROM channels WHERE id=?", cid)
+        """Resolve clip provenance, including channels the user has removed."""
+        return self.q1("SELECT * FROM channels WHERE id=? AND platform<>''", cid)
+
+    def active_channel(self, cid: int) -> dict | None:
+        return self.q1("SELECT * FROM channels WHERE id=? AND retired_at IS NULL", cid)
+
+    def retire_channel(self, cid: int) -> None:
+        self.update("channels", cid, retired_at=time.time(), armed=0)
 
     def channels(self) -> list[dict]:
-        return self.q("SELECT * FROM channels ORDER BY id")
+        return self.q("SELECT * FROM channels WHERE retired_at IS NULL ORDER BY id")
 
     # ---- clips -----------------------------------------------------------
     def create_clip(self, channel_id: int, dedupe_key: str, kind: str, trigger: dict, **fields) -> int | None:
@@ -240,13 +341,13 @@ class Store:
         return cid
 
     def clip(self, cid: int) -> dict | None:
-        return self.q1("SELECT * FROM clips WHERE id=?", cid)
+        return self.q1(_CLIP_SELECT + " WHERE clip.id=?", cid)
 
     def clips(self, channel_id: int | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
         if channel_id is None:
-            return self.q("SELECT * FROM clips ORDER BY id DESC LIMIT ? OFFSET ?", limit, offset)
+            return self.q(_CLIP_SELECT + " ORDER BY clip.id DESC LIMIT ? OFFSET ?", limit, offset)
         return self.q(
-            "SELECT * FROM clips WHERE channel_id=? ORDER BY id DESC LIMIT ? OFFSET ?", channel_id, limit, offset
+            _CLIP_SELECT + " WHERE clip.channel_id=? ORDER BY clip.id DESC LIMIT ? OFFSET ?", channel_id, limit, offset
         )
 
     def mark(self, clip_id: int, key: str, ts: float | None = None) -> None:

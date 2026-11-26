@@ -141,7 +141,7 @@ export async function render(main) {
       : clips.length ? h('ul', { class: 'rows' }, clips.slice(0, 5).map((c) => h('li', {},
         h('div', { class: 'grow' }, h('a', { class: 'truncate rowlink', href: `#/clips/${c.id}`,
           help: 'Open this clip to preview, edit or post it.' }, clipTitle(c)),
-        h('div', { class: 'small muted' }, `${names[c.channel_id] || ''} · ${ago(c.created_at)}`)),
+        h('div', { class: 'small muted' }, `${c.channel_name || names[c.channel_id] || ''} · ${ago(c.created_at)}`)),
         pill(CLIP_STATES, clipStatus(c)))))
         : h('p', { class: 'muted' }, 'No clips yet. They appear here a minute or two after a moment is found.'));
     if (dels === null) {

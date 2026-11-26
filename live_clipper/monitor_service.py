@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sqlite3
 import time
 from urllib.parse import urlparse
 
@@ -292,7 +293,7 @@ class MonitorService:
         return out
 
     def _channel(self, cid: int) -> dict:
-        ch = self.store.channel(cid) if self.store else None
+        ch = self.store.active_channel(cid) if self.store else None
         if not ch:
             raise HTTPException(404, "channel not found")
         return ch
@@ -323,18 +324,21 @@ class MonitorService:
                 platform, login, source_url = parse_channel_url(body.url)
             except ValueError as ex:
                 raise HTTPException(422, str(ex)) from None
-            if self.store.q1("SELECT 1 FROM channels WHERE platform=? AND name=?", platform, login):
-                raise HTTPException(409, f"{platform}/{login} is already added")
-            cid = self.store.add_channel(
-                platform,
-                login,
-                source_url,
-                {"topic_gate": _gate(body.watch_mode, body.poll_seconds)},
-                url=body.url.strip(),
-                display_name=body.display_name.strip()[:100],
-                format_id=body.format_id,
-                publish_platforms=body.publish_platforms,
-            )
+            try:
+                cid = self.store.add_channel(
+                    platform,
+                    login,
+                    source_url,
+                    {"topic_gate": _gate(body.watch_mode, body.poll_seconds)},
+                    url=body.url.strip(),
+                    display_name=body.display_name.strip()[:100],
+                    format_id=body.format_id,
+                    publish_platforms=body.publish_platforms,
+                )
+            except sqlite3.IntegrityError as ex:
+                if ex.sqlite_errorcode != sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+                    raise
+                raise HTTPException(409, f"{platform}/{login} is already added") from None
             if body.enabled:
                 e.arm(cid)
             return self.channel_view(self.store.channel(cid))
@@ -354,7 +358,10 @@ class MonitorService:
                 mode = body.watch_mode or ("topic_gated" if cur.get("enabled") else "ungated")
                 gate = _gate(mode, body.poll_seconds or cur.get("poll_seconds") or 120)
                 self.store.merge_json("channels", cid, "settings", {"topic_gate": gate})  # applies on re-arm
-            for k in ("format_id", "publish_platforms", "display_name"):
+            # An explicit null restores the active format. An omitted format keeps the assignment.
+            if "format_id" in body.model_fields_set:
+                fields["format_id"] = body.format_id
+            for k in ("publish_platforms", "display_name"):
                 if getattr(body, k) is not None:
                     fields[k] = getattr(body, k)
             self.store.update("channels", cid, **fields)
@@ -370,8 +377,10 @@ class MonitorService:
         @r.delete("/channels/{cid}", status_code=204)
         async def delete_channel(cid: int):
             self._channel(cid)
-            await self._engine().disarm(cid)
-            self.store.x("DELETE FROM channels WHERE id=?", cid)
+            engine = self._engine()
+            # Hide the retired identity before stop yields; a concurrent Start must not revive it.
+            self.store.retire_channel(cid)
+            await engine.disarm(cid)
             self.last_state.pop(cid, None)
 
         @r.post("/channels/{cid}/arm")

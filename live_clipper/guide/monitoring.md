@@ -13,6 +13,10 @@ You can add a channel by pasting its address:
 
 Only record channels you own or whose owner gave you permission. See [Platforms](platforms.md).
 
+Deleting a channel keeps its clips with their original creator name and posting permissions. Adding the same
+channel again creates a new entry with its own settings. If Live Clipper cannot identify the source of a clip
+from an older installation, the clip appears as **Unknown historical channel** and posting is blocked.
+
 ## Channel states
 
 Each channel shows one state.

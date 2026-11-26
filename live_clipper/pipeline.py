@@ -166,6 +166,8 @@ class Selection:
         elif ev["state"] != "approved":
             reasons.append(f"awaiting gameplay approval: {ev['detail']}")
         ch = self.store.channel(c["channel_id"]) or {}
+        if not ch:
+            reasons.append("The original channel is unknown; its posting permissions cannot be verified.")
         pref = language_policy.channel_pref(ch.get("settings"), fmt)
         asr = (c.get("captions") or {}).get("asr")
         if why := language_policy.auto_ineligible(asr, pref, lang, fmt):
@@ -209,7 +211,9 @@ class Selection:
         tags = [h for h in eff.posting.hashtags if h.lower() not in desc.lower()]
         dests = v.get("output.destinations")
         chan = ch.get("publish_platforms") or []
-        if chan:
+        if not ch:
+            dests = []
+        elif chan:
             dests = [d for d in (dests if dests is not None else chan) if d in chan]
         return {"description": " ".join(desc.split()), "hashtags": tags, "format_id": res["format_id"],
                 "destinations": dests}

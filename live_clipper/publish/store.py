@@ -30,6 +30,16 @@ CREATE INDEX IF NOT EXISTS publish_deliveries_status ON publish_deliveries(statu
 CREATE TABLE IF NOT EXISTS publish_quota(
     destination_id INTEGER NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(destination_id, day));
+""", """
+ALTER TABLE publish_deliveries ADD COLUMN post_approved INTEGER NOT NULL DEFAULT 0;
+-- Recover a recorded Post click only if it came after the last hold for another account.
+-- An older "enqueued (manual)" entry is ambiguous when created during a reconnect.
+UPDATE publish_deliveries AS d SET post_approved=1
+WHERE mode='manual' AND status<>'held' AND json_valid(history) AND EXISTS (
+    SELECT 1 FROM json_each(d.history) h
+    WHERE json_extract(h.value,'$.detail')='released by the user (manual post)'
+    AND NOT EXISTS (SELECT 1 FROM json_each(d.history) later WHERE later.key > h.key
+                    AND json_extract(later.value,'$.to') IN ('held','cancelled','needs_confirmation')));
 """])
 
 JSON_COLS = {"settings", "history"}

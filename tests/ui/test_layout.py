@@ -152,9 +152,13 @@ def test_settings_theme_choice_applies_and_is_saved(seeded_server, make_page):
     page.goto(seeded_server.url + "/#/settings")
     box = page.locator("#settings-appearance")
     expect(box.get_by_label("Automatic")).to_be_checked()
-    box.get_by_label("Light").check()
+    theme_url = seeded_server.url + "/api/app-state/ui.theme"
+    with page.expect_response(lambda r: r.url == theme_url and r.request.method == "PUT") as saved:
+        box.get_by_label("Light").check()
+    assert saved.value.ok
     expect(page.locator("html")).to_have_attribute("data-theme", "light")
-    assert json.loads(seeded_server.state_file.read_text())["app_state"]["ui.theme"] == "light"
+    seeded_server.restart()
+    assert page.request.get(theme_url).json()["value"] == "light"
     page.goto(seeded_server.url + "/#/clips")
     expect(page.locator("html")).to_have_attribute("data-theme", "light")
     page.goto(seeded_server.url + "/#/settings")

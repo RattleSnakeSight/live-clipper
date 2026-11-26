@@ -413,20 +413,115 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
     def storage():
         a = {q["id"]: store["answers"].get(q["id"], q["default"]) for q in QUESTIONS}
         cap = a["storage.cap_gb"] * 1024**3
-        return {"dir": a["storage.dir"], "usage_bytes": 38 * 1024**3, "cap_bytes": cap, "free_bytes": 400 * 1024**3,
-                "over_cap": False, "breakdown": {"clips": 30 * 1024**3, "trash": 1024**3, "temporary": 2 * 1024**3,
-                                                 "other": 5 * 1024**3},
+        freed = store.get("cleanup_freed", 0)
+        return {"dir": a["storage.dir"], "usage_bytes": 38 * 1024**3 - freed, "cap_bytes": cap,
+                "free_bytes": 400 * 1024**3 + freed,
+                "over_cap": False, "breakdown": {"clips": 30 * 1024**3 - freed, "trash": 1024**3,
+                                                 "temporary": 2 * 1024**3, "other": 5 * 1024**3},
                 "protected_bytes": 4 * 1024**3, "retention_days": a["storage.retention_days"],
                 "clean_first": a["storage.clean_first"], "rules": a["storage.cleanup_rules"],
                 "health": {"state": "healthy", "reasons": []}, "next_cleanup": []}
 
+    # Storage cleanup, with the contract of maintenance.py: a dry run returns a single-use plan_id; a run with it
+    # deletes only those candidates, each still listed the same way and unchanged ("rev") and not held; one
+    # without a plan_id returns 409. Candidates persist in the state file; previews live in memory only,
+    # so a restart forgets them like the real app. PUT /api/_mock/cleanup changes candidates between preview and
+    # confirm: {"add": [item], "change": [path], "hold": [path], "drop": [path], "expire": true}.
+    mb = 1048576
+    store.setdefault("cleanup_items", [
+        {"action": "delete_clip", "path": "clips/101", "clip_id": "101", "bytes": 90 * mb, "reason": "you asked to clean up: posted"},
+        {"action": "delete_clip", "path": "clips/102", "clip_id": "102", "bytes": 90 * mb, "reason": "you asked to clean up: posted"},
+        {"action": "delete_clip", "path": "clips/103", "clip_id": "103", "bytes": 120 * mb, "reason": "you asked to clean up: rejected"},
+        {"action": "delete_temp", "path": "tmp/seg-001.part.mp4", "clip_id": None, "bytes": 50 * mb, "reason": "temporary render file"}])
+    plans: dict[str, dict] = {}
+    used: set[str] = set()
+
+    def cl_key(i: dict) -> tuple:
+        return (i["action"], i["path"], i.get("clip_id"), i["reason"])
+
+    def cl_public(i: dict) -> dict:
+        return {k: i.get(k) for k in ("action", "path", "clip_id", "bytes", "reason")}
+
+    def cl_summary(done: list[dict]) -> dict:
+        cats = {k: {"items": 0, "bytes": 0} for k in ("posted", "rejected", "other")}
+        for i in done:
+            k = "rejected" if i["reason"].endswith("rejected") else "posted" if i["reason"].endswith("posted") else "other"
+            cats[k]["items"] += 1
+            cats[k]["bytes"] += i["bytes"]
+        return {**cats, "kept_bytes": 500 * 3 * mb}
+
+    def cl_run(chosen: list[dict], left: list[dict], new: list[dict], plan_id=None) -> dict:
+        results = list(left)
+        for i in chosen:
+            if i.get("held"):
+                results.append({**cl_public(i), "outcome": "kept", "why": "an upload of this clip may still need its files",
+                                "freed_bytes": 0})
+                continue
+            store["cleanup_items"] = [x for x in store["cleanup_items"] if x["path"] != i["path"]]
+            store["cleanup_freed"] = store.get("cleanup_freed", 0) + i["bytes"]
+            results.append({**cl_public(i), "outcome": "done", "why": "", "freed_bytes": i["bytes"]})
+        save()
+        done = [{**r, "bytes": r["freed_bytes"]} for r in results if r["outcome"] == "done"]
+        return {"dry_run": False, "plan_id": plan_id, "actions": [cl_public(i) for i in chosen],
+                "would_free_bytes": sum(i["bytes"] for i in chosen), "done": len(done),
+                "freed_bytes": sum(r["freed_bytes"] for r in done), "errors": [], "results": results,
+                "summary": cl_summary(done), "kept": sum(r["outcome"] == "kept" for r in results),
+                "not_confirmed": {"items": len(new), "bytes": sum(i["bytes"] for i in new)}}
+
     @app.post("/api/storage/cleanup")
     def cleanup(body: dict = Body(default={})):
-        return {"dry_run": body.get("dry_run", True), "actions": [{"kind": "delete_temp", "path": "tmp/seg-001.ts",
-                                                                   "bytes": 52428800}], "freed_bytes": 52428800,
-                "would_free_bytes": 52428800 + 3 * 1048576 * 100,
-                "summary": {"posted": {"items": 2, "bytes": 3 * 1048576 * 60}, "rejected": {"items": 1, "bytes": 3 * 1048576 * 40},
-                            "other": {"items": 1, "bytes": 52428800}, "kept_bytes": 3 * 1048576 * 500}}
+        current = [i for i in store["cleanup_items"] if not i.get("held")]
+        if body.get("dry_run", True):
+            pid = f"plan-{time.time_ns()}"
+            plans[pid] = {"at": time.time(), "items": [(cl_key(i), i.get("rev", 0), cl_public(i)) for i in current]}
+            return {"dry_run": True, "plan_id": pid, "expires_at": time.time() + 600,
+                    "actions": [cl_public(i) for i in current], "summary": cl_summary(current),
+                    "would_free_bytes": sum(i["bytes"] for i in current)}
+        pid = body.get("plan_id")
+        if pid is None:
+            raise HTTPException(409, {"code": "plan_required", "message": "Preview required: nothing was deleted."})
+        if pid in used:
+            raise HTTPException(409, {"message": "This cleanup was already run. Preview again to see what is left.",
+                                      "code": "plan_used"})
+        plan = plans.pop(pid, None)
+        if plan is None:
+            raise HTTPException(409, {"message": "This preview is no longer known (the app may have restarted). "
+                                                 "Preview again, then confirm.", "code": "plan_unknown"})
+        if time.time() - plan["at"] > 600:
+            raise HTTPException(409, {"message": "This preview is too old to confirm. Preview again, then confirm.",
+                                      "code": "plan_expired"})
+        used.add(pid)
+        now = {cl_key(i): i for i in store["cleanup_items"]}
+        chosen, left = [], []
+        for key, rev, pub in plan["items"]:
+            i = now.get(key)
+            if i is None:
+                left.append({**pub, "outcome": "kept", "why": "it is no longer eligible", "freed_bytes": 0})
+            elif i.get("rev", 0) != rev:
+                left.append({**pub, "outcome": "kept", "why": "it changed since the preview", "freed_bytes": 0})
+            else:
+                chosen.append(i)
+        confirmed = {key for key, _, _ in plan["items"]}
+        return cl_run(chosen, left, [i for i in current if cl_key(i) not in confirmed], pid)
+
+    @app.get("/api/_mock/cleanup")
+    def cleanup_state():
+        return {"items": store["cleanup_items"], "freed": store.get("cleanup_freed", 0)}
+
+    @app.put("/api/_mock/cleanup")
+    def cleanup_change(body: dict = Body(...)):
+        store["cleanup_items"] += body.get("add", [])
+        for i in store["cleanup_items"]:
+            if i["path"] in body.get("change", []):
+                i["rev"] = i.get("rev", 0) + 1
+            if i["path"] in body.get("hold", []):
+                i["held"] = True
+        store["cleanup_items"] = [i for i in store["cleanup_items"] if i["path"] not in body.get("drop", [])]
+        if body.get("expire"):
+            for p in plans.values():
+                p["at"] -= 3600
+        save()
+        return cleanup_state()
 
     @app.get("/api/notifications")
     def notifications(since: int = 0):
@@ -640,6 +735,7 @@ def create_app(state_file: Path, seed: bool = False, port: int = 8799) -> FastAP
         c = clip(cid)
         if not isinstance(body.get("approved"), bool):
             raise HTTPException(400, "approved must be true or false")
+        c["trigger"]["review"] = {"gameplay": {"state": "approved" if body["approved"] else "rejected"}}
         for s in c["trigger"]["selection"].values():
             s["decision"] = "qualified" if body["approved"] else "rejected"
         return {"evidence": {"state": "approved" if body["approved"] else "rejected"},

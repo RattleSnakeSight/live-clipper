@@ -46,12 +46,13 @@ export async function render(main, params) {
     const byId = Object.fromEntries(clips.map((c) => [c.id, c]));
     const entries = new Map();
     for (const d of held) {
+      if (byId[d.clip_id]?.trigger?.review?.gameplay?.state === 'rejected') continue;
       if (!entries.has(d.clip_id)) entries.set(d.clip_id, []);
       entries.get(d.clip_id).push(d);
     }
     for (const c of clips) if (clipStatus(c) === 'held' && !entries.has(c.id)) entries.set(c.id, []);
     const label = (id) => (byId[id] ? clipTitle(byId[id]) : `Clip ${id}`);
-    const meta = (c) => (c ? [names[c.channel_id], ago(c.created_at), fmtDuration(duration(c))].filter(Boolean).join(' · ') : '');
+    const meta = (c) => (c ? [c.channel_name || names[c.channel_id], ago(c.created_at), fmtDuration(duration(c))].filter(Boolean).join(' · ') : '');
     patch(queue, [
       h('header', {}, h('h2', { id: 'rq-title' }, 'Waiting for your approval'),
         h('a', { class: 'end small act', href: '#/destinations', help: 'Switch between automatic and manual posting.' }, 'Change posting mode')),
@@ -79,8 +80,8 @@ export async function render(main, params) {
         { scope: 'col', class: [i === 3 ? 'n' : '', i > 0 && i < 4 ? 'sm-hide' : ''].join(' ').trim() || null }, t)))),
       h('tbody', {}, rows.map((c) => h('tr', {},
         h('td', {}, h('a', { class: 'rowlink', href: `#/clips/${c.id}`, help: 'Open this clip to preview, edit or post it.' }, clipTitle(c)),
-          h('div', { class: 'sm-only small muted' }, [names[c.channel_id], ago(c.created_at), fmtDuration(duration(c))].filter(Boolean).join(' · '))),
-        h('td', { class: 'sm-hide' }, names[c.channel_id] || '-'), h('td', { class: 'sm-hide' }, ago(c.created_at)),
+          h('div', { class: 'sm-only small muted' }, [c.channel_name || names[c.channel_id], ago(c.created_at), fmtDuration(duration(c))].filter(Boolean).join(' · '))),
+        h('td', { class: 'sm-hide' }, c.channel_name || names[c.channel_id] || '-'), h('td', { class: 'sm-hide' }, ago(c.created_at)),
         h('td', { class: 'n sm-hide' }, fmtDuration(duration(c))),
         h('td', {}, pill(CLIP_STATES, clipStatus(c))))))))
       : h('p', { class: 'muted' }, filtered ? 'No clips match these filters.' : 'No clips yet. They appear a minute or two after a moment is found.'));
@@ -107,15 +108,15 @@ function postButton(d, refresh) {
 }
 
 // buttons for one delivery row, by state
-function deliveryActions(d, refresh) {
+function deliveryActions(d, refresh, rejected = false) {
   const act = (label, help, path, body, msg) => actionButton(label, help, `${path}-${d.id}`, async () => {
-    await post(`/publish/deliveries/${d.id}/${path}`, body);
-    toast(msg);
+    const result = await post(`/publish/deliveries/${d.id}/${path}`, body);
+    toast(result.status === 'held' ? 'Waiting for you to press Post.' : msg);
     await refresh();
   });
   const out = [];
-  if (d.status === 'held') out.push(postButton(d, refresh));
-  if (['failed', 'cancelled', 'paused'].includes(d.status)) out.push(act('Retry', 'Try posting this clip to this destination again.', 'retry', {}, 'Queued again.'));
+  if (!rejected && d.status === 'held') out.push(postButton(d, refresh));
+  if (!rejected && ['failed', 'cancelled', 'paused'].includes(d.status)) out.push(act('Retry', 'Try posting this clip to this destination again.', 'retry', {}, 'Queued again.'));
   if (d.status === 'uncertain') out.push(act('Check again', 'Ask the site again whether the upload landed.', 'recheck', {}, 'Checked.'));
   if (d.status === 'needs_confirmation') {
     out.push(actionButton('Confirm posted', 'You checked the account and the clip is there. Nothing is uploaded again. You can add the post address.',
@@ -129,12 +130,12 @@ function deliveryActions(d, refresh) {
     out.push(actionButton('Confirm not posted', 'You checked the account and the clip is not there. The app uploads it again.',
       `confirm-not-posted-${d.id}`, async () => {
         if (!await confirmDialog({ title: 'Upload it again?', body: 'Only confirm after checking the account: the clip is uploaded again.', ok: 'Upload again' })) return;
-        await post(`/publish/deliveries/${d.id}/confirm-not-posted`, { confirm: true });
-        toast('Queued again.');
+        const result = await post(`/publish/deliveries/${d.id}/confirm-not-posted`, { confirm: true });
+        toast(result.status === 'cancelled' ? 'Cancelled.' : result.status === 'held' ? 'Waiting for you to press Post.' : 'Queued again.');
         await refresh();
       }));
   }
-  if (['held', 'queued', 'waiting_language', 'paused', 'blocked'].includes(d.status)) {
+  if (!rejected && ['held', 'queued', 'waiting_language', 'paused', 'blocked'].includes(d.status)) {
     out.push(act('Cancel', 'Do not post this clip to this destination.', 'cancel', {}, 'Cancelled.'));
   }
   return out;
@@ -148,7 +149,8 @@ async function renderClip(main, id) {
     get('/destinations').then((d) => list(d, 'destinations')).catch(() => []),
     get('/channels').then((d) => list(d, 'channels')).catch(() => []),
     get('/presets/schema').catch(() => null)]);
-  const chName = (channels.find((c) => c.id === clip.channel_id) && channelName(channels.find((c) => c.id === clip.channel_id))) || '';
+  const current = channels.find((c) => c.id === clip.channel_id);
+  const chName = clip.channel_name || (current && channelName(current)) || '';
   const status = clipStatus(clip);
   const history = h('div');
   const video = h('video', { controls: true, preload: 'metadata', hidden: true, 'aria-label': `Preview of ${clipTitle(clip)}` });
@@ -268,6 +270,13 @@ async function renderClip(main, id) {
     approved ? 'Approve this clip. If it is finished it goes to posting.' : 'Mark this clip as not suitable. It is not posted, and its video files are deleted from this computer (unless an upload still needs them or they are shared). That cannot be undone.',
     `review-${approved}`, async () => {
       const r = await post(`/clips/${enc}/review`, { approved });
+      clip.trigger = { ...clip.trigger, selection: r.selection, review: { ...clip.trigger?.review, gameplay: r.evidence } };
+      if (r.media?.removed) {
+        clip.media = { preview: null, final: {} };
+        clip.trigger.media_removed = { why: 'rejected' };
+        showMedia();
+      }
+      updateDecision();
       reviewOut.textContent = approved ? (r.published && r.published.length ? 'Approved and sent to posting.' : 'Approved.')
         : 'Rejected.' + (r.media ? (r.media.removed ? ` Its files were deleted (${(r.media.freed_bytes / 1048576).toFixed(1)} MB freed).` : ` Its files stay: ${r.media.kept_because}.`) : '');
       await loadHistory();
@@ -277,12 +286,19 @@ async function renderClip(main, id) {
     reviewOut.textContent = 'Sent to posting.';
     await loadHistory();
   });
-  const reasons = Object.entries((clip.trigger && clip.trigger.selection) || {})
-    .map(([l, s]) => `${LANG_NAMES[l] || l}: ${s.decision}${(s.reasons || []).length ? ` (${s.reasons.join('; ')})` : ''}`);
-
-  const reviewActions = h('div', { class: 'row', style: 'margin-top: 8px', hidden: clip.status !== 'ready' },
-    review(true), review(false), postAnyway);
-  postAnyway.hidden = !Object.keys(clip.media?.final || {}).length;
+  const decision = h('div');
+  const rejected = () => clip.trigger?.review?.gameplay?.state === 'rejected';
+  const reviewActions = h('div', { class: 'row', style: 'margin-top: 8px' }, review(true), review(false), postAnyway);
+  function updateDecision() {
+    const reasons = Object.entries(clip.trigger?.selection || {}).map(([lang, item]) =>
+      `${LANG_NAMES[lang] || lang}: ${item.decision}${item.reasons?.length ? ` (${item.reasons.join('; ')})` : ''}`);
+    decision.replaceChildren(reasons.length ? h('ul', { class: 'small' }, reasons.map((r) => h('li', {}, r)))
+      : h('p', { class: 'small muted' }, 'No posting decision yet.'));
+    statusSlot.replaceChildren(pill(CLIP_STATES, clipStatus(clip)));
+    reviewActions.hidden = clip.status !== 'ready';
+    postAnyway.hidden = rejected() || !Object.keys(clip.media?.final || {}).length;
+    if (clip.trigger?.media_removed) noVideo.textContent = 'The video files were removed from this computer.';
+  }
 
   async function loadHistory() {
     if (!finalUrl() || clip.rendering) {
@@ -290,14 +306,12 @@ async function renderClip(main, id) {
       const finished = clip.rendering && !fresh.rendering && fresh.status === 'ready';
       Object.assign(clip, fresh);
       showMedia(finished);
-      statusSlot.replaceChildren(pill(CLIP_STATES, clipStatus(clip)));
-      reviewActions.hidden = clip.status !== 'ready';
-      postAnyway.hidden = !Object.keys(clip.media?.final || {}).length;
+      updateDecision();
     }
     const rows = list(await get(`/publish/deliveries?clip_id=${enc}`), 'deliveries');
     const used = new Set(rows.map((d) => d.destination_id));
     // posting needs the finished video in the clip's language
-    const allowed = clip.status === 'ready' && finalUrl() ? dests.filter((d) => !used.has(d.id) && (d.enabled || d.test) && d.status === 'connected') : [];
+    const allowed = !rejected() && clip.status === 'ready' && finalUrl() ? dests.filter((d) => !used.has(d.id) && (d.enabled || d.test) && d.status === 'connected') : [];
     patch(history, [
       rows.length ? h('div', { class: 'table-wrap' }, h('table', {},
         // three columns fit beside the editor and on a phone: the time sits under the name, the result under the state
@@ -307,13 +321,14 @@ async function renderClip(main, id) {
           h('td', {}, pill(DELIVERY_STATES, d.status),
             d.url ? h('div', {}, h('a', { class: 'act', href: d.url, target: '_blank', rel: 'noopener noreferrer', help: 'Open the post on the site in a new tab.' }, 'Open post'))
               : d.last_error ? h('div', { class: 'error' }, d.last_error) : null),
-          h('td', {}, h('div', { class: 'row' }, deliveryActions(d, loadHistory))))))))
+          h('td', {}, h('div', { class: 'row' }, deliveryActions(d, loadHistory, rejected()))))))))
         : h('p', { class: 'muted' }, 'Not posted anywhere yet.'),
       allowed.length ? h('div', { class: 'row', style: 'margin-top: 12px' }, h('span', { class: 'small muted' }, 'Also post to:'),
         allowed.map((d) => postNewButton(clip, d, loadHistory))) : null]);
   }
 
   const statusSlot = h('span', {}, pill(CLIP_STATES, status));
+  updateDecision();
   main.append(
     titleRow(clipTitle(clip), h('p', {}, `${chName} · ${fmtTime(clip.created_at)} · ${fmtDuration(len)} · `, statusSlot),
       h('a', { class: 'btn ghost', href: '#/clips', help: 'Back to the clip library.' }, 'All clips')),
@@ -321,7 +336,7 @@ async function renderClip(main, id) {
       h('div', { class: 'stack' }, h('div', { class: 'stage' }, video, noVideo),
         clip.error ? h('p', { class: 'note bad' }, clip.error) : null,
         h('section', { class: 'panel', 'aria-labelledby': 'rv-title' }, h('h2', { id: 'rv-title' }, 'Decision'),
-          reasons.length ? h('ul', { class: 'small' }, reasons.map((r) => h('li', {}, r))) : h('p', { class: 'small muted' }, 'No posting decision yet.'),
+          decision,
           reviewActions, reviewOut),
         h('section', { class: 'panel', 'aria-labelledby': 'dh-title' }, h('h2', { id: 'dh-title' }, 'Where it was posted'), history)),
       editor));

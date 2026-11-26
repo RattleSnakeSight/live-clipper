@@ -53,6 +53,11 @@ class Rig:
     def folder(self, cid: int) -> Path:
         return self.root / "clips" / str(cid)
 
+    def confirm(self) -> dict:
+        """Clean up now the way the button does it: a preview, then the confirmation that names it."""
+        return self.m.cleanup(dry_run=False, manual=True,
+                              plan_id=self.m.cleanup(dry_run=True, manual=True)["plan_id"])
+
     def audit(self, cid: int) -> dict:
         return {"clip": bool(self.clips.clip(cid)),
                 "deliveries": self.db.execute("SELECT COUNT(*) FROM publish_deliveries WHERE clip_id=?",
@@ -138,7 +143,7 @@ def test_cleanup_pressed_by_the_user_removes_posted_and_rejected_clips_at_once_a
     preview = r.m.cleanup(dry_run=True, manual=True)
     assert {a["clip_id"] for a in preview["actions"] if a["action"] == "delete_clip"} == {str(posted), str(rejected)}
     assert _size(r.root) == before                             # a preview deletes nothing
-    done = r.m.cleanup(dry_run=False, manual=True)
+    done = r.m.cleanup(dry_run=False, manual=True, plan_id=preview["plan_id"])
     assert done["done"] >= 2 and not r.folder(posted).exists() and not r.folder(rejected).exists()
     for kept in (approved, waiting, undecided):
         assert r.folder(kept).exists() and len(list(r.folder(kept).iterdir())) == 3
@@ -161,7 +166,22 @@ def test_clip_folders_the_app_never_tracked_are_found_by_the_press(sb, tmp_path)
     r = Rig(sb, tmp_path)
     cid = r.clip(review="rejected")
     r.db.execute("DELETE FROM maintenance_clip")
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 1 and not r.folder(cid).exists()
+    assert r.confirm()["done"] == 1 and not r.folder(cid).exists()
+
+
+def test_cleanup_keeps_a_posted_clips_folder_another_kept_clip_shares(sb, tmp_path):
+    """One clip fully posted, another not posted, both tracked at the same folder: no pass takes the folder."""
+    r = Rig(sb, tmp_path)
+    a, b = r.clip(), r.clip()
+    r.deliver(a)
+    r.w.drain(horizon=0)
+    assert r.m.posted_at(str(a)) is not None and r.m.posted_at(str(b)) is None
+    r.db.execute("UPDATE maintenance_clip SET unit_path=? WHERE clip_id=?", (str(r.folder(a)), str(b)))
+    preview = r.m.cleanup(dry_run=True, manual=True)
+    assert str(a) not in {x["clip_id"] for x in preview["actions"]}
+    assert r.m.cleanup(dry_run=False, manual=True, plan_id=preview["plan_id"])["done"] == 0
+    assert r.m.cycle()["done"] == 0
+    assert len(list(r.folder(a).iterdir())) == 3 and r.audit(a)["tracked"] == [("kept",)]
 
 
 def time_far() -> float:
@@ -200,7 +220,10 @@ def test_the_real_buttons_through_the_app_reject_then_clean_up(sb, tmp_path):
         r.clips.merge_json("clips", b, "trigger", {"review": {"gameplay": {"state": "rejected"}}})
         preview = c.post("/api/storage/cleanup", json={"dry_run": True}).json()
         assert [x["clip_id"] for x in preview["actions"]] == [str(b)] and r.folder(b).exists()
-        done = c.post("/api/storage/cleanup", json={"dry_run": False}).json()
+        bare = c.post("/api/storage/cleanup", json={"dry_run": False})   # an older page or a script
+        assert bare.status_code == 409 and bare.json()["detail"]["code"] == "plan_required"
+        assert r.folder(b).exists() and len(list(r.folder(b).iterdir())) == 3
+        done = c.post("/api/storage/cleanup", json={"dry_run": False, "plan_id": preview["plan_id"]}).json()
         assert done["done"] == 1 and done["freed_bytes"] >= 5 * MB - 1024 and not r.folder(b).exists()
 
 
@@ -230,11 +253,11 @@ def test_a_clip_the_outside_sender_may_still_post_is_not_cleaned_because_youtube
     qualify(r, cid)
     r.deliver(cid)
     r.w.drain(horizon=0)                                       # native YouTube settled
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+    assert r.confirm()["done"] == 0 and r.folder(cid).exists()
     outside_claim(r, cid, "instagram", pending=0)              # Instagram settled, TikTok still open
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+    assert r.confirm()["done"] == 0 and r.folder(cid).exists()
     outside_claim(r, cid, "tiktok", pending=0)                 # both settled: nothing outside needs it any more
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 1 and not r.folder(cid).exists()
+    assert r.confirm()["done"] == 1 and not r.folder(cid).exists()
 
 
 def test_a_clip_the_outside_sender_has_claimed_and_not_confirmed_is_never_removed(sb, tmp_path):
@@ -244,7 +267,7 @@ def test_a_clip_the_outside_sender_has_claimed_and_not_confirmed_is_never_remove
     r.deliver(cid)
     r.w.drain(horizon=0)
     outside_claim(r, cid, "tiktok", pending=1)                 # submitted, receipt not confirmed yet
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0
+    assert r.confirm()["done"] == 0
     out = r.m.reject_clip(cid)
     assert out["removed"] is False and "outside sender" in out["kept_because"] and r.folder(cid).exists()
     assert r.m.cycle()["done"] == 0                            # nor does the background pass take it
@@ -273,7 +296,7 @@ def test_a_test_destination_success_never_makes_a_clip_removable(sb, tmp_path):
     r.w.pub.store.save_clip(c)
     r.w.drain(horizon=0)
     assert r.w.row(did)["status"] == "published"
-    assert r.m.cleanup(dry_run=False, manual=True)["done"] == 0 and r.folder(cid).exists()
+    assert r.confirm()["done"] == 0 and r.folder(cid).exists()
 
 
 def test_a_delete_that_fails_part_way_reports_only_what_is_really_gone(sb, tmp_path, monkeypatch):

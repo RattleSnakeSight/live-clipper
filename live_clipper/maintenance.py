@@ -9,8 +9,26 @@ What the user's own presses do (immediately, not on a schedule): Reject removes 
 now also removes every fully posted clip and every clip the user rejected, found by its folder even when the
 app never tracked it. A clip that is waiting, in flight, shared, approved or not decided keeps its files, and so
 does a clip an outside sender (the shared claims table of a hand-patched installation) may still post or has
-claimed and not confirmed. Posting to the test destination alone never makes a clip removable. The rows that
-show what was sent (deliveries, claims, the clip row) always stay.
+claimed and not confirmed. Posting to the test destination alone never makes a clip removable, for the button
+and for the automatic passes alike. The rows that show what was sent (deliveries, claims, the clip row) always
+stay.
+
+Clean up now deletes only what the user confirmed: the preview (a dry run) remembers each item it listed, by what
+it would do and by what is on the disk (the clip, the path, and the identity, sizes and times of its files). The
+confirmation names that preview; it can be used once, for PLAN_TTL_S, and not after a restart. A manual deleting
+run that names no preview is refused (PlanError "plan_required") and deletes nothing; only the timer's own pass
+plans and runs at once. Each confirmed item runs only if a fresh plan still lists it the same way and its files
+are unchanged, and only after the protections above are checked again; anything new is left for the next
+preview, and the result says what was done, what was left and why.
+
+A folder or file that another kept clip's tracked path shares (the same path, a path inside it, or a folder
+holding it) is never moved or deleted as a clip, nor its original, by any pass: the clips that use it keep it.
+A delivery whose destination is unknown (no provider recorded) never counts as a real post.
+
+A clip being captured, cut or rendered right now (the edit engine's busy(clip_id), the monitor engine's clip
+tasks) keeps its files whatever it is otherwise eligible for: no pass lists it, its folder or its original, nor a
+temporary file in its folder, and the check is made again right before each removal (Reject included). It is
+eligible again once that work finishes; a Reject deferred for it is completed by the next Clean up now.
 
 Cleanup order when a pass runs (each step only while space is still needed, except steps 1 and 2, which
 always run):
@@ -23,17 +41,22 @@ always run):
 """
 
 import asyncio
+import contextlib
 import fnmatch
+import hashlib
 import logging
 import os
 import re
 import shutil
 import sqlite3
+import stat
+import threading
 import time
+import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from .db import register_migrations
@@ -58,6 +81,10 @@ TERMINAL = {"published", "failed", "cancelled", "canceled", "skipped"}
 SENT = ("published", "private", "draft")             # a delivery that reached the platform and is settled
 UNSENT = ("queued", "held", "paused", "blocked", "waiting_language")   # the provider was never asked
 SETTLED = SENT + ("cancelled", "disallowed")
+TEST_DEST = "test"                                    # the local test destination: posts nothing anywhere
+PLAN_TTL_S = 600                                      # how long a previewed cleanup may be confirmed
+PLAN_MAX = 8                                          # previews remembered at once (several open tabs)
+FILE_ACTIONS = ("delete_temp", "delete_original")     # remove one file; the other actions remove a folder
 TRASH_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}-\d{1,12}$")
 SAFE_ID = re.compile(r"[^A-Za-z0-9_]")
 
@@ -119,12 +146,68 @@ def _size(p: Path) -> int:
         return 0
 
 
+def _norm(p) -> str:
+    return os.path.normcase(os.path.normpath(str(p)))
+
+
+def _ancestors(n: str):
+    """The folders above a normalized path, nearest first."""
+    while (up := os.path.dirname(n)) and up != n:
+        yield up
+        n = up
+
+
+def _fingerprint(p: Path, skip: frozenset = frozenset()) -> str:
+    """What is on the disk at `p`: its own identity and, for a folder, every name, file identity, size and
+    modification time inside it (links are listed, never followed). A path that was emptied and reused, or a
+    file replaced by another of the same name, gives a different value. `skip` leaves out files an earlier item
+    of the same plan removes first."""
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return "missing"
+    h = hashlib.sha256(f"{st.st_dev}:{st.st_ino}:{stat.S_IFMT(st.st_mode)}".encode())
+    if is_link(p):
+        return h.hexdigest()
+    if stat.S_ISDIR(st.st_mode):
+        for dirpath, dirs, names in os.walk(p):
+            dirs.sort()
+            for d in dirs:
+                h.update(f"d|{Path(dirpath, d).relative_to(p).as_posix()}\n".encode())
+            dirs[:] = [d for d in dirs if not is_link(Path(dirpath, d))]
+            for n in sorted(names):
+                f = Path(dirpath, n)
+                if _norm(f) in skip:
+                    continue
+                try:
+                    fs = os.lstat(f)
+                except OSError:
+                    continue
+                h.update(f"f|{f.relative_to(p).as_posix()}|{fs.st_ino}|{fs.st_size}|{fs.st_mtime_ns}\n".encode())
+    else:
+        h.update(f"|{st.st_size}|{st.st_mtime_ns}".encode())
+    return h.hexdigest()
+
+
+class PlanError(Exception):
+    """A manual run that cannot go ahead: no preview named (plan_required), or a confirmation that is unknown (or
+    from before a restart), expired, already used, or changed."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 class Maintenance:
     def __init__(self, ctx: AppContext, clock=time.time, free_fn=None):
         self.ctx, self.clock = ctx, clock
         self.media_dir = Path(ctx.settings.get("storage.dir") or ctx.paths.media)
         self._free = free_fn or (lambda p: shutil.disk_usage(p).free)
         self.captures_paused = False
+        self._run_lock = threading.Lock()              # one deleting pass at a time (timer, button, old callers)
+        self._plans_lock = threading.Lock()
+        self._plans: dict[str, dict] = {}              # previews that may still be confirmed, in memory only
+        self._used: dict[str, float] = {}              # confirmations already taken, to say so on a repeat
 
     # --- config ---
     def config(self) -> dict:
@@ -162,17 +245,29 @@ class Maintenance:
     def record_delivery(self, p: dict) -> None:
         if p.get("clip_id") is None or p.get("state") is None:
             return
+        dest = TEST_DEST if p.get("test") else str(p.get("destination", ""))
         self.ctx.db.execute("INSERT OR REPLACE INTO maintenance_delivery VALUES(?,?,?,?,?)",
-                            (str(p.get("delivery_id")), str(p["clip_id"]), str(p.get("destination", "")),
+                            (str(p.get("delivery_id")), str(p["clip_id"]), dest,
                              str(p["state"]).lower(), self.clock()))
 
     def posted_at(self, clip_id: str) -> float | None:
-        """Time of the last publish if every delivery is finished and at least one published, else None."""
-        rows = self.ctx.db.execute("SELECT state, ts FROM maintenance_delivery WHERE clip_id=?",
+        """When the clip was last really posted, if it counts as posted, else None. Publishing's own table decides
+        when it has rows for the clip: every delivery settled and at least one real one reached its platform.
+        Otherwise the deliveries recorded from the bus: every one finished and at least one real one published.
+        A delivery to the test destination posts nothing, so it never counts: a simulation must not make real
+        media removable (by the button, the retention time or the disk cap). Nor does a delivery whose destination
+        is unknown (removed, or no provider recorded): it must be settled like any other, but alone it is no post."""
+        rows = self._deliveries(clip_id)
+        if rows:
+            real = [r for r in rows if r["provider"] not in (TEST_DEST, "")]
+            if not (real and all(r["status"] in SETTLED for r in rows) and any(r["status"] in SENT for r in real)):
+                return None
+            return max(float(r["ts"] or 0) for r in real if r["status"] in SENT)
+        rows = self.ctx.db.execute("SELECT state, ts, destination FROM maintenance_delivery WHERE clip_id=?",
                                    (str(clip_id),)).fetchall()
         if not rows or any(r[0] not in TERMINAL for r in rows):
             return None
-        pub = [r[1] for r in rows if r[0] == "published"]
+        pub = [r[1] for r in rows if r[0] == "published" and r[2] not in (TEST_DEST, "", None)]
         return max(pub) if pub else None
 
     def publisher_holds(self, clip_id) -> bool:
@@ -195,19 +290,15 @@ class Maintenance:
     def _deliveries(self, clip_id) -> list[dict]:
         try:
             rows = self.ctx.db.execute(
-                "SELECT d.id, d.status, d.reconcile, COALESCE(t.provider, '') FROM publish_deliveries d "
+                "SELECT d.id, d.status, d.reconcile, COALESCE(t.provider, ''), d.updated_at FROM publish_deliveries d "
                 "LEFT JOIN publish_destinations t ON t.id=d.destination_id WHERE d.clip_id=?",
                 (int(clip_id) if str(clip_id).isdigit() else clip_id,)).fetchall()
         except sqlite3.OperationalError:               # no publishing tables in this database
             return []
-        return [{"id": r[0], "status": r[1], "reconcile": r[2], "provider": r[3]} for r in rows]
+        return [{"id": r[0], "status": r[1], "reconcile": r[2], "provider": r[3], "ts": r[4]} for r in rows]
 
     def _posted(self, clip_id) -> bool:
-        """Every delivery of the clip is settled and at least one reached its platform."""
-        rows = self._deliveries(clip_id)
-        if rows:
-            real = [r for r in rows if r["provider"] != "test"]   # the test destination posts nothing anywhere
-            return bool(real) and all(r["status"] in SETTLED for r in rows) and any(r["status"] in SENT for r in real)
+        """Every delivery of the clip is settled and at least one real one reached its platform (see posted_at)."""
         return self.posted_at(str(clip_id)) is not None
 
     def _rejected(self, clip_id) -> bool:
@@ -250,6 +341,83 @@ class Maintenance:
             return "an outside sender may still post this clip to Instagram or TikTok"
         return ""
 
+    # --- folders shared by several clips ---
+    def _claims(self) -> tuple[dict, dict]:
+        """Where every kept clip's tracked files are: `exact` maps a normalized path to the clips tracked there,
+        `below` a folder to the clips tracked somewhere inside it. Read fresh each time it is asked."""
+        exact: dict[str, set] = {}
+        below: dict[str, set] = {}
+        for cid, unit in self.ctx.db.execute("SELECT clip_id, unit_path FROM maintenance_clip "
+                                             "WHERE state='kept'").fetchall():
+            n = _norm(unit)
+            exact.setdefault(n, set()).add(str(cid))
+            for up in _ancestors(n):
+                below.setdefault(up, set()).add(str(cid))
+        return exact, below
+
+    def _shared_with(self, path, clip_id, claims: tuple | None = None) -> set:
+        """The other kept clips whose tracked files `path` would take with it: tracked at the same path, inside
+        it, or in a folder that holds it. Empty when only this clip uses it. `claims` (from _claims) serves a
+        whole scan; without it the tracking table is read now, as the check right before a removal needs."""
+        n, me = _norm(path), str(clip_id)
+        if claims is not None:
+            exact, below = claims
+            others = set(exact.get(n, ())) | set(below.get(n, ()))
+            for up in _ancestors(n):
+                others |= exact.get(up, set())
+            return others - {me}
+        inside, others = os.path.join(n, ""), set()
+        for cid, unit in self.ctx.db.execute("SELECT clip_id, unit_path FROM maintenance_clip "
+                                             "WHERE state='kept' AND clip_id<>?", (me,)).fetchall():
+            u = _norm(unit)
+            if u == n or u.startswith(inside) or n.startswith(os.path.join(u, "")):
+                others.add(str(cid))
+        return others
+
+    # --- clips being captured, cut or rendered right now ---
+    def _rendering(self) -> tuple[set, set] | None:
+        """The clips in use now and the folders they use. In use: the edit engine's busy(clip_id) for each of its
+        clip tasks, and every clip task of the monitor engine (capture, cut, render). Their folders: the edit
+        engine's clip_dir, the store's clips/<id> and every tracked path of the clip, normalized. Either engine may
+        be absent (not started, tests). None when an engine could not be asked: then nothing tied to a clip goes."""
+        edit = mon = None
+        for svc in self.ctx.services:
+            name = getattr(svc, "name", "")
+            if name == "edit":
+                edit = getattr(svc, "engine", None)
+            elif name == "monitor":
+                mon = getattr(svc, "engine", None)
+        if edit is None:                               # the monitor's own edit engine, when no edit service runs
+            edit = getattr(mon, "edit", None)
+        try:
+            ids = {k for k in list(getattr(edit, "clip_tasks", None) or {}) if edit.busy(k)}
+            ids |= set(list(getattr(mon, "clip_tasks", None) or {}))
+            dirs = set()
+            for k in ids:
+                dirs.add(_norm(self.media_dir / "clips" / str(k)))
+                if hasattr(edit, "clip_dir"):
+                    dirs.add(_norm(edit.clip_dir(k)))
+                dirs |= {_norm(r[0]) for r in self.ctx.db.execute(
+                    "SELECT unit_path FROM maintenance_clip WHERE clip_id=? AND state='kept'", (str(k),))}
+        except Exception:
+            log.exception("could not ask the edit or monitor engine which clips are in use; keeping them")
+            return None
+        return {str(k) for k in ids}, dirs
+
+    @staticmethod
+    def _in_use(path, clip_id, busy: tuple | None) -> bool:
+        """Would removing `path` (of clip `clip_id`; None for a temporary file) take files a running clip task
+        uses? The clip itself is busy, or the path is a busy folder, is inside one or holds one. `busy` comes from
+        _rendering; None (the engines could not be asked) counts as in use."""
+        if busy is None:
+            return True
+        ids, dirs = busy
+        if clip_id is not None and str(clip_id) in ids:
+            return True
+        n = _norm(path)
+        inside = os.path.join(n, "")
+        return n in dirs or any(up in dirs for up in _ancestors(n)) or any(d.startswith(inside) for d in dirs)
+
     def _publisher(self):
         for svc in self.ctx.services:
             pub = getattr(svc, "pub", None) if getattr(svc, "name", "") == "publish" else None
@@ -277,16 +445,18 @@ class Maintenance:
         return n
 
     def release_clip(self, clip_id, why: str) -> dict:
-        """Delete one clip's folder now. Refuses a folder outside the store or one another clip shares. Keeps every
-        database row; the clip row gets a note of what was removed and why."""
+        """Delete one clip's folder now. Refuses a folder outside the store or one another kept clip shares (the
+        same folder, a file of it inside, or a folder holding it). Keeps every database row; the clip row gets a
+        note of what was removed and why."""
         cid, root = str(clip_id), self.config()["dir"]
         row = self.ctx.db.execute("SELECT unit_path FROM maintenance_clip WHERE clip_id=? AND state='kept'",
                                   (cid,)).fetchone()
         p = Path(row[0]) if row else root / "clips" / cid
         if is_link(p) or p == root or not self._inside(p, root):
             return {"removed": False, "freed_bytes": 0, "kept_because": "its folder is not inside the storage folder"}
-        if self.ctx.db.execute("SELECT 1 FROM maintenance_clip WHERE unit_path=? AND clip_id<>? AND state='kept'",
-                               (str(p), cid)).fetchone():
+        if self._in_use(p, cid, self._rendering()):
+            return {"removed": False, "freed_bytes": 0, "kept_because": "it is being rendered now"}
+        if self._shared_with(p, cid):
             return {"removed": False, "freed_bytes": 0, "kept_because": "the folder is shared with another clip"}
         before = _size(p) if p.exists() else 0
         self._rm(p)
@@ -304,30 +474,20 @@ class Maintenance:
                 "at": self.clock(), "why": why, "bytes": freed}})
         return {"removed": True, "freed_bytes": freed, "kept_because": ""}
 
-    def _mark_rejected(self, cid: str) -> None:
-        """The selection record says rejected for every language it holds: that is what a separate sender reads."""
-        if not cid.isdigit():
-            return
-        from .store import Store
-        s = Store(self.ctx.db)
-        sel = ((s.clip(int(cid)) or {}).get("trigger") or {}).get("selection") or {}
-        if sel:
-            s.merge_json("clips", int(cid), "trigger", {"selection": {
-                lg: {**(v if isinstance(v, dict) else {}), "decision": "rejected",
-                     "reasons": ["rejected by the user"]} for lg, v in sel.items()}})
-
-    def reject_clip(self, clip_id) -> dict:
+    def reject_clip(self, clip_id, *, rendering: bool = False) -> dict:
         """The user pressed Reject: what was only waiting is cancelled, then the clip's files are removed unless an
         upload may still need them. Returns {"removed", "freed_bytes", "kept_because"}."""
         cid, pub = str(clip_id), self._publisher()
-        self._mark_rejected(cid)                       # first, so an outside sender stops seeing it as qualified
+        if cid.isdigit() and not self._rejected(cid):
+            from . import gameplay
+            from .store import Store
+            clips = Store(self.ctx.db)
+            if clips.clip(int(cid)):
+                gameplay.review(clips, int(cid), False)
         if pub is not None:
-            for r in self._deliveries(cid):
-                if r["status"] in UNSENT and not r["reconcile"]:
-                    try:
-                        pub.cancel(r["id"])
-                    except Exception:                  # in flight meanwhile: the check below keeps the files
-                        log.warning("could not cancel delivery %s of rejected clip %s", r["id"], cid)
+            pub.cancel_waiting(clip_id)
+        if rendering:
+            return {"removed": False, "freed_bytes": 0, "kept_because": "it is being rendered now"}
         if self._in_flight(cid) or any(r["status"] in UNSENT for r in self._deliveries(cid)):
             return {"removed": False, "freed_bytes": 0, "kept_because": self._external_hold(cid) or (
                 "an upload of this clip is still waiting or may have reached a platform; its files stay until that "
@@ -343,6 +503,8 @@ class Maintenance:
         units, trash, temp, seen = [], [], [], set()
         rows = self.ctx.db.execute("SELECT clip_id, unit_path, created_at, state, trash_path, purge_after "
                                    "FROM maintenance_clip WHERE state IN ('kept','trash')").fetchall()
+        claims = self._claims()
+        busy = self._rendering()
         for cid, unit, created, state, tpath, purge_after in rows:
             p = Path(tpath if state == "trash" else unit)
             if not self._inside(p, root):
@@ -357,6 +519,8 @@ class Maintenance:
                 trash.append({**entry, "purge_after": purge_after or now})
             else:
                 entry["posted_at"] = self.posted_at(cid)
+                entry["shared"] = bool(self._shared_with(p, cid, claims))   # never a candidate, by any pass
+                entry["busy"] = self._in_use(p, cid, busy)                   # nor while it is being rendered
                 orig = p / ORIGINAL_NAME
                 entry["original"] = (orig, _size(orig)) if p.is_dir() and orig.is_file() else None
                 units.append(entry)
@@ -380,6 +544,8 @@ class Maintenance:
                     f = Path(dirpath, n)
                     if is_link(f) or not any(fnmatch.fnmatch(n, pat) for pat in TEMP_PATTERNS):
                         continue
+                    if self._in_use(f, None, busy):                # a running render's own temporary file
+                        continue
                     try:
                         st = f.stat()
                     except OSError:
@@ -392,12 +558,16 @@ class Maintenance:
             free = self._free(root)
         except OSError:
             free = 0
+        protected = {_norm(u["path"]): u["bytes"] for u in units
+                     if u["posted_at"] is None or u["shared"] or u["busy"]}
         return {"cfg": cfg, "units": units, "trash": trash, "temp": temp, "total": total, "free": free,
                 "kept_bytes": kept, "trash_bytes": trash_b, "temp_bytes": sum(t["bytes"] for t in temp),
-                "protected_bytes": sum(u["bytes"] for u in units if u["posted_at"] is None)}
+                "protected_bytes": sum(protected.values())}
 
     def plan(self, scan: dict | None = None, manual: bool = False) -> list[Action]:
-        """manual: the user pressed Clean up, so what is posted or rejected goes now, not after the retention time."""
+        """manual: the user pressed Clean up, so what is posted or rejected goes now, not after the retention time.
+        A clip whose folder another kept clip shares, or that is being rendered now, is never listed (neither the
+        folder nor its original)."""
         sc = scan or self.scan()
         cfg, now = sc["cfg"], self.clock()
         acts: list[Action] = []
@@ -411,7 +581,8 @@ class Maintenance:
                 acts.append(Action("purge_trash", str(t["path"]), t["clip_id"], t["bytes"], "trash keep time passed"))
                 planned_trash.add(t["path"])
                 freed += t["bytes"]
-        posted = sorted((u for u in sc["units"] if u["posted_at"] is not None), key=lambda u: u["posted_at"])
+        posted = sorted((u for u in sc["units"] if u["posted_at"] is not None and not u.get("shared", True)
+                         and not u.get("busy", True)), key=lambda u: u["posted_at"])
         if "expire_posted" in cfg["rules"]:
             for u in posted:
                 if u["posted_at"] + cfg["retention_days"] * 86400 <= now:
@@ -446,7 +617,8 @@ class Maintenance:
                     freed_extra[0] += remaining[u["path"]]
         if manual:
             for u in sc["units"]:
-                if any(x.action == "delete_clip" and x.path == str(u["path"]) for x in acts):
+                if u.get("shared", True) or u.get("busy", True) or any(
+                        x.action == "delete_clip" and x.path == str(u["path"]) for x in acts):
                     continue
                 if self._removable(u["clip_id"]):
                     orig = str(u["original"][0]) if u["original"] else None
@@ -491,42 +663,104 @@ class Maintenance:
         else:
             shutil.rmtree(p, ignore_errors=True)
 
-    def execute(self, acts: list[Action]) -> dict:
+    @staticmethod
+    def _key(a: Action) -> tuple:
+        """Which candidate an action is: what it does, to which clip and path, and why (the confirmation's words)."""
+        return (a.action, _norm(a.path), a.clip_id, a.reason)
+
+    def _identity(self, a: Action, skip: frozenset = frozenset()) -> str:
+        """The candidate as it is now: its key, the tracking record of its clip, and what is on the disk."""
+        row = None
+        if a.clip_id is not None:
+            p = Path(a.path)
+            row = self.ctx.db.execute(
+                "SELECT created_at, state, trash_at FROM maintenance_clip WHERE clip_id=? AND state IN ('kept','trash') "
+                "AND (unit_path IN (?,?) OR trash_path=?) ORDER BY created_at, unit_path",
+                (a.clip_id, str(p), str(p.parent), str(p))).fetchone()
+        return hashlib.sha256(repr((self._key(a), tuple(row) if row else None,
+                                    _fingerprint(Path(a.path), skip))).encode()).hexdigest()
+
+    def _kept_reason(self, a: Action) -> str:
+        """Why a clip action may not run now ("" = it may). Checked again right before each removal."""
+        if a.clip_id is None:
+            return ""
+        asked = a.action == "delete_clip" and a.reason.startswith("you asked to clean up")
+        if self.posted_at(a.clip_id) is None and not (asked and self._removable(a.clip_id)):
+            return "it is not (or no longer) fully posted or rejected"
+        p = Path(a.path)                               # an original is judged by the folder that holds it
+        if self._shared_with(p.parent if a.action == "delete_original" else p, a.clip_id):
+            return "the folder is shared with another clip"
+        if self._in_use(p, a.clip_id, self._rendering()):
+            return "it is being rendered now"
+        if self.publisher_holds(a.clip_id):
+            return "an upload of this clip may still need its files"
+        if why := self._external_hold(a.clip_id):
+            return why
+        return ""
+
+    def execute(self, acts: list[Action], expect: dict | None = None) -> dict:
+        """Run the actions, checking every protection again first. `expect` (key -> identity) is what the user
+        confirmed: an action whose candidate is not exactly that any more is left alone. Bytes freed are measured
+        on the disk; `results` says, item by item, what was done, kept or failed and why."""
         cfg = self.config()
         root, now = cfg["dir"], self.clock()
         trash_dir = root / "trash"
-        done, freed, errors = 0, 0, []
+        done, freed, errors, results = 0, 0, [], []
+
+        def note(a: Action, outcome: str, why: str = "", got: int = 0) -> None:
+            results.append({**a.public(root), "outcome": outcome, "why": why, "freed_bytes": got})
+
         for a in acts:
             p = Path(a.path)
+            got = 0
             try:
+                if expect is not None and expect.get(self._key(a)) != self._identity(a):
+                    # An earlier action may have kept a temporary file because this folder is in use.
+                    busy = self._in_use(p, a.clip_id, self._rendering())
+                    note(a, "kept", "it is being rendered now" if busy else "it changed since the preview")
+                    continue
                 if a.action == "delete_temp":
                     if not self._temp_ok(p, root):
                         log.warning("refusing to delete unexpected temp path %s", p.name)
+                        note(a, "kept", "it is not a temporary file in the app's folders")
                         continue
+                    if self._in_use(p, None, self._rendering()):
+                        note(a, "kept", "it is being rendered now")
+                        continue
+                    got = _size(p)
                     p.unlink(missing_ok=True)
                 elif a.action == "purge_trash":
                     if not (p.parent == trash_dir and TRASH_RE.match(p.name) and not p.is_symlink()):
                         log.warning("refusing to purge unexpected trash path %s", p.name)
+                        note(a, "kept", "it is not an entry of the app's trash")
                         continue
+                    before = _size(p)
                     self._rm(p)
+                    got = before - (_size(p) if p.exists() else 0)
+                    if p.exists():
+                        errors.append(f"purge_trash {p.name}: some files could not be deleted")
+                        freed += got
+                        note(a, "failed", "some files could not be deleted (they may be in use)", got)
+                        continue
                     self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE trash_path=?", (str(p),))
                 else:
-                    asked = a.action == "delete_clip" and a.reason.startswith("you asked to clean up")
-                    if a.clip_id is not None and self.posted_at(a.clip_id) is None and not (
-                            asked and self._removable(a.clip_id)):
-                        continue  # not (or no longer) fully posted: protected
-                    if a.clip_id is not None and (self.publisher_holds(a.clip_id) or self.external_holds(a.clip_id)):
-                        continue  # a provider or an outside sender may still read or resume an upload of this file
+                    if why := self._kept_reason(a):
+                        note(a, "kept", why)  # protected now, whatever the plan said
+                        continue
                     if not self._inside(p, root):
+                        note(a, "kept", "it is not inside the storage folder")
                         continue
                     if a.action == "delete_original":
+                        got = _size(p)
                         p.unlink(missing_ok=True)
                     elif a.action == "delete_clip":
                         before = _size(p)
                         self._rm(p)
+                        got = before - (_size(p) if p.exists() else 0)
                         if p.exists():
                             errors.append(f"delete_clip {p.name}: some files could not be deleted")
-                            freed += before - _size(p)
+                            freed += got
+                            note(a, "failed", "some files could not be deleted (they may be in use)", got)
                             continue
                         self.ctx.db.execute("UPDATE maintenance_clip SET state='deleted' WHERE clip_id=? AND unit_path=?",
                                             (a.clip_id, str(p)))
@@ -535,16 +769,18 @@ class Maintenance:
                         stamp, safe = int(now), SAFE_ID.sub("_", a.clip_id)[:64]
                         while (dest := trash_dir / f"{safe}-{stamp}").exists():
                             stamp += 1
-                        os.rename(p, dest)
+                        os.rename(p, dest)                 # still on this disk: restorable, nothing freed yet
                         self.ctx.db.execute(
                             "UPDATE maintenance_clip SET state='trash', trash_path=?, trash_at=?, purge_after=? "
                             "WHERE clip_id=? AND unit_path=?",
                             (str(dest), now, now + cfg["trash_keep_h"] * 3600, a.clip_id, str(p)))
                 done += 1
-                freed += a.bytes
+                freed += got
+                note(a, "done", "", got)
             except OSError as e:
                 errors.append(f"{a.action} {p.name}: {e.__class__.__name__}")
-        return {"done": done, "freed_bytes": freed, "errors": errors}
+                note(a, "failed", e.__class__.__name__)
+        return {"done": done, "freed_bytes": freed, "errors": errors, "results": results}
 
     @staticmethod
     def summary(acts: list[Action], sc: dict) -> dict:
@@ -557,16 +793,96 @@ class Maintenance:
             cats[k][1] += a.bytes
         return {**{k: {"items": n, "bytes": b} for k, (n, b) in cats.items()}, "kept_bytes": sc["protected_bytes"]}
 
-    def cleanup(self, dry_run: bool = True, manual: bool = False) -> dict:
-        if manual:
-            self.adopt_folders()
-        sc = self.scan()
-        acts = self.plan(sc, manual=manual)
-        out = {"dry_run": dry_run, "actions": [a.public(sc["cfg"]["dir"]) for a in acts],
-               "summary": self.summary(acts, sc), "would_free_bytes": sum(a.bytes for a in acts)}
-        if not dry_run:
-            out.update(self.execute(acts))
+    def _report_run(self, out: dict, res: dict, left: list[dict], new: list[Action], sc: dict) -> dict:
+        """The result of a deleting pass: the summary counts what was really removed and its measured bytes; `left`
+        are confirmed items no fresh plan lists any more, `new` what a fresh plan lists that was not confirmed."""
+        results = res["results"] + left
+        done = [Action(r["action"], r["path"], r["clip_id"], r["freed_bytes"], r["reason"])
+                for r in results if r["outcome"] == "done"]
+        out.update(res, results=results, summary=self.summary(done, self.scan() if done else sc),
+                   kept=sum(r["outcome"] == "kept" for r in results),
+                   not_confirmed={"items": len(new), "bytes": sum(a.bytes for a in new)})
         return out
+
+    def _remember(self, acts: list[Action], manual: bool, root: Path) -> tuple[str, float]:
+        """Keep a preview so it can be confirmed: each item's key and identity, in the order shown."""
+        items, removed_first = [], set()
+        for a in acts:
+            items.append({"key": self._key(a), "identity": self._identity(a, frozenset(removed_first)),
+                          "public": a.public(root)})
+            if a.action in FILE_ACTIONS:                   # a later folder item is checked without this file
+                removed_first.add(_norm(a.path))
+        pid, now = uuid.uuid4().hex, self.clock()
+        with self._plans_lock:
+            for k in [k for k, v in self._plans.items() if now - v["at"] > PLAN_TTL_S]:
+                del self._plans[k]
+            self._plans[pid] = {"at": now, "root": _norm(root), "manual": manual, "items": items}
+            while len(self._plans) > PLAN_MAX:
+                del self._plans[next(iter(self._plans))]
+        return pid, now + PLAN_TTL_S
+
+    def _take(self, plan_id: str) -> dict:
+        """The confirmed preview, taken once: a second or simultaneous confirmation of it gets PlanError."""
+        now = self.clock()
+        with self._plans_lock:
+            entry = self._plans.pop(plan_id, None)
+            if entry is None:
+                if plan_id in self._used:
+                    raise PlanError("plan_used", "This cleanup was already run. Preview again to see what is left.")
+                raise PlanError("plan_unknown", "This preview is no longer known (the app may have restarted). "
+                                                "Preview again, then confirm.")
+            if now - entry["at"] > PLAN_TTL_S:
+                raise PlanError("plan_expired", "This preview is too old to confirm. Preview again, then confirm.")
+            self._used[plan_id] = now
+            while len(self._used) > 64:
+                del self._used[next(iter(self._used))]
+        return entry
+
+    def _run_confirmed(self, plan_id: str) -> dict:
+        entry = self._take(plan_id)
+        with self._run_lock:
+            if entry["manual"]:
+                self.adopt_folders()
+            sc = self.scan()
+            root = sc["cfg"]["dir"]
+            if _norm(root) != entry["root"]:
+                raise PlanError("plan_changed", "The storage folder changed since the preview. Preview again.")
+            fresh = {self._key(a): a for a in self.plan(sc, manual=entry["manual"])}
+            confirmed = {tuple(i["key"]) for i in entry["items"]}
+            run, left = [], []
+            for i in entry["items"]:
+                a = fresh.get(tuple(i["key"]))
+                if a is None:
+                    left.append({**i["public"], "outcome": "kept", "why": "it is no longer eligible", "freed_bytes": 0})
+                else:
+                    run.append(a)
+            res = self.execute(run, expect={tuple(i["key"]): i["identity"] for i in entry["items"]})
+            out = {"dry_run": False, "plan_id": plan_id, "actions": [a.public(root) for a in run],
+                   "would_free_bytes": sum(a.bytes for a in run)}
+            return self._report_run(out, res, left, [a for k, a in fresh.items() if k not in confirmed], sc)
+
+    def cleanup(self, dry_run: bool = True, manual: bool = False, plan_id: str | None = None) -> dict:
+        """dry_run: plan only, and remember the plan under `plan_id` so it can be confirmed. Not a dry run with a
+        `plan_id`: run what that preview listed and nothing else. Not a dry run without one: only the timer's own
+        pass (manual false) plans and runs at once; a manual one is refused with PlanError("plan_required") before
+        anything is scanned or deleted, so every deletion the user asks for names the preview it confirms."""
+        if plan_id is not None and not dry_run:
+            return self._run_confirmed(plan_id)
+        if manual and not dry_run:
+            raise PlanError("plan_required", "Preview required: nothing was deleted. Preview the cleanup first, "
+                                             "then confirm that preview.")
+        with contextlib.nullcontext() if dry_run else self._run_lock:
+            if manual:
+                self.adopt_folders()
+            sc = self.scan()
+            acts = self.plan(sc, manual=manual)
+            root = sc["cfg"]["dir"]
+            out = {"dry_run": dry_run, "actions": [a.public(root) for a in acts],
+                   "summary": self.summary(acts, sc), "would_free_bytes": sum(a.bytes for a in acts)}
+            if dry_run:
+                out["plan_id"], out["expires_at"] = self._remember(acts, manual, root)
+                return out
+            return self._report_run(out, self.execute(acts), [], [], sc)
 
     def cycle(self) -> dict:
         return self.cleanup(dry_run=False)
@@ -634,6 +950,7 @@ class Maintenance:
 
 class CleanupBody(BaseModel):
     dry_run: bool = True
+    plan_id: str | None = None      # with dry_run false: run only what this preview listed
 
 
 class MaintenanceService:
@@ -695,4 +1012,10 @@ class MaintenanceService:
         return self.m.report()
 
     def post_cleanup(self, body: CleanupBody) -> dict:
-        return self.m.cleanup(dry_run=body.dry_run, manual=True)   # a press of the button, not the timer
+        """A press of the button, not the timer. A deleting request must confirm a preview by its plan_id: without
+        one (an older page, a script) it is refused with 409 "plan_required", and an unknown, expired, used or
+        changed one is refused (409) too; nothing is deleted in either case."""
+        try:
+            return self.m.cleanup(dry_run=body.dry_run, manual=True, plan_id=body.plan_id)
+        except PlanError as e:
+            raise HTTPException(409, {"message": str(e), "code": e.code}) from None

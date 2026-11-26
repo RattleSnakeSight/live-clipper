@@ -1054,7 +1054,7 @@ def apply_decision(evidence: dict, effective: dict | SelectionFormat) -> dict:
     review, force_qualify approves. No decision: the evidence is returned unchanged."""
     fmt = effective if isinstance(effective, SelectionFormat) else effective_format(effective)
     dec = fmt.output.decision
-    if dec is None:
+    if dec is None or evidence.get("source") == "operator" and evidence.get("state") == "rejected":
         return evidence
     detail = f"rule decision '{dec}' (was {evidence.get('state')}: {evidence.get('detail', '')})"[:400]
     state = {"skip": "rejected", "hold": "unknown", "force_qualify": "approved"}[dec]

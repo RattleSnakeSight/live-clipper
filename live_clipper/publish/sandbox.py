@@ -32,6 +32,8 @@ class SandboxAdapter(DestinationAdapter):
                              url=v.get("url", ""), detail=f"test video {v['id']} {v.get('status')}")
 
     async def upload(self, job: PublishJob, creds: dict) -> PublishResult:
+        if why := job.may_write():
+            return PublishResult("failed", permanent=True, expired=True, detail=why)
         q = urlencode({"title": job.title, "tag": job.marker, "privacy": job.settings.get("privacy", "public")})
         async with self.client() as c:
             r = await c.post(f"{self.base}/v1/videos?{q}", content=job.video_path.read_bytes(),
