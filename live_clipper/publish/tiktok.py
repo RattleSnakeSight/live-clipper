@@ -117,7 +117,10 @@ class TikTokAdapter(DestinationAdapter):
             if why := job.may_write():                     # at dispatch, after the awaited creator_info
                 return PublishResult("failed", permanent=True, expired=True, detail=why)
             # persisted BEFORE init; upload_v=2 marks refs that record final_chunk_attempted (older refs do not)
-            job.save(init_started=True, publish_id="", uploaded=False, final_chunk_attempted=False, upload_v=2, **meta)
+            # A fresh init follows a definitive no-post result or an explicit confirmation.
+            # Its polling handle must never refer back to the abandoned attempt.
+            job.save(init_started=True, publish_id="", id="", uploaded=False, final_chunk_attempted=False,
+                     upload_v=2, **meta)
             try:
                 r = await c.post(url, json=body, headers=self._h(creds))
             except httpx.ConnectError:
@@ -143,7 +146,7 @@ class TikTokAdapter(DestinationAdapter):
                         "Content-Type": "video/mp4", "Content-Range": f"bytes {start}-{end}/{size}"})
                     if r.status_code not in (200, 201, 206):
                         return http_result(r, f"chunk {i + 1}/{count}") or PublishResult("failed", detail=r.text[:200])
-            job.save(uploaded=True)
+            job.save(uploaded=True, id=data["publish_id"])
         return PublishResult("processing", provider_ref=data["publish_id"], detail=f"TikTok {self.mode} upload complete")
 
     def _status(self, job: PublishJob, d: dict, publish_id: str) -> PublishResult:
@@ -175,7 +178,10 @@ class TikTokAdapter(DestinationAdapter):
         return ({} if bad else r.json().get("data") or {}), bad
 
     async def poll(self, job: PublishJob, provider_ref: str, creds: dict) -> PublishResult:
-        pid = provider_ref or job.ref.get("publish_id", "")
+        # Older resumed uploads can carry the abandoned polling handle beside the current publish_id.
+        pid = job.ref.get("publish_id") or provider_ref
+        if pid and job.ref.get("id") != pid:
+            job.save(id=pid)
         d, bad = await self._fetch(pid, creds)
         return bad or self._status(job, d, pid)
 

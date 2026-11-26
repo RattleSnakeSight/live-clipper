@@ -35,6 +35,8 @@ TEST = "test"
 SUCCESS = ("published", "private", "draft")
 PROVIDER_BUSY = ("uploading", "processing", "uncertain", "needs_confirmation")
 TERMINAL = ("published", "private", "draft", "failed", "cancelled")
+MANUAL_HOLD = "waiting for the user to press Post for this delivery"
+REJECTED = "the operator rejected this clip"
 HISTORY_MAX = 40
 SENSITIVE_REFS = {"session", "upload_url"}
 TEST_LABEL = "Test destination — nothing is posted"
@@ -151,9 +153,24 @@ class Publisher:
         if self._loop and self._wake and not self._loop.is_closed():
             self._loop.call_soon_threadsafe(self._wake.set)
 
-    def _set(self, did: int, status: str, detail: str = "", **fields) -> None:
+    def _set(self, did: int, status: str, detail: str = "", *, retry_cancelled: bool = False,
+             resolve_confirmation: bool = False, **fields) -> None:
         with self.store._lock, self.store.atomic():   # the delivery and what the cadence keeps of it: both or neither
             d = self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did)
+            # A stale destination/resume callback must never reopen a cancellation or replace a receipt.
+            if d["status"] in SUCCESS and status not in SUCCESS:
+                return
+            if d["status"] == "cancelled" and status not in SUCCESS and not retry_cancelled:
+                return
+            # Only the operator or a definitive provider result settles an open confirmation.
+            # A late failure, timeout or pause from the old account must leave its prompt intact.
+            if d["status"] == "needs_confirmation" and status not in SUCCESS and not resolve_confirmation:
+                return
+            if status == "queued" and not fields.get("reconcile", d["reconcile"]):
+                hold = self._posting_hold({**d, **fields})
+                if hold:
+                    status, detail = hold
+                    fields["next_attempt_at"] = 0
             h = d["history"] + [{"t": round(self.clock(), 3), "from": d["status"], "to": status,
                                  "detail": self.secrets.redact(detail)[:300]}]
             if "last_error" in fields:
@@ -237,6 +254,29 @@ class Publisher:
     def mode(self) -> str:
         return "manual" if self.settings.get("publish.mode", "auto") == "manual" else "auto"
 
+    def set_mode(self, mode: str) -> None:
+        with self.store._lock, self.store.atomic():
+            self.settings.set("publish.mode", mode)
+            if mode == "manual":
+                for d in self.store.q("SELECT id FROM publish_deliveries WHERE status='queued' "
+                                      "AND post_approved=0 AND reconcile=0"):
+                    self._set(d["id"], "held", MANUAL_HOLD, mode="manual", next_attempt_at=0)
+        self.wake()
+
+    def _clip_rejected(self, clip_id) -> bool:
+        # Publishing can run on its own, without the optional monitor tables.
+        if not self.store.q1("SELECT 1 FROM sqlite_master WHERE type='table' AND name='monitor_clips'"):
+            return False
+        return bool(self.store.q1("SELECT 1 FROM monitor_clips WHERE id=? "
+                                  "AND json_extract(trigger,'$.review.gameplay.state')='rejected'", clip_id))
+
+    def _posting_hold(self, d: dict) -> tuple[str, str] | None:
+        if self._clip_rejected(d["clip_id"]):
+            return "cancelled", REJECTED
+        if not d["post_approved"] and (d["mode"] == "manual" or self.mode == "manual"):
+            return "held", MANUAL_HOLD
+        return None
+
     def block_reason(self, dest: dict) -> str | None:
         """Why no provider effect may happen for this destination (None = allowed)."""
         if dest.get("provider") == TEST:
@@ -302,7 +342,15 @@ class Publisher:
 
         def may_write() -> str | None:        # evaluated at the moment of each write
             row = self.store.q1("SELECT * FROM publish_destinations WHERE id=?", dest["id"])
-            return self.block_reason(row) if row else "destination deleted"
+            if not row:
+                return "destination deleted"
+            if why := self.block_reason(row):
+                return why
+            current = self.store.q1("SELECT clip_id, mode, post_approved FROM publish_deliveries WHERE id=?", did)
+            if current is None:
+                return "delivery deleted"
+            hold = self._posting_hold(current)
+            return hold[1] if hold else None
         return PublishJob(did, d["idempotency_key"], self.video_path(clip) or Path("/nonexistent"), title, desc,
                           lang, None, dict(dest["settings"]), ref, checkpoint, media_fp=self.media_fp(clip),
                           may_write=may_write)
@@ -328,27 +376,31 @@ class Publisher:
             raise KeyError("clip or destination not found")
         if why := self.block_reason(dest) or self.platform_reason(clip, dest):
             raise PermissionError(why)
-        return self._insert(clip, dest, language, mode, 1, held=False)
+        return self._insert(clip, dest, language, mode, 1, explicit_post=True)
 
-    def _insert(self, clip: dict, dest: dict, language: str, mode: str, version: int, held: bool | None = None) -> int:
-        held = (mode == "manual") if held is None else held
+    def _insert(self, clip: dict, dest: dict, language: str, mode: str, version: int,
+                *, explicit_post: bool = False) -> int:
         with self.store._lock, self.store.tx():
-            same = self.store.q1("SELECT id FROM publish_deliveries WHERE clip_id=? AND destination_id=? AND "
+            if self._clip_rejected(clip["clip_id"]):
+                raise PublishConflict(REJECTED)
+            same = self.store.q1("SELECT id, status FROM publish_deliveries WHERE clip_id=? AND destination_id=? AND "
                                  "language=? AND version=?", clip["clip_id"], dest["id"], language, version)
             if same:
+                if explicit_post and same["status"] == "held":
+                    self.post(same["id"])
                 return same["id"]
             if not self.video_path(clip):
                 raise PublishConflict("the clip file does not exist (any more)")
             key = idempotency_key(f"clip:{clip['clip_id']}", dest["id"], language) + (f":v{version}" if version > 1 else "")
             now = self.clock()
-            status = "held" if held else "queued"
+            status = "held" if mode == "manual" and not explicit_post else "queued"
             if dest["status"] == "needs_reconnect":
                 status = "paused"
             note = "held for manual post" if status == "held" else f"enqueued ({mode})"
             hist = json.dumps([{"t": round(now, 3), "from": "", "to": status, "detail": note}])
             self.store.x("INSERT INTO publish_deliveries(clip_id,destination_id,language,idempotency_key,status,mode,"
-                         "history,created_at,updated_at,version) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
-                         clip["clip_id"], dest["id"], language, key, status, mode, hist, now, now, version)
+                         "history,created_at,updated_at,version,post_approved) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
+                         clip["clip_id"], dest["id"], language, key, status, mode, hist, now, now, version, int(explicit_post))
             row = self.store.q1("SELECT * FROM publish_deliveries WHERE clip_id=? AND destination_id=? AND language=? "
                                 "AND version=?", clip["clip_id"], dest["id"], language, version)
         self._emit(row)
@@ -369,12 +421,16 @@ class Publisher:
 
     def post(self, did: int) -> None:
         """The user's Post click on a held delivery (manual mode)."""
-        d = self._guard(did)
-        if d["status"] != "held":
-            raise ValueError("only held deliveries can be posted")
-        dest = self.store.q1("SELECT * FROM publish_destinations WHERE id=?", d["destination_id"])
-        self._set(did, "paused" if dest and dest["status"] == "needs_reconnect" else "queued",
-                  "released by the user (manual post)", mode="manual", next_attempt_at=0)
+        with self.store._lock, self.store.atomic():
+            d = self._guard(did)
+            if d["status"] != "held":
+                raise ValueError("only held deliveries can be posted")
+            if self._clip_rejected(d["clip_id"]):
+                raise ValueError(REJECTED)
+            dest = self.store.q1("SELECT * FROM publish_destinations WHERE id=?", d["destination_id"])
+            self._set(did, "paused" if dest and dest["status"] == "needs_reconnect" else "queued",
+                      "released by the user (manual post)", mode="manual", post_approved=1,
+                      reconcile=int(bool(d["reconcile"] or d["provider_ref"] not in ("", "{}"))), next_attempt_at=0)
         self.wake()
 
     def post_clip(self, clip_id, destination_id: int, language: str = "en") -> int:
@@ -399,17 +455,20 @@ class Publisher:
                     ref = {}
                 ref = ref if isinstance(ref, dict) else {"id": str(ref)}
                 self.store.update("deliveries", did, provider_ref=json.dumps({**ref, "recheck_only": True}))
-            self._set(did, "uncertain", "manual retry: re-checking the provider (read-only)", attempts=0,
+            self._set(did, "uncertain", "manual retry: re-checking the provider (read-only)", resolve_confirmation=True, attempts=0,
                       next_attempt_at=0)
         else:
-            self._set(did, "queued", "manual retry", attempts=0, next_attempt_at=0)
+            if self._clip_rejected(d["clip_id"]) and not d["reconcile"]:
+                raise ValueError(REJECTED)
+            self._set(did, "queued", "manual retry", retry_cancelled=d["status"] == "cancelled", attempts=0,
+                      next_attempt_at=0)
         self.wake()
 
     def confirm_not_posted(self, did: int) -> None:
         d = self._guard(did)
         if d["status"] not in ("needs_confirmation", "uncertain", "failed"):
             raise ValueError("delivery is not awaiting confirmation")
-        self._set(did, "queued", "user confirmed the earlier attempt did not post", reconcile=0,
+        self._set(did, "queued", "user confirmed the earlier attempt did not post", resolve_confirmation=True, reconcile=0,
                   provider_ref="{}", next_attempt_at=0)
         self.secrets.delete("ref", did)
         self.wake()
@@ -425,16 +484,25 @@ class Publisher:
         self.secrets.delete("ref", did)
         self._after_posted(self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did), dest)
 
+    def cancel_waiting(self, clip_id) -> None:
+        """Reject: cancel unclaimed deliveries in the same transaction as their eligibility check."""
+        with self.store._lock, self.store.atomic():
+            for d in self.store.q("SELECT id FROM publish_deliveries WHERE clip_id=? AND reconcile=0 "
+                                  "AND provider_post_id='' AND status IN ('queued','held','paused','blocked',"
+                                  "'waiting_language')", clip_id):
+                self.cancel(d["id"])
+
     def cancel(self, did: int) -> None:
-        d = self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did)
-        if not d:
-            raise ValueError("delivery not found")
-        if d["status"] in TERMINAL:
-            raise ValueError("delivery is already finished")
-        if did in self._inflight or d["status"] in ("uploading", "processing", "uncertain") or d["reconcile"]:
-            raise ValueError("an upload may be in flight at the provider; wait, or use confirm-posted / "
-                             "confirm-not-posted")
-        self._set(did, "cancelled", "cancelled by the user", next_attempt_at=0)
+        with self.store._lock, self.store.atomic():
+            d = self.store.q1("SELECT * FROM publish_deliveries WHERE id=?", did)
+            if not d:
+                raise ValueError("delivery not found")
+            if d["status"] in TERMINAL:
+                raise ValueError("delivery is already finished")
+            if d["status"] in PROVIDER_BUSY or d["reconcile"] or d["provider_post_id"]:
+                raise ValueError("an upload may be in flight at the provider; wait, or use confirm-posted / "
+                                 "confirm-not-posted")
+            self._set(did, "cancelled", "cancelled by the user", next_attempt_at=0, post_approved=0)
 
     # ---- destination states ------------------------------------------------
     def _block(self, did: int, prev: str) -> None:
@@ -705,6 +773,9 @@ class Publisher:
             dest = d and self.store.q1("SELECT * FROM publish_destinations WHERE id=?", d["destination_id"])
             if not d or d["status"] != "queued" or not dest:
                 return None
+            if hold := self._posting_hold(d):
+                self._set(did, *hold, next_attempt_at=0)
+                return None
             clip = self.store.clip(d["clip_id"], d["language"])
             if self.social_blocked(dest):
                 self._block(did, "queued")
@@ -753,7 +824,18 @@ class Publisher:
         did, now = d["id"], self.clock()
         if res.expired:                      # a write was refused (destination disabled meanwhile); nothing is public
             self.log(f"delivery {did}: {res.detail}", "warn")
-            return self._set(did, "cancelled", res.detail[:300], next_attempt_at=0, last_error="")
+            # The adapter guarantees this attempt cannot become public without another write.
+            if res.provider_ref and not job.ref.get("id"):
+                job.save(id=res.provider_ref)
+            state = "held" if res.detail.startswith(MANUAL_HOLD) else "cancelled"
+            if state == "held":
+                # Cancel and Reject are safe now. Post will reconcile any retained reference before sending.
+                with self.store._lock, self.store.atomic():
+                    if self._clip_rejected(d["clip_id"]):
+                        return self._set(did, "cancelled", REJECTED, reconcile=0, next_attempt_at=0)
+                    return self._set(did, state, res.detail[:300], mode="manual", reconcile=0, next_attempt_at=0)
+            settled = {"reconcile": 0} if res.detail.startswith(REJECTED) else {}
+            return self._set(did, state, res.detail[:300], next_attempt_at=0, last_error="", **settled)
         if res.provider_ref and not job.ref.get("id"):
             job.save(id=res.provider_ref)
         if res.state == "uncertain" and res.keep_reconciling:
@@ -801,7 +883,8 @@ class Publisher:
                     job.save(id="", rejected_id=pid)
                 self.secrets.update("ref", did, {k: None for k in SENSITIVE_REFS})
                 job.save(recheck_only=False, session_fp="", sent_all=False, publish_id="", container="", media_id="")
-                self._set(did, "failed", res.detail, last_error=res.detail, next_attempt_at=0, reconcile=0)
+                self._set(did, "failed", res.detail, resolve_confirmation=d["status"] == "needs_confirmation",
+                          last_error=res.detail, next_attempt_at=0, reconcile=0)
                 self.log(f"delivery {did} rejected by the provider: {res.detail}", "error")
                 return
             if phase == "poll" or pid or phase == "reconcile":
@@ -831,6 +914,11 @@ class Publisher:
         """At startup: anything mid-flight may or may not have reached the provider."""
         self._recovered = True
         self.unblock_allowed()
+        # Older holds did not distinguish a partial object from a possibly completed send.
+        # Keep its evidence and offer the same resolution as other interrupted deliveries.
+        for d in self.store.q("SELECT id FROM publish_deliveries WHERE status='held' AND reconcile=1"):
+            self._set(d["id"], "needs_confirmation", "The earlier upload may have reached the account. "
+                      "Check the post before deciding.", mode="manual", post_approved=0, next_attempt_at=0)
         for d in self.store.q("SELECT d.id, d.status, t.provider, t.enabled, t.rights_ack_at FROM publish_deliveries d JOIN publish_destinations t ON "
                               "t.id=d.destination_id WHERE d.status IN ('uploading','processing','uncertain','queued',"
                               "'needs_confirmation')"):
@@ -986,7 +1074,7 @@ class Publisher:
                                           f"{'' if new else refresh_hint(dest, self.refresh_errors.get(dest_id, ''))}")
                 self.store.update("destinations", dest_id, status="error", status_detail=msg)
                 return {"ok": False, "detail": msg}
-        with self.store._lock:
+        with self.store._lock, self.store.atomic():
             cur = self.store.q1("SELECT * FROM publish_destinations WHERE id=?", dest_id)
             if not cur or int((cur["settings"] or {}).get("cred_gen", 0) or 0) != gen:
                 return {"ok": False, "detail": "credentials changed during verification; verify again"}
@@ -1009,7 +1097,7 @@ class Publisher:
             self.store.update("destinations", dest_id, account=str(info.get("account", "")),
                               settings={**cur["settings"], "account_info": ai}, status="connected",
                               status_detail=detail, **({"enabled": 0} if moved else {}))
-        kept = self._keep_with_old_account(dest_id, old) if changed else 0
+            kept = self._keep_with_old_account(dest_id, old) if changed else 0
         n = self.resume_destination(dest_id)          # a destination that is off gets its paused deliveries blocked
         self.log(f"destination '{dest['label']}' connected as {info.get('account')}"
                  + (f"; a different account than before ({old}): {kept} waiting deliveries stay with the old account"
@@ -1021,21 +1109,21 @@ class Publisher:
         the new one on its own: an upload the old account may already have waits for the user's word, and a clip
         that was only queued waits for the user to press Post."""
         n = 0
-        for d in self.store.q("SELECT id, status, reconcile, history, blocked_from FROM publish_deliveries WHERE "
+        for d in self.store.q("SELECT id, status, reconcile, provider_ref, history, blocked_from FROM publish_deliveries WHERE "
                               "destination_id=? AND status IN ('queued','uploading','processing','uncertain','paused',"
-                              "'blocked')", dest_id):
+                              "'blocked','held','needs_confirmation')", dest_id):
             prev = d["status"]
             if prev == "paused":
                 prev = next((h["from"] for h in reversed(d["history"]) if h["to"] == "paused"), "queued")
             if prev == "blocked":
                 prev = d["blocked_from"] or "queued"
-            if prev in ("uploading", "processing", "uncertain") or d["reconcile"]:
+            if prev in PROVIDER_BUSY or d["reconcile"] or d["provider_ref"] not in ("", "{}"):
                 self._set(d["id"], "needs_confirmation", f"the destination's account changed while this upload was "
                           f"not confirmed | Check {old}; then use 'Confirm posted' or 'Confirm not posted'.",
-                          next_attempt_at=0, blocked_from="")
+                          next_attempt_at=0, blocked_from="", mode="manual", post_approved=0, resolve_confirmation=True)
             else:
                 self._set(d["id"], "held", f"this clip was waiting for {old}; the destination now posts to another "
-                          f"account | Press Post to send it there, or Cancel.", next_attempt_at=0, blocked_from="")
+                          f"account | Press Post to send it there, or Cancel.", next_attempt_at=0, blocked_from="", mode="manual", post_approved=0)
             n += 1
         return n
 

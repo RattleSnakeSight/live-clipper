@@ -436,7 +436,7 @@ page), and a post was confirmed by the platform (the clip's page, with a link).
 | Saved as draft | In your TikTok inbox. Finish it in the TikTok app. |
 | Checking | The upload may have landed (for example after a network drop). The app checks before anything else. |
 | Check the account | The check could not settle it. You say whether the clip is on the platform (see below). |
-| Paused | The sign-in expired. Reconnect and it continues. |
+| Paused | Reconnect the destination. In Manual mode, a delivery still needs its own Post click before it can be sent. |
 | Blocked | The destination is off, or the acknowledgement is not ticked. Nothing is sent. |
 | Not allowed | This channel may not post to this destination, or the account already has this moment of the streamer. |
 | Failed | The platform refused it for good, or the retries ran out. The message says why. Fix the cause, then Retry. |

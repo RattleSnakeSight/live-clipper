@@ -553,3 +553,42 @@ def test_system_theme_light_choice_and_agent_key_setup_on_the_real_app(make_app,
     seen += json.dumps(app.api("/destinations")) + logs
     assert key not in seen and secret not in seen
     assert not page.js_errors
+
+
+def test_channel_can_resume_using_the_active_format_after_restart(make_app, offline_page):
+    app = make_app("channel-format")
+    page = offline_page()
+    open_app(page, app)
+    run_wizard(page)
+    page.get_by_role("button", name="Skip tour").click()
+    app.wait_state(page, "tour.version", 1)
+    expect(page.locator("main")).to_be_focused()
+
+    # A disabled channel uses the real database and never starts network or media work.
+    page.get_by_role("link", name="Add channel", exact=True).click()
+    page.get_by_label("Streamer link").fill("https://www.twitch.tv/format_test")
+    page.get_by_label("Watch this channel").uncheck()
+    page.get_by_label("Format", exact=True).select_option("gta-vi")
+    page.get_by_role("button", name="Add channel").click()
+    expect(page.locator("#channel-list")).to_contain_text("format gta-vi")
+    channel, = app.api("/channels")
+    cid = channel["id"]
+
+    # Other API clients can PATCH-like PUT just one field without clearing the assignment.
+    endpoint = f"{app.url}/api/channels/{cid}"
+    response = page.request.put(endpoint, data={"display_name": "Format test"})
+    assert response.ok and response.json()["format_id"] == "gta-vi"
+
+    page.locator("#channel-list").get_by_role("link", name="Edit").click()
+    page.get_by_label("Format", exact=True).select_option("")
+    page.get_by_role("button", name="Save changes").click()
+    expect(page.locator("#toasts")).to_contain_text("Channel saved.")
+    expect(page.locator("#channel-list")).not_to_contain_text("format gta-vi")
+    assert app.api(f"/channels/{cid}")["format_id"] is None
+
+    app.stop()
+    app.start()
+    open_app(page, app)
+    page.goto(f"{app.url}/#/channels/{cid}")
+    expect(page.get_by_label("Format", exact=True)).to_have_value("")
+    assert app.api(f"/channels/{cid}")["format_id"] is None

@@ -106,6 +106,14 @@ def hold_reason(clip: dict | None, fmt: formats.SelectionFormat | None = None) -
 
 
 def review(store, clip_id: int, approved: bool, note: str = "") -> dict:
-    store.merge_json("clips", clip_id, "trigger", {"review": {"gameplay": {
-        "state": "approved" if approved else "rejected", "at": time.time(), "note": (note or "")[:200]}}})
-    return evidence(store.clip(clip_id))
+    with store.tx():
+        clip = store.clip(clip_id)
+        patch = {"review": {"gameplay": {"state": "approved" if approved else "rejected",
+                                        "at": time.time(), "note": (note or "")[:200]}}}
+        if not approved:
+            previous = clip["trigger"].get("selection") or {}
+            languages = previous.keys() | (clip["files"].get("final") or {}).keys()
+            patch["selection"] = {lg: {**(previous.get(lg) or {}), "decision": "rejected",
+                                       "reasons": ["rejected by the user"]} for lg in languages or {"any"}}
+        store.merge_json("clips", clip_id, "trigger", patch)
+        return evidence(store.clip(clip_id))

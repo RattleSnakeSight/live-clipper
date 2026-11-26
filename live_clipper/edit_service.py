@@ -45,9 +45,15 @@ class _Publisher:
 
     def on_language_ready(self, clip_id: int, lang: str, force: bool = False) -> bool:
         """Hand a ready final to publishing when selection qualifies it (force: an explicit user publish)."""
+        with self.e.review_lock:
+            return self._handoff(clip_id, lang, force)
+
+    def _handoff(self, clip_id: int, lang: str, force: bool) -> bool:
         c = self.e.store.clip(clip_id)
         name = ((c or {}).get("files", {}).get("final") or {}).get(lang)
-        if not c or not name or self.e.bus is None:
+        if not c or not name or self.e.bus is None or c["trigger"].get("media_removed"):
+            return False
+        if ((c["trigger"].get("review") or {}).get("gameplay") or {}).get("state") == "rejected":
             return False
         from .render import size_for
 
@@ -120,6 +126,7 @@ class EditEngine:
         self.cold = None
         self._slots = asyncio.Semaphore(max_media_jobs)  # bounded concurrent final encodes
         self.maintenance = self
+        self.review_lock = threading.RLock()  # serialize a completed final's handoff with an operator review
         self.publisher = _Publisher(self)
         self._locks: dict[int, asyncio.Lock] = {}
         self.clip_tasks: dict[int, asyncio.Task] = {}
@@ -660,24 +667,36 @@ class EditService:
             self._clip(cid)
             if not isinstance(body.get("approved"), bool):
                 raise HTTPException(400, "approved must be true or false")
-            ev = gameplay.review(e.store, cid, body["approved"], str(body.get("note") or ""))
-            finals = ((self._clip(cid)["files"] or {}).get("final") or {})
-            sent = [lg for lg in finals if e.publisher.on_language_ready(cid, lg)]
-            sel = self._clip(cid)["trigger"].get("selection")
-            out = {"evidence": ev, "published": sent, "selection": sel}
-            if not body["approved"]:                   # Reject: waiting posts are cancelled, files go
-                m = next((getattr(s, "m", None) for s in getattr(self.ctx, "services", [])
-                          if getattr(s, "name", "") == "maintenance"), None)
-                if m is not None:
-                    busy = {"removed": False, "freed_bytes": 0, "kept_because": "it is being rendered now"}
-                    out["media"] = busy if cid in e.clip_tasks else m.reject_clip(cid)
-            return out
+            with e.review_lock:
+                approved = body["approved"]
+                ev = gameplay.review(e.store, cid, approved, str(body.get("note") or ""))
+                out = {"evidence": ev, "published": []}
+                if approved:
+                    finals = self._clip(cid)["files"].get("final") or {}
+                    out["published"] = [lg for lg in finals if e.publisher.on_language_ready(cid, lg)]
+                else:
+                    services = {s.name: s for s in self.ctx.services}
+                    m = getattr(services.get("maintenance"), "m", None)
+                    if m is not None:
+                        monitor = getattr(services.get("monitor"), "engine", None)
+                        rendering = e.busy(cid) or cid in getattr(monitor, "clip_tasks", {})
+                        out["media"] = m.reject_clip(cid, rendering=rendering)
+                    else:
+                        pub = getattr(services.get("publish"), "pub", None)
+                        if pub is not None:
+                            pub.cancel_waiting(cid)
+                out["selection"] = self._clip(cid)["trigger"].get("selection")
+                return out
 
         @r.post("/api/clips/{cid}/publish")
         def publish_clip(cid: int, body: dict = Body(default={})):
             """Hand ready finals to publishing whatever selection decided (the user's explicit choice)."""
             e = self._e()
-            self._clip(cid)
+            c = self._clip(cid)
+            if e.store.channel(c["channel_id"]) is None:
+                raise HTTPException(
+                    409, "The original channel is unknown; its posting permissions cannot be verified."
+                )
             lang = (body or {}).get("lang")
             if lang not in (None, *LANGS):
                 raise HTTPException(400, "lang must be en or es")
@@ -716,6 +735,8 @@ class EditService:
             "thumbnail": f"{base}/thumbnail",
             "final": {lg: f"{base}/final?lang={lg}" for lg in (f.get("final") or {})},
         }
+        if (c.get("trigger") or {}).get("media_removed"):
+            media = {"preview": None, "thumbnail": None, "final": {}}
         return {**c, "media": media, "rendering": self._e().busy(c["id"])}
 
 

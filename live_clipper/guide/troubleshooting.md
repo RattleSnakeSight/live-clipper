@@ -74,7 +74,8 @@ space gets critically low, recordings pause and resume once there is room. It cl
 4. If space is still short, trash is emptied early, then original recordings of posted clips (or whole
    posted clips first, depending on your answer), oldest first.
 
-Clips that are not posted yet are never deleted by this automatic cleanup. If the cap is full of unposted
+Clips that are not posted yet are never deleted by this automatic cleanup. A clip sent only to the test
+destination counts as not posted, because nothing was posted anywhere. If the cap is full of unposted
 clips, post or discard some, or raise the cap. The Status page lists what would be cleaned next.
 
 You can also free space yourself. **Reject** on a clip deletes its video files at once. **Clean up now** in
@@ -83,6 +84,12 @@ trash and temporary files. **Preview cleanup** shows the same list with the byte
 rejected clips, other items, and what is kept. Kept: clips that are waiting, approved, being posted, shared by
 another clip, or not decided yet, and any clip that a separate sender program (such as the Metricool sender)
 has not finished with. Nothing is posted or re-posted by cleaning up, and the record of what was sent stays.
+
+Clean up now deletes only what its confirmation listed. Anything that changed after that list was made, or
+that started being posted or became shared meanwhile, is left in place. Anything that became removable
+meanwhile is left for next time. The message afterwards says how much was freed, what was left and why. A
+confirmation works once and only for about ten minutes, and not after the app restarts. If it says the list is
+too old or no longer known, press Clean up now again to see a fresh list.
 
 ## Platform problems
 

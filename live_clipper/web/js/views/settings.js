@@ -130,8 +130,25 @@ export async function render(main) {
 async function storageBlock() {
   let s;
   try { s = await get('/storage'); } catch { return h('p', { class: 'muted' }, 'Storage use is not available right now.'); }
-  const out = h('div', { role: 'status', 'aria-live': 'polite' });
-  const pct = s.cap_bytes ? Math.min(100, Math.round((s.usage_bytes / s.cap_bytes) * 100)) : 0;
+  const out = h('div', { role: 'status', 'aria-live': 'polite', 'aria-label': 'Cleanup result' });
+  // the figures, drawn again after a cleanup so they show what is on the disk now
+  const facts = h('div', { style: 'display: contents' });
+  const draw = (st) => {
+    const pct = st.cap_bytes ? Math.min(100, Math.round((st.usage_bytes / st.cap_bytes) * 100)) : 0;
+    facts.replaceChildren(
+      h('dl', { class: 'kv' },
+        h('dt', {}, 'Active folder'), h('dd', {}, st.dir),
+        st.configured_dir && st.configured_dir !== st.dir
+          ? [h('dt', {}, 'After restart'), h('dd', {}, st.configured_dir)] : null,
+        h('dt', {}, 'Used'), h('dd', {}, `${fmtBytes(st.usage_bytes)} of ${fmtBytes(st.cap_bytes)} (${pct}%)`),
+        h('dt', {}, 'Free on disk'), h('dd', {}, fmtBytes(st.free_bytes)),
+        h('dt', {}, 'Kept because not posted yet'), h('dd', {}, fmtBytes(st.protected_bytes))),
+      h('div', { class: 'progress', role: 'img', 'aria-label': `Storage cap ${pct}% used` },
+        h('span', { style: `transform: scaleX(${pct / 100})` })),
+      st.health && st.health.state !== 'healthy' ? h('p', { class: 'note' }, (st.health.reasons || []).join(' ') || 'Storage needs attention.') : null);
+  };
+  const refresh = async () => { try { draw(await get('/storage')); } catch { /* keep the last figures */ } };
+  draw(s);
   const preview = h('button', { type: 'button', class: 'btn small', help: 'Show which clips and how many bytes a cleanup would delete now, without deleting anything.' }, 'Preview cleanup');
   const run = h('button', { type: 'button', class: 'btn small danger', help: 'Delete from this computer, now, every clip that is finished with: fully posted clips and clips you rejected, plus old trash and temporary files. Clips that are waiting, approved, being posted, shared or not decided are kept.' }, 'Clean up now');
   // what a cleanup removes, by category, and what stays: the same words in the preview, the confirmation and the result
@@ -143,36 +160,44 @@ async function storageBlock() {
       part('other', `other item${s.other && s.other.items === 1 ? '' : 's'} (old trash, temporary files, clips past your keep time)`)].filter(Boolean);
     return { parts, kept: `Kept: ${fmtBytes(s.kept_bytes || 0)} of clips that are waiting, approved, being posted, shared or not decided yet.` };
   };
+  const items = (n) => `${n} item${n === 1 ? '' : 's'}`;
+  // after a run: what was left of what you confirmed and why, what failed, and what was new and not touched
+  const notes = (r) => {
+    const res = r.results || [];
+    const kept = res.filter((x) => x.outcome === 'kept');
+    const failed = res.filter((x) => x.outcome === 'failed');
+    const fresh = (r.not_confirmed && r.not_confirmed.items) || 0;
+    return [
+      kept.length ? `${items(kept.length)} you confirmed ${kept.length === 1 ? 'was' : 'were'} left in place: ${[...new Set(kept.map((x) => x.why))].join('; ')}.` : null,
+      failed.length ? `${items(failed.length)} could not be deleted completely (files may be in use); try again later.` : null,
+      fresh ? `${items(fresh)} that appeared after your preview ${fresh === 1 ? 'was' : 'were'} not part of what you confirmed and ${fresh === 1 ? 'was' : 'were'} left; preview again to see ${fresh === 1 ? 'it' : 'them'}.` : null,
+    ].filter(Boolean);
+  };
   const show = (r) => {
     const { parts, kept } = lines(r);
     const total = fmtBytes(r.dry_run ? (r.would_free_bytes || 0) : (r.freed_bytes || 0));
+    const nothing = r.dry_run ? ' (nothing to clean up)' : ' (nothing was deleted)';
     clear(out, h('p', { class: 'small', style: 'margin-top: 8px' },
-      `${r.dry_run ? 'Would free' : 'Freed'} ${total}${parts.length ? `: ${parts.join(', ')}` : ' (nothing to clean up)'}. ${kept}`));
+      [`${r.dry_run ? 'Would free' : 'Freed'} ${total}${parts.length ? `: ${parts.join(', ')}` : nothing}.`,
+        ...(r.dry_run ? [] : notes(r)), kept].join(' ')));
   };
+  const fail = (e) => clear(out, h('p', { class: 'error' }, e.message));
   preview.addEventListener('click', busy(preview, async () => {
-    try { show(await post('/storage/cleanup', { dry_run: true })); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); }
+    try { show(await post('/storage/cleanup', { dry_run: true })); } catch (e) { fail(e); }
   }));
   run.addEventListener('click', busy(run, async () => {
     let plan;
-    try { plan = await post('/storage/cleanup', { dry_run: true }); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); return; }
+    try { plan = await post('/storage/cleanup', { dry_run: true }); } catch (e) { fail(e); return; }
     const { parts, kept } = lines(plan);
     if (!parts.length) { show(plan); return; }
-    const body = `This deletes these files from this computer now, and it cannot be undone: ${parts.join(', ')}; ${fmtBytes(plan.would_free_bytes || 0)} in all. The posts already made stay where they are, and the record of what was sent is kept. ${kept}`;
+    // the confirmation names this preview, so only what it lists can be deleted; never run without it
+    if (!plan.plan_id) { fail(new Error('This preview cannot be confirmed. Reload the page and try again.')); return; }
+    const body = `This deletes these files from this computer now, and it cannot be undone: ${parts.join(', ')}; ${fmtBytes(plan.would_free_bytes || 0)} in all. Only these are deleted; anything that changed since this preview is left in place. The posts already made stay where they are, and the record of what was sent is kept. ${kept}`;
     if (!await confirmDialog({ title: 'Clean up now?', body, ok: 'Delete these files', danger: true })) return;
-    try { show(await post('/storage/cleanup', { dry_run: false })); } catch (e) { clear(out, h('p', { class: 'error' }, e.message)); }
+    try { show(await post('/storage/cleanup', { dry_run: false, plan_id: plan.plan_id })); } catch (e) { fail(e); }
+    await refresh();
   }));
-  return h('div', { class: 'stack', style: 'margin-bottom: 16px' },
-    h('dl', { class: 'kv' },
-      h('dt', {}, 'Active folder'), h('dd', {}, s.dir),
-      s.configured_dir && s.configured_dir !== s.dir
-        ? [h('dt', {}, 'After restart'), h('dd', {}, s.configured_dir)] : null,
-      h('dt', {}, 'Used'), h('dd', {}, `${fmtBytes(s.usage_bytes)} of ${fmtBytes(s.cap_bytes)} (${pct}%)`),
-      h('dt', {}, 'Free on disk'), h('dd', {}, fmtBytes(s.free_bytes)),
-      h('dt', {}, 'Kept because not posted yet'), h('dd', {}, fmtBytes(s.protected_bytes))),
-    h('div', { class: 'progress', role: 'img', 'aria-label': `Storage cap ${pct}% used` },
-      h('span', { style: `transform: scaleX(${pct / 100})` })),
-    s.health && s.health.state !== 'healthy' ? h('p', { class: 'note' }, (s.health.reasons || []).join(' ') || 'Storage needs attention.') : null,
-    h('div', { class: 'row' }, preview, run), out);
+  return h('div', { class: 'stack', style: 'margin-bottom: 16px' }, facts, h('div', { class: 'row' }, preview, run), out);
 }
 
 function browserNotifications() {

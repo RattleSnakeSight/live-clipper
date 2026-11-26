@@ -70,7 +70,7 @@ function row(c, refresh) {
 async function renderForm(main, id) {
   const [existing, formats, dests] = await Promise.all([
     id ? get(`/channels/${encodeURIComponent(id)}`) : null,
-    get('/formats').then((d) => list(d, 'formats')).catch(() => []),
+    get('/formats').then((d) => list(d, 'formats')).catch(() => null),
     get('/destinations').then((d) => list(d, 'destinations')).catch(() => []),
   ]);
   const c = existing || { url: '', watch_mode: 'ungated', poll_seconds: 120, format_id: null, publish_platforms: [], enabled: true };
@@ -102,8 +102,16 @@ async function renderForm(main, id) {
   const syncPoll = () => { pollSecs.el.hidden = mode.value() !== 'topic_gated'; };
   mode.inputs.forEach((i) => i.addEventListener('change', syncPoll));
   syncPoll();
+  const formatOptions = formats || [];
+  let formatHelp = 'Decides which moments become clips. Edit formats under Formats and rules.';
+  if (formats === null) formatHelp = 'Could not load the format list. Reopen this form to try again.';
   const fmt = h('select', { id: 'ch-format', help: 'Decides which moments become clips for this channel.', 'aria-describedby': 'ch-format-help' },
-    h('option', { value: '' }, 'The active format'), formats.map((f) => h('option', { value: f.id }, f.name || f.id)));
+    h('option', { value: '' }, 'The active format'), formatOptions.map((f) => h('option', { value: f.id }, f.name || f.id)));
+  // A missing catalog entry must not turn an unrelated edit into a format change.
+  if (c.format_id && !formatOptions.some((f) => f.id === c.format_id)) {
+    if (formats !== null) formatHelp = `The saved format ${c.format_id} is no longer listed. Keep it or choose another format.`;
+    fmt.append(h('option', { value: c.format_id }, `${c.format_id} (saved on this channel)`));
+  }
   fmt.value = c.format_id || '';
   const providers = [...new Set(dests.filter((d) => !d.test).map((d) => d.provider))];
   const destGroup = choiceGroup({ type: 'checkbox', legend: 'Where its clips may be posted', value: c.publish_platforms || [],
@@ -117,7 +125,7 @@ async function renderForm(main, id) {
   const form = h('form', { id: 'channel-form', class: 'panel narrow', novalidate: true },
     url.el, display.el, mode.el, pollSecs.el,
     h('div', { class: 'field' }, h('label', { for: 'ch-format' }, 'Format'),
-      h('p', { class: 'help', id: 'ch-format-help' }, 'Decides which moments become clips. Edit formats under Formats and rules.'), fmt),
+      h('p', { class: 'help', id: 'ch-format-help' }, formatHelp), fmt),
     destGroup.el, h('div', { style: 'margin-top: 16px' }, enabled.el), formErr,
     h('div', { class: 'row', style: 'margin-top: 20px' }, save,
       h('a', { class: 'btn ghost', href: '#/channels', help: 'Leave without saving.' }, 'Cancel')));
@@ -135,6 +143,11 @@ async function renderForm(main, id) {
     if (!id) body.url = url.input.value.trim();
     try {
       const saved = id ? await put(`/channels/${encodeURIComponent(id)}`, body) : await post('/channels', body);
+      if (id && saved.format_id !== body.format_id) {
+        formErr.textContent = `Format was not saved. The channel uses ${saved.format_id || 'the active format'}. Try saving again.`;
+        fmt.focus();
+        return;
+      }
       toast(id ? 'Channel saved.' : `${channelName(saved)} added.`);
       location.hash = '#/channels';
     } catch (ex) {

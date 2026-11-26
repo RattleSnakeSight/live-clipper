@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 from conftest import DONE, MockServer
@@ -81,6 +82,22 @@ def test_manual_post_from_review_queue(seeded_server, make_page):
     expect(page.locator("#toasts")).to_contain_text("automatically")
     page.goto(seeded_server.url + "/#/clips")
     expect(page.locator("#review-queue")).to_contain_text("Posting is automatic")
+    assert not page.js_errors
+
+
+def test_reject_refreshes_the_decision_and_post_controls(seeded_server, make_page):
+    page = make_page()
+    page.goto(seeded_server.url + "/#/clips/1")
+    decision = page.locator("section").filter(has=page.get_by_role("heading", name="Decision", exact=True))
+    decision.get_by_role("button", name="Reject", exact=True).press("Enter")
+    expect(decision.locator("li").first).to_contain_text("rejected")
+    expect(decision.get_by_role("button", name="Post anyway")).to_be_hidden()
+    expect(page.locator("#clip-editor [data-key^=post-]")).to_have_count(0)
+    expect(page.locator("#clip-editor [data-key^=cancel-]")).to_have_count(0)
+    page.goto(seeded_server.url + "/#/clips")
+    queue = page.locator("#review-queue")
+    expect(queue.get_by_role("heading", name="Waiting for your approval")).to_be_visible()
+    expect(queue.locator('a[href="#/clips/1"]')).to_have_count(0)
     assert not page.js_errors
 
 
@@ -330,3 +347,56 @@ def test_clip_without_preview_or_original_final(seeded_server, make_page, final)
         expect(page.get_by_text("The video is not ready yet.", exact=False)).to_be_visible()
         assert video.get_attribute("src") is None
     expect(page.get_by_text("Also post to:")).to_have_count(0)
+
+
+@pytest.mark.parametrize("save_result", ["refused", "previous-format"])
+def test_channel_format_save_failure_keeps_the_edit_and_can_retry(seeded_server, make_page, save_result):
+    page = make_page()
+    path = f"{seeded_server.url}/api/channels/1"
+    original = page.request.put(path, data={"format_id": "gta-vi"}).json()
+    page.goto(seeded_server.url + "/#/channels/1")
+    fmt = page.get_by_label("Format", exact=True)
+    fmt.select_option("")
+    save = page.get_by_role("button", name="Save changes")
+    if save_result == "refused":
+        page.route(path, lambda route: route.fulfill(status=503, json={"detail": "Temporarily unavailable"}))
+        message = "Temporarily unavailable"
+    else:
+        page.route(path, lambda route: route.fulfill(json=original))
+        message = "Format was not saved"
+    save.click()
+    expect(page.locator("#channel-form > [role=alert]")).to_contain_text(message)
+    expect(page.locator("#toasts")).not_to_contain_text("Channel saved.")
+    expect(fmt).to_have_value("")
+    assert page.request.get(path).json()["format_id"] == "gta-vi"
+    page.unroute(path)
+    save.click()
+    expect(page.locator("#toasts")).to_contain_text("Channel saved.")
+    assert page.request.get(path).json()["format_id"] is None
+
+
+@pytest.mark.parametrize("catalog_state", ["unavailable", "missing-saved-format"])
+def test_channel_preserves_format_and_explains_incomplete_choices(seeded_server, make_page, catalog_state):
+    page = make_page()
+    path = f"{seeded_server.url}/api/channels/1"
+    page.request.put(path, data={"format_id": "gta-vi"})
+    if catalog_state == "unavailable":
+        page.route("**/api/formats", lambda route: route.fulfill(status=503, body="Unavailable"))
+        message = "Could not load the format list. Reopen this form to try again."
+    else:
+        page.route("**/api/formats", lambda route: route.fulfill(json={"formats": []}))
+        message = "The saved format gta-vi is no longer listed. Keep it or choose another format."
+    page.goto(seeded_server.url + "/#/channels/1")
+    fmt = page.get_by_label("Format", exact=True)
+    expect(fmt).to_have_value("gta-vi")
+    expect(page.get_by_text(message, exact=True)).to_be_visible()
+    expect(fmt).to_have_accessible_description(re.compile(re.escape(message)))
+    page.get_by_label("Name shown in the app (optional)").fill("Updated name")
+    page.get_by_role("button", name="Save changes").click()
+    expect(page.locator("#toasts")).to_contain_text("Channel saved.")
+    after = page.request.get(path).json()
+    assert after["format_id"] == "gta-vi" and after["display_name"] == "Updated name"
+    page.unroute("**/api/formats")
+    page.goto(seeded_server.url + "/#/channels/1")
+    expect(fmt).to_have_value("gta-vi")
+    expect(page.get_by_text(message, exact=True)).to_have_count(0)

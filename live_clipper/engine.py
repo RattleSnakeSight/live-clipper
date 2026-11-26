@@ -708,7 +708,7 @@ class Engine:
 
     # ---- channels --------------------------------------------------------
     def arm(self, channel_id: int) -> None:
-        ch = self.store.channel(channel_id)
+        ch = self.store.active_channel(channel_id)
         if not ch:
             raise KeyError(channel_id)
         if why := refusal(ch):
@@ -813,7 +813,7 @@ class Engine:
         v = res["values"]
         start, end = self.window_for(m, trig.action_time, v)
         ids = self.simulcast_channels(m)
-        with self.store._lock:                        # read-modify-write of the trigger, like merge_json
+        with self.store.tx():                         # preserve concurrent reviews while merging another trigger
             rows = self.store.q(f"SELECT id, channel_id, action_time, window_end, trigger FROM clips WHERE "
                                 f"channel_id IN ({','.join('?' * len(ids))}) AND action_time>?", *ids,
                                 trig.action_time - 120)

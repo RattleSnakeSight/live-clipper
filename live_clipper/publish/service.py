@@ -488,7 +488,7 @@ class PublishService:
             self._guard()
             if body.mode not in ("auto", "manual"):
                 raise HTTPException(400, "mode must be auto or manual")
-            self.ctx.settings.set("publish.mode", body.mode)
+            self.pub.set_mode(body.mode)
             return {"mode": body.mode}
 
         @r.get("/publish/test-mode")
